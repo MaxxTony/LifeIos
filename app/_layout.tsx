@@ -1,24 +1,40 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { authService } from '@/services/authService';
+import { useStore } from '@/store/useStore';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const { setAuth } = useStore();
+
+  useEffect(() => {
+    // Subscribe to Firebase Auth state changes
+    const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
+      if (user) {
+        setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
+        // Fetch tasks and other data from Firestore
+        await useStore.getState().hydrateFromCloud();
+      } else {
+        setAuth(null, null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <ThemeProvider value={DarkTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="ai-chat" options={{ headerShown: true, title: 'AI Assistant', headerBackButtonDisplayMode: "generic" }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="light" />
     </ThemeProvider>
   );
 }
