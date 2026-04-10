@@ -86,15 +86,33 @@ export const useStore = create<UserState>()(
       },
       logout: () => set({ isAuthenticated: false, userId: null, userName: null, tasks: [], mood: null }),
       hydrateFromCloud: async () => {
-        const userId = authService.currentUser?.uid;
+        const userId = authService.currentUser?.uid || useStore.getState().userId;
         if (userId) {
-          const { data, error } = await dbService.getUserProfile(userId);
-          if (data) {
-            set({ 
-              tasks: data.tasks || [], 
-              mood: data.currentMood || null,
-              userName: data.userName || null 
-            });
+          try {
+            const { data, error } = await dbService.getUserProfile(userId);
+            if (error) throw new Error(error);
+            
+            if (data) {
+              set({ 
+                tasks: data.tasks || [], 
+                mood: data.currentMood || null,
+                userName: data.userName || (data.isGuest ? 'Guest' : null),
+                hasCompletedOnboarding: data.hasCompletedOnboarding || useStore.getState().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
+                onboardingData: {
+                  struggles: data.struggles || []
+                }
+              });
+            } else {
+              // User doc doesn't exist - could be a deleted account or incomplete setup
+              console.warn('User profile not found in Firestore.');
+            }
+          } catch (err: any) {
+            console.error('Cloud hydration failed:', err);
+            // If it's a permission error, it might mean the user was deleted/disabled
+            if (err.message?.includes('permission-denied')) {
+              await authService.logout();
+              set({ isAuthenticated: false, userId: null });
+            }
           }
         }
       },

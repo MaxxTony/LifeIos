@@ -51,7 +51,7 @@ export const authService = {
       const result = await createUserWithEmailAndPassword(auth, email, pass);
       return { user: result.user, error: null };
     } catch (error: any) {
-      return { user: null, error: error.message };
+      return { user: null, error: mapAuthErrorToMessage(error.code) };
     }
   },
 
@@ -61,7 +61,7 @@ export const authService = {
       const result = await signInWithEmailAndPassword(auth, email, pass);
       return { user: result.user, error: null };
     } catch (error: any) {
-      return { user: null, error: error.message };
+      return { user: null, error: mapAuthErrorToMessage(error.code) };
     }
   },
 
@@ -83,5 +83,43 @@ export const authService = {
     } catch (error: any) {
       return { error: error.message };
     }
+  },
+
+  // Validate session (Check if user still exists on server)
+  validateSession: async (user: User) => {
+    try {
+      await user.reload();
+      return true;
+    } catch (error: any) {
+      // If user is not found, it means they were deleted from the console
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/user-token-expired') {
+        return false;
+      }
+      // For other errors, we might still be offline, so we return true to avoid false logouts
+      return true;
+    }
+  }
+};
+
+const mapAuthErrorToMessage = (code: string): string => {
+  switch (code) {
+    case 'auth/user-not-found':
+      return 'No account found with this email';
+    case 'auth/wrong-password':
+      return 'Invalid credentials';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address';
+    case 'auth/email-already-in-use':
+      return 'This email is already registered';
+    case 'auth/invalid-credential':
+      return 'Invalid email or password';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters';
+    case 'auth/network-request-failed':
+      return 'Network error, please check your connection';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later';
+    default:
+      return 'Authentication failed. Please try again';
   }
 };

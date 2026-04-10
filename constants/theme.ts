@@ -54,22 +54,27 @@ export const BorderRadius = {
 
 export const Typography = {
   h1: {
+    fontFamily: 'Outfit-Bold',
     fontSize: 32,
     fontWeight: '700' as const,
   },
   h2: {
+    fontFamily: 'Outfit-Bold',
     fontSize: 24,
     fontWeight: '700' as const,
   },
   h3: {
+    fontFamily: 'Inter-SemiBold',
     fontSize: 20,
     fontWeight: '600' as const,
   },
   body: {
+    fontFamily: 'Inter-Regular',
     fontSize: 16,
     fontWeight: '400' as const,
   },
   caption: {
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     fontWeight: '400' as const,
     color: Colors.dark.textSecondary,

@@ -1,6 +1,6 @@
-import { View, ActivityIndicator } from 'react-native';
-import { Redirect } from 'expo-router';
 import { useStore } from '@/store/useStore';
+import { Redirect } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 export default function Index() {
   const { _hasHydrated, hasCompletedOnboarding, isAuthenticated } = useStore();
