@@ -54,5 +54,17 @@ export const dbService = {
     } catch (error: any) {
       return { error: error.message };
     }
+  },
+
+  // Real-time listener for user data
+  subscribeToUserData: (userId: string, onUpdate: (data: any) => void) => {
+    const docRef = doc(db, 'users', userId);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        onUpdate(docSnap.data());
+      }
+    }, (error) => {
+      console.error('Firestore subscription error:', error);
+    });
   }
 };

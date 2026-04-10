@@ -1,18 +1,15 @@
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { Typography } from '@/constants/theme';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { useStore } from '@/store/useStore';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Google from 'expo-auth-session/providers/google';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get('window');
 
@@ -79,17 +76,40 @@ export default function LoginScreen() {
   const router = useRouter();
   const { setAuth, onboardingData } = useStore();
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+
+  GoogleSignin.configure({
     webClientId: '191144362794-llbrvs0nlnsvfvumadefl58teuufpv8c.apps.googleusercontent.com',
     iosClientId: '191144362794-8k90o6dbsd0vghai83k7fj12opanvfms.apps.googleusercontent.com',
+    offlineAccess: true,
   });
 
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleLogin(id_token);
+
+  const onGoogleButtonPress = async () => {
+    setLoading('google');
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+
+      if (idToken) {
+        handleGoogleLogin(idToken);
+      } else {
+        throw new Error('No ID Token received');
+      }
+    } catch (error: any) {
+      console.log(error, "google login error ")
+      setLoading(null);
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress already
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Toast.show({ type: 'error', text1: 'Play Services', text2: 'Play services not available' });
+      } else {
+        Toast.show({ type: 'error', text1: 'Login Error', text2: error.message });
+      }
     }
-  }, [response]);
+  };
 
   const handleGoogleLogin = async (idToken: string) => {
     setLoading('google');
@@ -108,7 +128,7 @@ export default function LoginScreen() {
           createdAt: Date.now()
         });
       }
-      
+
       // Ensure local store also knows onboarding is done
       useStore.getState().completeOnboarding();
 
@@ -332,8 +352,8 @@ export default function LoginScreen() {
             <View style={styles.socialRow}>
               <TouchableOpacity
                 style={styles.googleButton}
-                onPress={() => promptAsync()}
-                disabled={!request || loading !== null}
+                onPress={onGoogleButtonPress}
+                disabled={loading !== null}
               >
                 {loading === 'google' ? (
                   <ActivityIndicator color="#000" />

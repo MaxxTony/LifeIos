@@ -3,12 +3,37 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dbService } from '@/services/dbService';
 import { authService } from '@/services/authService';
+import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 
 interface Task {
   id: string;
   text: string;
+  priority: 'high' | 'medium' | 'low';
+  date: string; // ISO date (YYYY-MM-DD)
   completed: boolean;
   createdAt: number;
+  dueTime?: number;
+  startTime?: string; // e.g. "06:00 PM"
+  endTime?: string;   // e.g. "07:00 PM"
+  status: 'pending' | 'completed' | 'missed';
+  systemComment?: string;
+}
+
+interface Habit {
+  id: string;
+  title: string;
+  completedDays: string[]; // ISO Dates (e.g. "2024-04-10")
+}
+
+interface FocusSession {
+  totalSecondsToday: number;
+  isActive: boolean;
+  lastStartTime: number | null;
+}
+
+interface MoodEntry {
+  mood: string;
+  timestamp: number;
 }
 
 interface UserState {
@@ -21,24 +46,68 @@ interface UserState {
     struggles: string[];
   };
   tasks: Task[];
+  habits: Habit[];
+  focusSession: FocusSession;
+  focusGoalHours: number;
+  focusHistory: Record<string, number>; // Date -> totalSeconds
+  moodHistory: MoodEntry[];
   mood: string | null;
+  lastResetDate: string | null;
 
   // Actions
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
   setAuth: (userId: string | null, userName: string | null) => void;
   setOnboardingData: (data: Partial<UserState['onboardingData']>) => void;
-  addTask: (text: string) => void;
+  addTask: (text: string, startTime?: string, endTime?: string, priority?: Task['priority'], date?: string) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
   toggleTask: (id: string) => void;
+  removeTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
+  checkMissedTasks: () => void;
+  performDailyReset: () => void;
+  
+  // Habit Actions
+  addHabit: (title: string) => void;
+  removeHabit: (id: string) => void;
+  toggleHabit: (id: string) => void;
+  
+  // Focus Actions
+  setFocusGoal: (hours: number) => void;
+  toggleFocusSession: () => void;
+  updateFocusTime: () => void;
+  
   setMood: (mood: string) => void;
   logout: () => void;
   hydrateFromCloud: () => Promise<void>;
+  
+  // Cloud Sync
+  subscribeToCloud: () => void;
+  _syncUnsubscribe: (() => void) | null;
+  
+  // Utilities
+  getStreak: (habitId: string) => number;
 }
+
+const migrateTasks = (tasks: Task[]): Task[] => {
+  return tasks.map(task => {
+    let migrated = { ...task };
+    if (!migrated.date) {
+      migrated.date = formatLocalDate(new Date(task.createdAt));
+    }
+    if (!migrated.priority) {
+      migrated.priority = 'medium';
+    }
+    if (!migrated.status) {
+      migrated.status = 'pending';
+    }
+    return migrated;
+  });
+};
 
 export const useStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       _hasHydrated: false,
       hasCompletedOnboarding: false,
       isAuthenticated: false,
@@ -48,67 +117,284 @@ export const useStore = create<UserState>()(
         struggles: [],
       },
       tasks: [],
+      habits: [],
+      focusSession: {
+        totalSecondsToday: 0,
+        isActive: false,
+        lastStartTime: null,
+      },
+      focusGoalHours: 8,
+      focusHistory: {},
+      moodHistory: [],
       mood: null,
+      lastResetDate: null,
+      _syncUnsubscribe: null,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
-      setAuth: (userId, userName) => set({ userId, userName, isAuthenticated: !!userId }),
+      setAuth: (userId, userName) => {
+        const currentUnsub = get()._syncUnsubscribe;
+        if (currentUnsub) currentUnsub();
+        
+        set({ userId, userName, isAuthenticated: !!userId });
+        
+        if (userId) {
+          get().subscribeToCloud();
+        }
+      },
       setOnboardingData: (data) => set((state) => ({ 
         onboardingData: { ...state.onboardingData, ...data } 
       })),
-      addTask: async (text) => {
-        const newTask = { id: Math.random().toString(36).substring(7), text, completed: false, createdAt: Date.now() };
+
+      addTask: async (text, startTime, endTime, priority = 'medium', date = getTodayLocal()) => {
+        let dueTime: number | undefined;
+        
+        if (startTime) {
+          // Parse "09:00 AM" into today's timestamp
+          const [time, modifier] = startTime.split(' ');
+          let [hours, minutes] = time.split(':').map(Number);
+          if (modifier === 'PM' && hours < 12) hours += 12;
+          if (modifier === 'AM' && hours === 12) hours = 0;
+          
+          // Parse "YYYY-MM-DD" into local date components
+          const [year, month, day] = date.split('-').map(Number);
+          const targetDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+          dueTime = targetDate.getTime();
+        }
+
+        const newTask: Task = { 
+          id: Math.random().toString(36).substring(7), 
+          text, 
+          priority,
+          date,
+          completed: false, 
+          createdAt: Date.now(),
+          startTime,
+          endTime,
+          dueTime,
+          status: 'pending'
+        };
         set((state) => {
           const newTasks = [...state.tasks, newTask];
-          if (state.userId) {
-            dbService.syncTasks(state.userId, newTasks);
-          }
+          if (state.userId) dbService.syncTasks(state.userId, newTasks);
           return { tasks: newTasks };
         });
       },
+
+      updateTask: (id, updates) => set((state) => {
+        const newTasks = state.tasks.map(t => t.id === id ? { ...t, ...updates } : t);
+        if (state.userId) dbService.syncTasks(state.userId, newTasks);
+        return { tasks: newTasks };
+      }),
+
       toggleTask: async (id) => {
         set((state) => {
-          const newTasks = state.tasks.map((t) => t.id === id ? { ...t, completed: !t.completed } : t);
-          if (state.userId) {
-            dbService.syncTasks(state.userId, newTasks);
-          }
+          const newTasks: Task[] = state.tasks.map((t) => 
+            t.id === id ? { 
+              ...t, 
+              completed: !t.completed, 
+              status: (!t.completed ? 'completed' : 'pending') as Task['status']
+            } : t
+          );
+          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          return { tasks: newTasks };
+        });
+      },
+
+      removeTask: (id) => {
+        set((state) => {
+          const newTasks = state.tasks.filter((t) => t.id !== id);
+          if (state.userId) dbService.syncTasks(state.userId, newTasks);
           return { tasks: newTasks };
         });
       },
       setTasks: (tasks) => set({ tasks }),
+
+      addHabit: (title) => set((state) => ({
+        habits: [...state.habits, { id: Math.random().toString(36).substring(7), title, completedDays: [] }]
+      })),
+      removeHabit: (id) => set((state) => ({
+        habits: state.habits.filter(h => h.id !== id)
+      })),
+      toggleHabit: (id) => set((state) => ({
+        habits: state.habits.map(h => {
+          if (h.id === id) {
+            const today = new Date().toISOString().split('T')[0];
+            const isCompleted = h.completedDays.includes(today);
+            return {
+              ...h,
+              completedDays: isCompleted 
+                ? h.completedDays.filter(d => d !== today)
+                : [...h.completedDays, today]
+            };
+          }
+          return h;
+        })
+      })),
+      getStreak: (id) => {
+        const habit = get().habits.find(h => h.id === id);
+        if (!habit) return 0;
+        let streak = 0;
+        const today = new Date();
+        for (let i = 0; i < 365; i++) {
+          const checkDate = new Date();
+          checkDate.setDate(today.getDate() - i);
+          const dateStr = checkDate.toISOString().split('T')[0];
+          if (habit.completedDays.includes(dateStr)) {
+            streak++;
+          } else if (i > 0) { // If missing a day (other than potentially today), streak breaks
+            break;
+          }
+        }
+        return streak;
+      },
+
+      setFocusGoal: (hours) => set({ focusGoalHours: hours }),
+      checkMissedTasks: () => set((state) => {
+        const now = new Date();
+        let changed = false;
+        const newTasks = state.tasks.map(task => {
+          if (task.status === 'pending' && task.endTime) {
+            // Parse "06:00 PM" to Date
+            const [time, modifier] = task.endTime.split(' ');
+            let [hours, minutes] = time.split(':').map(Number);
+            if (modifier === 'PM' && hours < 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+            
+            const endDateTime = new Date();
+            endDateTime.setHours(hours, minutes, 0, 0);
+
+            if (now > endDateTime) {
+              changed = true;
+              return { 
+                ...task, 
+                status: 'missed' as const, 
+                systemComment: 'You missed this daily task! 😔' 
+              };
+            }
+          }
+          return task;
+        });
+
+        if (changed) {
+          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          return { tasks: newTasks };
+        }
+        return state;
+      }),
+
+      performDailyReset: () => set((state) => {
+        const today = getTodayLocal();
+        if (state.lastResetDate === today) return state;
+
+        // Archive yesterday's focus to history
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
+        const newFocusHistory = { 
+          ...state.focusHistory, 
+          [yesterdayStr]: state.focusSession.totalSecondsToday 
+        };
+
+        // Reset tasks list (keep as empty for now, or move to history in DB)
+        // In a real app we'd archive these tasks to a "history" collection
+        
+        return {
+          lastResetDate: today,
+          tasks: [] as Task[],
+          focusSession: { ...state.focusSession, totalSecondsToday: 0 },
+          focusHistory: newFocusHistory
+        };
+      }),
+
+      toggleFocusSession: () => set((state) => {
+        const now = Date.now();
+        if (state.focusSession.isActive) {
+          // Stopping: Calculate final elapsed from last sync
+          const elapsed = state.focusSession.lastStartTime ? (now - state.focusSession.lastStartTime) / 1000 : 0;
+          return {
+            focusSession: {
+              ...state.focusSession,
+              isActive: false,
+              totalSecondsToday: Math.max(0, state.focusSession.totalSecondsToday + elapsed),
+              lastStartTime: null
+            }
+          };
+        } else {
+          // Starting: Record start time
+          return {
+            focusSession: {
+              ...state.focusSession,
+              isActive: true,
+              lastStartTime: now
+            }
+          };
+        }
+      }),
+      updateFocusTime: () => set((state) => {
+        if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
+        const now = Date.now();
+        const elapsed = (now - state.focusSession.lastStartTime) / 1000;
+        // Reset check: if it's a new day, reset totalSecondsToday (simplistic for now)
+        // In a real app we'd compare dates of lastStartTime and now
+        return {
+          focusSession: {
+            ...state.focusSession,
+            totalSecondsToday: state.focusSession.totalSecondsToday + elapsed,
+            lastStartTime: now
+          }
+        };
+      }),
+
       setMood: async (mood) => {
+        const entry = { mood, timestamp: Date.now() };
         set((state) => {
           if (state.userId) {
-            dbService.saveMood(state.userId, { mood, timestamp: Date.now() });
+            dbService.saveMood(state.userId, entry);
           }
-          return { mood };
+          const newHistory = [...state.moodHistory, entry].slice(-20); // Keep last 20
+          return { 
+            mood,
+            moodHistory: newHistory
+          };
         });
       },
-      logout: () => set({ isAuthenticated: false, userId: null, userName: null, tasks: [], mood: null }),
+      logout: () => {
+        const unsub = get()._syncUnsubscribe;
+        if (unsub) unsub();
+        
+        set({ 
+          isAuthenticated: false, userId: null, userName: null, 
+          tasks: [], mood: null, habits: [], moodHistory: [],
+          _syncUnsubscribe: null,
+          focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null }
+        });
+      },
       hydrateFromCloud: async () => {
-        const userId = authService.currentUser?.uid || useStore.getState().userId;
+        const userId = authService.currentUser?.uid || get().userId;
         if (userId) {
           try {
             const { data, error } = await dbService.getUserProfile(userId);
             if (error) throw new Error(error);
             
             if (data) {
+              const migratedTasks = migrateTasks(data.tasks || []);
               set({ 
-                tasks: data.tasks || [], 
+                tasks: migratedTasks, 
                 mood: data.currentMood || null,
                 userName: data.userName || (data.isGuest ? 'Guest' : null),
-                hasCompletedOnboarding: data.hasCompletedOnboarding || useStore.getState().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
+                hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
                 onboardingData: {
                   struggles: data.struggles || []
-                }
+                },
+                habits: data.habits || [],
+                moodHistory: data.moodHistory || [],
+                focusGoalHours: data.focusGoalHours || 8
               });
-            } else {
-              // User doc doesn't exist - could be a deleted account or incomplete setup
-              console.warn('User profile not found in Firestore.');
             }
           } catch (err: any) {
             console.error('Cloud hydration failed:', err);
-            // If it's a permission error, it might mean the user was deleted/disabled
             if (err.message?.includes('permission-denied')) {
               await authService.logout();
               set({ isAuthenticated: false, userId: null });
@@ -116,7 +402,35 @@ export const useStore = create<UserState>()(
           }
         }
       },
+
+      subscribeToCloud: () => {
+        const userId = get().userId;
+        if (!userId) return;
+
+        // Clean up existing listener if any
+        if (get()._syncUnsubscribe) {
+          get()._syncUnsubscribe?.();
+        }
+
+        const unsub = dbService.subscribeToUserData(userId, (data) => {
+          if (!data) return;
+          
+          // Only update if we are not in an active session to avoid overwriting non-synced focus time
+          // unless focus time is explicitly different on server
+          const migratedTasks = migrateTasks(data.tasks || []);
+          set({
+            tasks: migratedTasks,
+            mood: data.currentMood || get().mood,
+            moodHistory: data.moodHistory || get().moodHistory,
+            habits: data.habits || get().habits,
+            focusGoalHours: data.focusGoalHours || get().focusGoalHours
+          });
+        });
+
+        set({ _syncUnsubscribe: unsub });
+      },
     }),
+
     {
       name: 'lifeos-storage',
       storage: createJSONStorage(() => AsyncStorage),

@@ -1,0 +1,403 @@
+import { Spacing, Typography } from '@/constants/theme';
+import { useStore } from '@/store/useStore';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export default function TaskDetailScreen() {
+  const { id } = useLocalSearchParams();
+  const router = useRouter();
+  const { tasks, toggleTask, removeTask } = useStore();
+
+  const task = tasks.find(t => t.id === id);
+
+  if (!task) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Task not found</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backLink}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const handleToggle = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toggleTask(task.id);
+    router.back();
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Task',
+      'Are you sure you want to delete this task? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            removeTask(task.id);
+            router.back();
+          }
+        }
+      ]
+    );
+  };
+
+  const priorityColors = {
+    high: '#FF4B4B',
+    medium: '#FFB347',
+    low: '#00D68F'
+  };
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={['#0B0B15', '#08080C']} style={StyleSheet.absoluteFill} />
+
+      {/* Background Glows */}
+      <LinearGradient 
+        colors={['rgba(124, 92, 255, 0.2)', 'transparent']} 
+        style={[styles.glow, { top: -100, left: -50 }]} 
+      />
+      <LinearGradient 
+        colors={['rgba(91, 140, 255, 0.2)', 'transparent']} 
+        style={[styles.glow, { bottom: 100, right: -100 }]} 
+      />
+
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+            <Ionicons name="close" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Task Details</Text>
+          <View style={styles.headerActions}>
+            {!task.completed && (
+              <TouchableOpacity 
+                onPress={() => router.push(`/tasks/edit/${task.id}`)} 
+                style={styles.editBtn}
+              >
+                <Ionicons name="create-outline" size={20} color="#FFF" />
+              </TouchableOpacity>
+            )}
+            {!task.completed ? (
+              <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+                <Ionicons name="trash-outline" size={20} color="#FF4B4B" />
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 44 }} />
+            )}
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <BlurView intensity={20} tint="dark" style={styles.card}>
+            <View style={[styles.priorityBadge, { backgroundColor: priorityColors[task.priority || 'medium'] + '20' }]}>
+              <Ionicons name="flag" size={14} color={priorityColors[task.priority || 'medium']} />
+              <Text style={[styles.priorityText, { color: priorityColors[task.priority || 'medium'] }]}>
+                {(task.priority || 'medium').toUpperCase()}
+              </Text>
+            </View>
+
+            <Text style={styles.taskTitle}>{task.text}</Text>
+
+            {task.systemComment && (
+              <View style={styles.commentBox}>
+                <Ionicons name="alert-circle-outline" size={16} color="#FF4B4B" style={{ marginRight: 8, marginTop: 2 }} />
+                <Text style={styles.commentText}>{task.systemComment}</Text>
+              </View>
+            )}
+
+            <View style={styles.infoGrid}>
+              <View style={styles.infoItem}>
+                <View style={[styles.infoIconBox, { backgroundColor: 'rgba(124, 92, 255, 0.15)' }]}>
+                  <Ionicons name="calendar" size={20} color="#7C5CFF" />
+                </View>
+                <View>
+                  <Text style={styles.infoLabel}>Scheduled for</Text>
+                  <Text style={styles.infoValue}>{task.date}</Text>
+                </View>
+              </View>
+
+              <View style={styles.infoItem}>
+                <View style={[styles.infoIconBox, { backgroundColor: 'rgba(0, 214, 143, 0.15)' }]}>
+                  <Ionicons name="time" size={20} color="#00D68F" />
+                </View>
+                <View>
+                  <Text style={styles.infoLabel}>Time Block</Text>
+                  <Text style={styles.infoValue}>{task.startTime} — {task.endTime}</Text>
+                </View>
+              </View>
+            </View>
+          </BlurView>
+
+          <View style={styles.statusSection}>
+            <Text style={styles.sectionTitle}>Task Progress</Text>
+            <View style={styles.statusContainer}>
+              <View style={[styles.statusLine, task.completed ? styles.lineCompleted : styles.linePending]} />
+              <View style={[styles.statusIndicator, task.completed ? styles.indicatorCompleted : styles.indicatorPending]}>
+                <Ionicons
+                  name={task.completed ? "checkmark" : "sync"}
+                  size={14}
+                  color="#FFF"
+                />
+              </View>
+              <Text style={styles.statusText}>
+                {task.status === 'completed' ? 'Tasks finalized and archived' :
+                  task.status === 'missed' ? 'Deadline passed without completion' :
+                    'Work in progress...'}
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+
+        {!task.completed && (
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
+              <LinearGradient
+                colors={['#7C5CFF', '#5B8CFF']}
+                style={styles.gradientBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.completeBtnText}>Mark as Completed</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    height: 60,
+  },
+  headerTitle: {
+    ...Typography.h3,
+    color: '#FFF',
+    fontSize: 18,
+    fontFamily: 'Outfit-Bold',
+  },
+  closeBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 22,
+  },
+  deleteBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 75, 75, 0.1)',
+    borderRadius: 12,
+  },
+  editBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  content: {
+    padding: Spacing.md,
+    gap: 24,
+  },
+  card: {
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
+  priorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 6,
+    marginBottom: 16,
+  },
+  priorityText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  taskTitle: {
+    ...Typography.h1,
+    color: '#FFF',
+    fontSize: 32,
+    lineHeight: 40,
+    fontFamily: 'Outfit-Bold',
+    marginVertical: 20,
+  },
+  statusSection: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 16,
+    letterSpacing: 1,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  statusLine: {
+    position: 'absolute',
+    left: 28,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    opacity: 0.1,
+  },
+  linePending: { backgroundColor: '#7C5CFF' },
+  lineCompleted: { backgroundColor: '#00D68F' },
+  statusIndicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  indicatorPending: { backgroundColor: 'rgba(124, 92, 255, 0.3)' },
+  indicatorCompleted: { backgroundColor: 'rgba(0, 214, 143, 0.3)' },
+  statusText: {
+    flex: 1,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  infoGrid: {
+    gap: 20,
+    marginTop: 8,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  infoIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commentBox: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 75, 75, 0.08)',
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 75, 75, 0.15)',
+  },
+  commentText: {
+    flex: 1,
+    color: '#FF7676',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  footer: {
+    padding: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 34 : Spacing.md,
+    backgroundColor: 'transparent',
+  },
+  glow: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    opacity: 0.15,
+  },
+  completeBtn: {
+    height: 60,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#7C5CFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  gradientBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completeBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 18,
+    marginBottom: 10,
+  },
+  backLink: {
+    color: '#7C5CFF',
+    fontSize: 16,
+  }
+});
