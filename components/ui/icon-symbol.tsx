@@ -20,6 +20,14 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
   'sparkles': 'auto-fix-high',
+  'plus': 'add',
+  'camera.fill': 'photo-camera',
+  'photo.fill': 'image',
+  'paperclip': 'attach-file',
+  'trash.fill': 'delete',
+  'waveform': 'graphic-eq',
+  'arrow.up': 'arrow-upward',
+  'clock.arrow.2.circlepath': 'history',
 } as IconMapping;
 
 /**

@@ -1,5 +1,4 @@
 import { 
-  signInAnonymously, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
@@ -34,16 +33,7 @@ export const authService = {
     }
   },
 
-  // Guest Login
-  loginAsGuest: async () => {
-    try {
-      const result = await signInAnonymously(auth);
-      return { user: result.user, error: null };
-    } catch (error: any) {
-      console.error('Guest login error:', error);
-      return { user: null, error: error.message };
-    }
-  },
+
 
   // Email/Password Signup
   signUp: async (email: string, pass: string) => {

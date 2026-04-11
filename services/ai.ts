@@ -1,75 +1,213 @@
+import { useStore } from '@/store/useStore';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { aiActionHandler } from './aiActionHandler';
+
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
-const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-export const getAIResponse = async (messages: { role: 'user' | 'assistant' | 'system', content: string }[]) => {
-  try {
-    // Check for existing system prompt, if not found, add the default one
-    const hasSystemPrompt = messages.some(m => m.role === 'system');
-    const finalMessages = hasSystemPrompt 
-      ? messages 
-      : [{ role: 'system', content: 'You are LifeOS, a helpful, minimalist AI assistant focused on helping users stay productive and reduce stress.' }, ...messages];
+// Initialize Gemini
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+/**
+ * Generates a comprehensive snapshot of the app's current state 
+ * to provide the AI with context.
+ */
+const getCurrentAppContext = () => {
+  const state = useStore.getState();
+  const today = new Date().toISOString().split('T')[0];
+
+  const context = {
+    user: {
+      name: state.userName || 'User',
+      struggles: state.onboardingData.struggles,
+    },
+    today: {
+      date: today,
+      tasks: state.tasks.filter(t => t.date === today).map(t => ({
+        text: t.text,
+        priority: t.priority,
+        status: t.status,
+        timing: t.startTime ? `${t.startTime} - ${t.endTime}` : 'No time set'
+      })),
+      focusTimeMinutes: Math.round(state.focusSession.totalSecondsToday / 60),
+      focusGoalHours: state.focusGoalHours,
+      currentMood: state.moodHistory[today]?.mood || 'Not logged'
+    },
+    habits: state.habits.map(h => ({
+      title: h.title,
+      frequency: h.frequency,
+      isCompletedToday: h.completedDays.includes(today),
+      streak: state.getStreak(h.id)
+    }))
+  };
+
+  return `CURRENT APP STATE SNAPSHOT (${today}):\n${JSON.stringify(context, null, 2)}`;
+};
+
+/**
+ * Tool definitions for Gemini Function Calling
+ */
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: 'addTask',
+        description: 'Add a new task to the user\'s daily list.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            text: { type: SchemaType.STRING, description: 'The task description' },
+            priority: { type: SchemaType.STRING, enum: ['high', 'medium', 'low'], description: 'Task priority' },
+            startTime: { type: SchemaType.STRING, description: 'Optional start time (e.g. "09:00 AM")' },
+            endTime: { type: SchemaType.STRING, description: 'Optional end time (e.g. "10:00 AM")' },
+          },
+          required: ['text'],
+        },
       },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: finalMessages,
-        temperature: 0.7,
-        max_tokens: 1024,
-      }),
+      {
+        name: 'addHabit',
+        description: 'Create a new habit for the user to track.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            title: { type: SchemaType.STRING, description: 'The habit name (e.g. Drink Water)' },
+            category: { type: SchemaType.STRING, description: 'Category (Health, Work, Personal, etc.)' },
+            frequency: { type: SchemaType.STRING, enum: ['daily', 'weekly', 'monthly'], description: 'How often' },
+          },
+          required: ['title'],
+        },
+      },
+      {
+        name: 'setMood',
+        description: 'Log the user\'s current mood and emotions.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            mood: { type: SchemaType.NUMBER, description: 'Mood level from 1 (Awful) to 5 (Amazing)' },
+            note: { type: SchemaType.STRING, description: 'Optional note about how they feel' },
+            emotions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'List of specific emotions' },
+          },
+          required: ['mood'],
+        },
+      },
+    ],
+  },
+];
+
+export const getAIResponse = async (
+  messages: { role: 'user' | 'assistant' | 'system', content: string, image?: { base64: string, mimeType: string } }[]
+) => {
+  if (!genAI) {
+    console.warn('Gemini API key missing, falling back to legacy responder (if available)');
+    return 'Gemini API key is not configured. Please check your .env file.';
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction: `You are LifeOS, a premium personal assistant. 
+      You help users manage tasks, habits, and moods. 
+      Be supportive, proactive, and concise. 
+      You have access to the user's current app state via context.
+      Important: You can actually perform actions like adding tasks or habits using the provided tools. 
+      If a user asks to "remind me to..." or "add a habit...", use the tools!
+      If the user provides an image, analyze it carefully to help them.
+      
+      ${getCurrentAppContext()}`,
+      tools: tools as any,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Groq API Error:', errorData);
-      throw new Error(`Groq API error: ${response.status}`);
+    // Format messages for Gemini Chat API
+    const history = messages.slice(0, -1).map(m => {
+      const parts: any[] = [{ text: m.content }];
+      if (m.image) {
+        parts.push({
+          inlineData: {
+            data: m.image.base64,
+            mimeType: m.image.mimeType
+          }
+        });
+      }
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts,
+      };
+    });
+
+    const lastMsg = messages[messages.length - 1];
+    const lastParts: any[] = [{ text: lastMsg.content }];
+    if (lastMsg.image) {
+      lastParts.push({
+        inlineData: {
+          data: lastMsg.image.base64,
+          mimeType: lastMsg.image.mimeType
+        }
+      });
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(lastParts);
+    const response = await result.response;
+
+    // Handle potential tool calls
+    const calls = response.functionCalls();
+    if (calls && calls.length > 0) {
+      const toolResults: any = {};
+
+      for (const call of calls) {
+        if (call.name === 'addTask') {
+          toolResults[call.name] = aiActionHandler.handleAddTask(call.args as any);
+        } else if (call.name === 'addHabit') {
+          toolResults[call.name] = aiActionHandler.handleAddHabit(call.args as any);
+        } else if (call.name === 'setMood') {
+          toolResults[call.name] = aiActionHandler.handleSetMood(call.args as any);
+        }
+      }
+
+      // Send tool results back to get final response
+      const result2 = await chat.sendMessage([{
+        functionResponse: {
+          name: calls[0].name,
+          response: toolResults[calls[0].name]
+        }
+      }]);
+      return result2.response.text();
+    }
+
+    return response.text();
   } catch (error) {
-    console.error('Groq AI Service Error:', error);
-    return 'I am sorry, I am having trouble connecting to the system right now.';
+    console.error('Gemini AI Service Error:', error);
+    return 'I am sorry, I am having trouble connecting to my brain right now.';
   }
 };
 
 /**
- * Fetches a short, powerful motivational quote for focus sessions.
+ * LEGACY/FALLBACK SUPPORT (Keeping Groq logic commented)
+ * To use Groq, uncomment and update getAIResponse to switch based on config.
  */
+/*
+const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+export const getGroqResponse = async (messages: any) => { ... }
+*/
+
 export const getFocusQuote = async () => {
-  const content = await getAIResponse([
-    { 
-      role: 'system', 
-      content: 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words. No hashtags, no quotation marks. Do not repeat famous quotes, try something fresh.' 
-    }
-  ]);
-  
-  // Basic validation to ensure we don't return the error message
-  if (content.includes('I am sorry') || content.length < 5) return null;
-  return content;
+  try {
+    const model = genAI?.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model?.generateContent('Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.');
+    return result?.response.text() || null;
+  } catch {
+    return null;
+  }
 };
 
-/**
- * Analyzes mood history and generates a personalized insight.
- */
-export const getMoodInsight = async (moodData: { mood: number; activities?: string[]; emotions?: string[] }[]) => {
-  if (moodData.length < 3) return null; // Need minimum data
-  
-  const summary = moodData.map((m, i) => 
-    `Day ${i + 1}: Level ${m.mood}/5${m.activities?.length ? `, activities: ${m.activities.join(', ')}` : ''}${m.emotions?.length ? `, emotions: ${m.emotions.join(', ')}` : ''}`
-  ).join('. ');
-
-  const content = await getAIResponse([
-    { 
-      role: 'system', 
-      content: `You are a concise wellness coach. Analyze this mood data and give ONE short, actionable insight (max 25 words). Be specific about patterns you see. No generic advice. Data: ${summary}` 
-    }
-  ]);
-  
-  if (content.includes('I am sorry') || content.length < 5) return null;
-  return content;
+export const getMoodInsight = async (moodData: any[]) => {
+  if (moodData.length < 3) return null;
+  const summary = JSON.stringify(moodData);
+  try {
+    const model = genAI?.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model?.generateContent(`Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`);
+    return result?.response.text() || null;
+  } catch {
+    return null;
+  }
 };

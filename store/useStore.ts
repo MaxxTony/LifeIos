@@ -67,6 +67,16 @@ interface UserState {
   mood: string | null;
   moodTheme: 'classic' | 'panda' | 'cat';
   lastResetDate: string | null;
+  bio: string | null;
+  location: string | null;
+  occupation: string | null;
+  avatarUrl: string | null;
+  socialLinks: {
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+    website?: string;
+  };
 
   // Actions
   setHasHydrated: (state: boolean) => void;
@@ -82,7 +92,7 @@ interface UserState {
   performDailyReset: () => void;
   
   // Habit Actions
-  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt'> & { id?: string }) => void;
+  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
   toggleHabit: (id: string) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
@@ -94,6 +104,14 @@ interface UserState {
   
   setMood: (mood: number, extras?: { activities?: string[]; emotions?: string[]; note?: string; reason?: string }, date?: string) => void;
   setMoodTheme: (theme: 'classic' | 'panda' | 'cat') => void;
+  updateProfile: (updates: Partial<{
+    userName: string;
+    bio: string;
+    location: string;
+    occupation: string;
+    avatarUrl: string;
+    socialLinks: UserState['socialLinks'];
+  }>) => Promise<void>;
   logout: () => void;
   hydrateFromCloud: () => Promise<void>;
   
@@ -159,6 +177,11 @@ export const useStore = create<UserState>()(
       mood: null,
       moodTheme: 'classic',
       lastResetDate: null,
+      bio: null,
+      location: null,
+      occupation: null,
+      avatarUrl: null,
+      socialLinks: {},
       _syncUnsubscribe: null,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -447,10 +470,20 @@ export const useStore = create<UserState>()(
           };
         });
       },
+      setMoodTheme: (theme) => set((state) => {
+        if (state.userId) dbService.saveMoodTheme(state.userId, theme);
+        return { moodTheme: theme };
+      }),
+      updateProfile: async (updates) => {
+        const { userId } = get();
+        if (!userId) return;
+        
+        set((state) => ({ ...state, ...updates }));
+        await dbService.saveUserProfile(userId, updates);
+      },
       logout: () => {
         const unsub = get()._syncUnsubscribe;
         if (unsub) unsub();
-        
         set({ 
           isAuthenticated: false, userId: null, userName: null, 
           tasks: [], mood: null, habits: [], moodHistory: {},
@@ -458,10 +491,6 @@ export const useStore = create<UserState>()(
           focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null }
         });
       },
-      setMoodTheme: (theme) => set((state) => {
-        if (state.userId) dbService.saveMoodTheme(state.userId, theme);
-        return { moodTheme: theme };
-      }),
       hydrateFromCloud: async () => {
         const userId = authService.currentUser?.uid || get().userId;
         if (userId) {
@@ -474,7 +503,7 @@ export const useStore = create<UserState>()(
               set({ 
                 tasks: migratedTasks, 
                 mood: data.currentMood || null,
-                userName: data.userName || (data.isGuest ? 'Guest' : null),
+                userName: data.userName || null,
                 hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
                 onboardingData: {
                   struggles: data.struggles || []
@@ -482,7 +511,12 @@ export const useStore = create<UserState>()(
                 habits: data.habits || [],
                 moodHistory: data.moodHistory ? migrateMoodHistory(data.moodHistory) : get().moodHistory,
                 moodTheme: data.moodTheme || get().moodTheme,
-                focusGoalHours: data.focusGoalHours || 8
+                focusGoalHours: data.focusGoalHours || 8,
+                bio: data.bio || null,
+                location: data.location || null,
+                occupation: data.occupation || null,
+                avatarUrl: data.avatarUrl || null,
+                socialLinks: data.socialLinks || {}
               });
             }
           } catch (err: any) {
@@ -516,7 +550,12 @@ export const useStore = create<UserState>()(
             moodHistory: data.moodHistory ? migrateMoodHistory(data.moodHistory) : get().moodHistory,
             moodTheme: data.moodTheme || get().moodTheme,
             habits: data.habits || get().habits,
-            focusGoalHours: data.focusGoalHours || get().focusGoalHours
+            focusGoalHours: data.focusGoalHours || get().focusGoalHours,
+            bio: data.bio !== undefined ? data.bio : get().bio,
+            location: data.location !== undefined ? data.location : get().location,
+            occupation: data.occupation !== undefined ? data.occupation : get().occupation,
+            avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : get().avatarUrl,
+            socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks
           });
         });
 

@@ -14,6 +14,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
+// No longer using Firebase Storage to avoid billing requirements
+// Images are stored as Base64 strings in the database
+
 export interface ChatConversation {
   id: string;
   title: string;
@@ -26,6 +29,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  imageUrl?: string;
   createdAt: any;
 }
 
@@ -92,19 +96,21 @@ export const chatService = {
     userId: string, 
     conversationId: string, 
     role: 'user' | 'assistant', 
-    content: string
+    content: string,
+    imageUrl?: string
   ) => {
     try {
       // 1. Add the message to the subcollection
       await addDoc(collection(db, 'users', userId, 'conversations', conversationId, 'messages'), {
         role,
         content,
+        imageUrl: imageUrl || null,
         createdAt: serverTimestamp(),
       });
 
       // 2. Update the conversation metadata
       await updateDoc(doc(db, 'users', userId, 'conversations', conversationId), {
-        lastMessage: content,
+        lastMessage: imageUrl ? 'Sent an image' : content,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
@@ -112,12 +118,31 @@ export const chatService = {
     }
   },
 
+  // Process an image and return a data URL that can be stored in the database
+  uploadImage: async (userId: string, uri: string, base64?: string, mimeType?: string): Promise<string> => {
+    if (base64 && mimeType) {
+      return `data:${mimeType};base64,${base64}`;
+    }
+    
+    try {
+      // Fallback: if we only have URI, try to fetch and convert to base64
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error processing image:', error);
+      return uri; // Return original URI as last resort
+    }
+  },
+
   // Delete a conversation and its messages
   deleteConversation: async (userId: string, conversationId: string) => {
     try {
-      // Note: In Firestore, deleting a document does not delete its subcollections
-      // For a simple implementation, we delete the conversation doc.
-      // In a production app, you might want a cloud function to clean up subcollections.
       await deleteDoc(doc(db, 'users', userId, 'conversations', conversationId));
     } catch (error) {
       console.error('Error deleting conversation:', error);

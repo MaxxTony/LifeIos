@@ -65,7 +65,7 @@ const heroStyles = StyleSheet.create({
   ring: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 1.5, borderColor: '#7C5CFF88' },
 });
 
-type LoadingType = 'email' | 'google' | 'guest' | null;
+type LoadingType = 'email' | 'google' | null;
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState<LoadingType>(null);
@@ -154,47 +154,7 @@ export default function LoginScreen() {
     setLoading(null);
   };
 
-  const handleGuestLogin = async () => {
-    setLoading('guest');
-    const { user, error } = await authService.loginAsGuest();
-    if (user) {
-      const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
-      if (!existingProfile) {
-        await dbService.saveUserProfile(user.uid, {
-          userName: 'Guest',
-          createdAt: Date.now(),
-          isGuest: true,
-          hasCompletedOnboarding: true // Guest login after current onboarding logic counts as complete
-        });
-      }
-
-      useStore.getState().completeOnboarding();
-
-      setAuth(user.uid, existingProfile?.userName || 'Guest');
-
-      Toast.show({
-        type: 'success',
-        text1: 'Guest Session Started',
-        text2: 'Progress will be synced to this device.',
-      });
-
-      // If it's a new guest, send them to onboarding
-      if (!existingProfile && !useStore.getState().hasCompletedOnboarding) {
-        router.replace('/(onboarding)');
-      } else {
-        await useStore.getState().hydrateFromCloud();
-        router.replace('/(tabs)');
-      }
-    } else {
-      Toast.show({
-        type: 'error',
-        text1: 'Guest Login Failed',
-        text2: error || 'Failed to login as guest',
-      });
-    }
-    setLoading(null);
-  };
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
@@ -365,17 +325,7 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.guestButton}
-                onPress={handleGuestLogin}
-                disabled={loading !== null}
-              >
-                {loading === 'guest' ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.guestButtonText}>Guest</Text>
-                )}
-              </TouchableOpacity>
+
             </View>
 
             <Text style={styles.terms}>
@@ -509,7 +459,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   googleButton: {
-    flex: 2,
+    flex: 1,
     backgroundColor: '#FFFFFF',
     height: 56,
     borderRadius: 16,
@@ -528,21 +478,7 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 15,
   },
-  guestButton: {
-    flex: 1,
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  guestButtonText: {
-    ...Typography.h3,
-    color: '#FFF',
-    fontSize: 15,
-  },
+
   terms: {
     ...Typography.caption,
     textAlign: 'center',

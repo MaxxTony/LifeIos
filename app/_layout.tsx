@@ -6,9 +6,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import * as Notifications from 'expo-notifications';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -94,24 +96,34 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={DarkTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="ai-chat" options={{ headerShown: true, title: 'AI Assistant', headerBackButtonDisplayMode: "generic" }} />
-        <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-        <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="mood-log" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-        <Stack.Screen name="mood-themes" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-        <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-      <StatusBar style="light" />
-      <Toast />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+        <ThemeProvider value={DarkTheme}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="ai-chat" options={{ headerShown: true, title: 'AI Assistant', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="mood-log" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="mood-themes" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications' }} />
+            <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance' }} />
+            <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security' }} />
+            <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback' }} />
+            <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center' }} />
+            <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS' }} />
+          </Stack>
+          <StatusBar style="light" />
+          <Toast />
+        </ThemeProvider>
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }
