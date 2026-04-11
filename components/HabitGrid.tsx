@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { useRouter } from 'expo-router';
 
 export function HabitGrid() {
   const { habits, toggleHabit, getStreak } = useStore();
+  const colors = useThemeColors();
   const router = useRouter();
 
   const handleToggle = (id: string) => {
@@ -55,9 +57,9 @@ export function HabitGrid() {
           </View>
           <TouchableOpacity 
             onPress={() => router.push('/(habits)/templates')} 
-            style={styles.addBtn}
+            style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
           >
-            <Ionicons name="add" size={20} color="#FFF" />
+            <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
 

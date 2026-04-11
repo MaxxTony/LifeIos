@@ -104,7 +104,8 @@ export default function AIChatScreen() {
   const handleSend = async (textOverride?: string) => {
     const text = textOverride || input;
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
-
+    
+    Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     let convId = currentConversationId;
 
@@ -198,6 +199,7 @@ export default function AIChatScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
+          headerShown: true,
           headerTitle: 'LifeOS AI',
           headerTitleAlign: 'center',
           headerTitleStyle: {
@@ -207,6 +209,7 @@ export default function AIChatScreen() {
           },
           headerTransparent: true,
           headerBlurEffect: 'dark',
+          headerBackButtonDisplayMode: 'generic',
           headerRight: () => (
             <TouchableOpacity onPress={() => setIsHistoryVisible(true)} style={styles.headerBtn}>
               <IconSymbol name="clock.arrow.2.circlepath" size={20} color="#FFF" />
@@ -216,8 +219,9 @@ export default function AIChatScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
@@ -306,6 +310,7 @@ export default function AIChatScreen() {
             <TouchableOpacity
               style={styles.attachBtn}
               onPress={() => {
+                Keyboard.dismiss();
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 attachmentSheetRef.current?.present();
               }}
@@ -395,7 +400,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
     paddingTop: Platform.OS === 'ios' ? 130 : 110,
-    paddingBottom: 180, // Space for the floating footer content
+    paddingBottom: Spacing.xl,
   },
   messageWrapper: {
     marginBottom: Spacing.lg,
@@ -460,11 +465,7 @@ const styles = StyleSheet.create({
     color: '#E0E1E5',
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(11, 11, 15, 0.75)',
+    backgroundColor: 'rgba(11, 11, 15, 0.95)',
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',

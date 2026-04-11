@@ -1,4 +1,5 @@
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { getMoodConfig, getMoodFromLegacy } from '@/constants/moods';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
@@ -13,6 +14,7 @@ import { MoodEmoji } from './MoodEmoji';
 
 export function MoodTrend() {
   const router = useRouter();
+  const colors = useThemeColors();
   const { moodHistory } = useStore();
 
   const today = getTodayLocal();
@@ -90,11 +92,11 @@ export function MoodTrend() {
             activeOpacity={0.7}
           >
             <LinearGradient
-              colors={['rgba(124,92,255,0.15)', 'rgba(91,140,255,0.08)']}
+              colors={[colors.primaryTransparent, 'rgba(91,140,255,0.08)']}
               style={styles.ctaGradient}
             >
-              <Ionicons name="add-circle-outline" size={28} color="#7C5CFF" />
-              <Text style={styles.ctaText}>How are you feeling?</Text>
+              <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
+              <Text style={[styles.ctaText, { color: colors.primary }]}>How are you feeling?</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -207,7 +209,6 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 15,
-    color: '#7C5CFF',
     fontWeight: '700',
   },
   // Mini trend

@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, withRepeat, withSequence, withTiming, useSharedValue } from 'react-native-reanimated';
-import { Colors, Typography, BorderRadius } from '@/constants/theme';
+import { Typography, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
 
 export function DashboardAIButton() {
   const router = useRouter();
+  const colors = useThemeColors();
   const glow = useSharedValue(0.8);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function DashboardAIButton() {
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.glowRing, glowStyle]} />
+      <Animated.View style={[styles.glowRing, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
       
       <TouchableOpacity 
         activeOpacity={0.9}
@@ -37,7 +39,7 @@ export function DashboardAIButton() {
         style={styles.buttonWrap}
       >
         <LinearGradient
-          colors={['#7C5CFF', '#5B8CFF']}
+          colors={[colors.primary, colors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradient}

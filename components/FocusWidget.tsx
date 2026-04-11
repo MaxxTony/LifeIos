@@ -1,4 +1,5 @@
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +10,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, w
 
 export function FocusWidget() {
   const router = useRouter();
+  const colors = useThemeColors();
   const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession, updateFocusTime } = useStore();
   const pulse = useSharedValue(1);
 
@@ -34,9 +36,9 @@ export function FocusWidget() {
 
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
-    borderColor: focusSession.isActive ? Colors.dark.primary : 'rgba(255,255,255,0.08)',
+    borderColor: focusSession.isActive ? colors.primary : 'rgba(255,255,255,0.08)',
     borderWidth: focusSession.isActive ? 4 : 2,
-    backgroundColor: focusSession.isActive ? 'rgba(124, 92, 255, 0.08)' : 'rgba(255,255,255,0.02)',
+    backgroundColor: focusSession.isActive ? colors.primaryMuted : 'rgba(255,255,255,0.02)',
   }));
 
   const formatTime = (seconds: number) => {
@@ -85,7 +87,7 @@ export function FocusWidget() {
           <View style={styles.header}>
             <Text style={styles.title}>Daily Focus</Text>
             <TouchableOpacity onPress={cycleGoal}>
-              <Text style={styles.percentage}>{calculatePercentage()}% · {focusGoalHours}h Goal</Text>
+              <Text style={[styles.percentage, { color: colors.primary }]}>{calculatePercentage()}% · {focusGoalHours}h Goal</Text>
             </TouchableOpacity>
           </View>
 
@@ -134,7 +136,6 @@ const styles = StyleSheet.create({
   },
   percentage: {
     ...Typography.caption,
-    color: '#A78BFF',
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -150,7 +151,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.dark.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 15,
     shadowOpacity: 0.4,

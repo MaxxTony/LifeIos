@@ -1,4 +1,5 @@
 import { Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export function DailyTasksWidget() {
   const router = useRouter();
+  const colors = useThemeColors();
   const { tasks, toggleTask } = useStore();
 
   const today = getTodayLocal();
@@ -41,9 +43,9 @@ export function DailyTasksWidget() {
           <Text style={styles.title}>Daily Tasks</Text>
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
-            style={styles.addBtn}
+            style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
           >
-            <Ionicons name="add" size={20} color="#FFF" />
+            <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -233,7 +235,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewMoreText: {
-    color: '#7C5CFF',
     fontSize: 13,
     fontWeight: '600',
   }

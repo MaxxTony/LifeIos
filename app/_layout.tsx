@@ -1,6 +1,6 @@
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -11,12 +11,35 @@ import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import * as Notifications from 'expo-notifications';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { useColorScheme } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setAuth } = useStore();
+  const { setAuth, themePreference, accentColor } = useStore();
+  const systemColorScheme = useColorScheme();
+
+  const themeMode = themePreference === 'system' 
+    ? (systemColorScheme === 'dark' ? 'dark' : 'light')
+    : themePreference;
+
+  const isDark = themeMode === 'dark';
+  
+  // Create a custom theme object that injects the accent color
+  const navTheme = isDark ? {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: accentColor,
+    }
+  } : {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: accentColor,
+    }
+  };
   
   const [loaded, error] = useFonts({
     'Inter-Regular': require('../assets/fonts/Inter-Regular.ttf'),
@@ -98,19 +121,19 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
-        <ThemeProvider value={DarkTheme}>
+        <ThemeProvider value={navTheme}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="ai-chat" options={{ headerShown: true, title: 'AI Assistant', headerBackButtonDisplayMode: "generic" }} />
+
             <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
             <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-log" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-            <Stack.Screen name="mood-themes" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications' }} />
@@ -120,7 +143,7 @@ export default function RootLayout() {
             <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center' }} />
             <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS' }} />
           </Stack>
-          <StatusBar style="light" />
+          <StatusBar style={isDark ? "light" : "dark"} />
           <Toast />
         </ThemeProvider>
       </BottomSheetModalProvider>

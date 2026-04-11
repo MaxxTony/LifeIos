@@ -77,6 +77,8 @@ interface UserState {
     linkedin?: string;
     website?: string;
   };
+  themePreference: 'light' | 'dark' | 'system';
+  accentColor: string;
 
   // Actions
   setHasHydrated: (state: boolean) => void;
@@ -118,6 +120,9 @@ interface UserState {
   // Cloud Sync
   subscribeToCloud: () => void;
   _syncUnsubscribe: (() => void) | null;
+  
+  setThemePreference: (theme: 'light' | 'dark' | 'system') => void;
+  setAccentColor: (color: string) => void;
   
   // Utilities
   getStreak: (habitId: string) => number;
@@ -182,6 +187,8 @@ export const useStore = create<UserState>()(
       occupation: null,
       avatarUrl: null,
       socialLinks: {},
+      themePreference: 'dark',
+      accentColor: '#7C5CFF',
       _syncUnsubscribe: null,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -561,6 +568,9 @@ export const useStore = create<UserState>()(
 
         set({ _syncUnsubscribe: unsub });
       },
+
+      setThemePreference: (theme) => set({ themePreference: theme }),
+      setAccentColor: (color) => set({ accentColor: color }),
     }),
 
     {

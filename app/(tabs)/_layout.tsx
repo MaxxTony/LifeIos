@@ -2,7 +2,8 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 /** @ts-ignore - experimental API */
-import { Colors, Typography } from '@/constants/theme';
+import { Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
@@ -16,6 +17,8 @@ const { width } = Dimensions.get('window');
  */
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+
 
   return (
     <View style={[styles.tabBarContainer, { bottom: insets.bottom + 16 }]}>
@@ -58,7 +61,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                   <Ionicons
                     name={getIcon(isFocused) as any}
                     size={22}
-                    color={isFocused ? '#FFF' : 'rgba(255,255,255,0.4)'}
+                    color={isFocused ? colors.primary : colors.textSecondary}
                   />
 
                 </View>
@@ -96,8 +99,10 @@ function AndroidTabs() {
  * iOS-specific implementation using Native Apple Tab Bar and SF Symbols.
  */
 function IOSTabs() {
+  const colors = useThemeColors();
+
   return (
-    <NativeTabs tintColor={Colors.dark.primary}>
+    <NativeTabs tintColor={colors.primary}>
       <NativeTabs.Trigger name="index">
         <Icon sf="house.fill" />
         <Label>Home</Label>
@@ -129,7 +134,7 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35,
     overflow: 'hidden',
-    backgroundColor: 'rgba(18, 18, 26, 0.8)',
+    backgroundColor: 'rgba(18, 18, 26, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     elevation: 20,
@@ -169,7 +174,8 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.dark.primary,
+
+    backgroundColor: '#FFF', // Keeping indicator white/neutral for better contrast
   },
   tabLabel: {
     ...Typography.caption,
