@@ -60,7 +60,7 @@ const heroStyles = StyleSheet.create({
   glow: {
     position: 'absolute', width: 110, height: 110, borderRadius: 55,
     backgroundColor: '#7C5CFF', shadowColor: '#7C5CFF', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1, shadowRadius: 40, elevation: 20, zIndex: 1,
+    shadowOpacity: 0.8, shadowRadius: 20, elevation: 10,
   },
   ring: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 1.5, borderColor: '#7C5CFF88' },
 });
@@ -458,11 +458,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#7C5CFF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primaryButtonText: {
     ...Typography.h3,

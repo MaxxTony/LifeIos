@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+import * as Notifications from 'expo-notifications';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -56,6 +57,38 @@ export default function RootLayout() {
     return () => unsubscribe();
   }, [setAuth]);
 
+  useEffect(() => {
+    // Listen for foreground notifications
+    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+      const { title, body } = notification.request.content;
+      Toast.show({
+        type: 'info',
+        text1: title || 'LifeOS Notification',
+        text2: body || '',
+        position: 'top',
+        visibilityTime: 5000,
+        autoHide: true,
+        onPress: () => {
+          // Handle navigation if needed
+          Toast.hide();
+        }
+      });
+    });
+
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      // Handle notification click when app is in background/closed
+      const data = response.notification.request.content.data;
+      if (data?.habitId) {
+        // Logic to navigate can be added here
+      }
+    });
+
+    return () => {
+      foregroundSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, []);
+
   if (!loaded && !error) {
     return null;
   }
@@ -70,6 +103,11 @@ export default function RootLayout() {
         <Stack.Screen name="ai-chat" options={{ headerShown: true, title: 'AI Assistant', headerBackButtonDisplayMode: "generic" }} />
         <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="mood-log" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="mood-themes" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style="light" />

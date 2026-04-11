@@ -53,6 +53,12 @@ export const BorderRadius = {
 };
 
 export const Typography = {
+  h1Hero: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 42,
+    fontWeight: '800' as const,
+    letterSpacing: -1,
+  },
   h1: {
     fontFamily: 'Outfit-Bold',
     fontSize: 32,
@@ -68,6 +74,11 @@ export const Typography = {
     fontSize: 20,
     fontWeight: '600' as const,
   },
+  bodyLarge: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 18,
+    lineHeight: 26,
+  },
   body: {
     fontFamily: 'Inter-Regular',
     fontSize: 16,
@@ -77,6 +88,43 @@ export const Typography = {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     fontWeight: '400' as const,
-    color: Colors.dark.textSecondary,
+    color: '#A1A1AA',
   },
+  labelSmall: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 10,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+  }
+};
+
+export const TimeThemes = {
+  morning: {
+    bg: ['#0B0B0F', '#1E1B4B'] as const,
+    glow1: '#7C5CFF20',
+    glow2: '#FFB34710',
+    greeting: 'Good morning',
+    icon: 'sunny' as const,
+  },
+  afternoon: {
+    bg: ['#0B0B0F', '#1A3A5F'] as const,
+    glow1: '#5B8CFF20',
+    glow2: '#00D68F10',
+    greeting: 'Good afternoon',
+    icon: 'partly-sunny' as const,
+  },
+  evening: {
+    bg: ['#0B0B0F', '#451A1A'] as const,
+    glow1: '#FF4B4B15',
+    glow2: '#7C5CFF10',
+    greeting: 'Good evening',
+    icon: 'cloudy-night' as const,
+  },
+  night: {
+    bg: ['#020205', '#0B0B0F'] as const,
+    glow1: '#7C5CFF15',
+    glow2: '#5B8CFF08',
+    greeting: 'Good night',
+    icon: 'moon' as const,
+  }
 };

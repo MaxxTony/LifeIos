@@ -1,40 +1,31 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
+import { useRouter } from 'expo-router';
 
 export function HabitGrid() {
-  const { habits, toggleHabit, getStreak, addHabit } = useStore();
-  const [showAdd, setShowAdd] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
+  const { habits, toggleHabit, getStreak } = useStore();
+  const router = useRouter();
 
   const handleToggle = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id);
   };
 
-  const handleAdd = () => {
-    if (newTitle.trim()) {
-      addHabit(newTitle.trim());
-      setNewTitle('');
-      setShowAdd(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
-
   const renderDots = (completedDays: string[]) => {
     const dots = [];
     const today = new Date();
     for (let i = 6; i >= 0; i--) { 
-      const date = new Date();
+      const date = new Date(today);
       date.setDate(today.getDate() - i);
       const dateString = formatLocalDate(date);
       const isCompleted = completedDays.includes(dateString);
+      const isToday = i === 0;
       
       dots.push(
         <View 
@@ -42,7 +33,7 @@ export function HabitGrid() {
           style={[
             styles.dot, 
             isCompleted && styles.dotCompleted,
-            i === 0 && styles.dotToday
+            isToday && styles.dotToday
           ]} 
         />
       );
@@ -52,7 +43,7 @@ export function HabitGrid() {
 
   return (
     <View style={styles.container}>
-      <BlurView intensity={30} tint="dark" style={styles.blur}>
+      <BlurView intensity={25} tint="dark" style={styles.blur}>
         <View style={styles.header}>
           <View style={styles.titleGroup}>
             <Text style={styles.title}>Habit Streaks</Text>
@@ -62,27 +53,13 @@ export function HabitGrid() {
               ))}
             </View>
           </View>
-          <TouchableOpacity onPress={() => setShowAdd(!showAdd)} style={styles.addBtn}>
-            <Ionicons name="add" size={18} color="rgba(255,255,255,0.6)" />
+          <TouchableOpacity 
+            onPress={() => router.push('/(habits)/templates')} 
+            style={styles.addBtn}
+          >
+            <Ionicons name="add" size={20} color="#FFF" />
           </TouchableOpacity>
         </View>
-
-        {showAdd && (
-          <View style={styles.addInputRow}>
-            <TextInput
-              style={styles.input}
-              placeholder="Habit name..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={newTitle}
-              onChangeText={setNewTitle}
-              autoFocus
-              onSubmitEditing={handleAdd}
-            />
-            <TouchableOpacity onPress={handleAdd} style={styles.saveBtn}>
-               <Ionicons name="checkmark-circle" size={20} color="#7C5CFF" />
-            </TouchableOpacity>
-          </View>
-        )}
 
         <View style={styles.habitList}>
           {habits.length > 0 ? habits.slice(0, 3).map((habit) => {
@@ -91,15 +68,14 @@ export function HabitGrid() {
             const isCompletedToday = habit.completedDays.includes(todayStr);
 
             return (
-              <TouchableOpacity 
-                key={habit.id} 
-                style={[styles.habitRow, isCompletedToday && styles.habitRowCompleted]}
-                onPress={() => handleToggle(habit.id)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.habitInfo}>
+              <View key={habit.id} style={[styles.habitRow, isCompletedToday && styles.habitRowCompleted]}>
+                <TouchableOpacity 
+                  style={styles.habitInfo}
+                  onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
+                  activeOpacity={0.6}
+                >
                   <Text style={[styles.habitTitle, isCompletedToday && styles.completedTitle]} numberOfLines={1}>
-                    {habit.title}
+                    {habit.icon} {habit.title}
                   </Text>
                   <View style={styles.streakInfo}>
                     <Ionicons name="flame" size={10} color={streak > 0 ? '#FF8C42' : 'rgba(255,255,255,0.2)'} />
@@ -107,14 +83,22 @@ export function HabitGrid() {
                       {streak} day streak
                     </Text>
                   </View>
-                </View>
-                <View style={styles.dotsContainer}>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.dotsContainer}
+                  onPress={() => handleToggle(habit.id)}
+                  activeOpacity={0.7}
+                >
                   {renderDots(habit.completedDays)}
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             );
-          }) : !showAdd && (
-            <TouchableOpacity onPress={() => setShowAdd(true)} style={styles.emptyContainer}>
+          }) : (
+            <TouchableOpacity 
+              onPress={() => router.push('/(habits)/templates')} 
+              style={styles.emptyContainer}
+            >
+               <Ionicons name="sparkles-outline" size={20} color="rgba(255,255,255,0.2)" style={{marginBottom: 8}} />
                <Text style={styles.emptyText}>Add habits to track streaks +</Text>
             </TouchableOpacity>
           )}
@@ -130,8 +114,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    height: 180,
+    borderColor: 'rgba(255,255,255,0.06)',
+    minHeight: 180,
   },
   blur: {
     flex: 1,
@@ -141,26 +125,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   titleGroup: {
-    gap: 4,
+    gap: 6,
   },
   title: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '800',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   addBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: -2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   dayLabels: {
     flexDirection: 'row',
@@ -169,47 +155,27 @@ const styles = StyleSheet.create({
   },
   dayLabelText: {
     fontSize: 7,
-    color: 'rgba(255,255,255,0.25)',
+    color: 'rgba(255,255,255,0.2)',
     width: 8,
     textAlign: 'center',
-    fontWeight: '600',
-  },
-  addInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(124, 92, 255, 0.1)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.2)',
-  },
-  input: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: 13,
-    padding: 0,
-  },
-  saveBtn: {
-    padding: 4,
+    fontWeight: '700',
   },
   habitList: {
-    gap: 10,
+    gap: 12,
   },
   habitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    padding: 10,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   habitRowCompleted: {
-    backgroundColor: 'rgba(0, 214, 143, 0.03)',
-    borderColor: 'rgba(0, 214, 143, 0.1)',
+    backgroundColor: 'rgba(0, 214, 143, 0.05)',
+    borderColor: 'rgba(0, 214, 143, 0.15)',
   },
   habitInfo: {
     flex: 1,
@@ -217,8 +183,8 @@ const styles = StyleSheet.create({
   habitTitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-    marginBottom: 2,
+    fontWeight: '700',
+    marginBottom: 3,
   },
   completedTitle: {
     color: '#00D68F',
@@ -231,26 +197,29 @@ const styles = StyleSheet.create({
   habitStreak: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.3)',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   activeStreak: {
     color: '#FF8C42',
   },
   dotsContainer: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 5,
     alignItems: 'center',
+    paddingLeft: 10,
+    height: '100%',
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   dotCompleted: {
     backgroundColor: '#00D68F',
     shadowColor: '#00D68F',
     shadowRadius: 4,
+    shadowOpacity: 0.5,
     elevation: 3,
   },
   dotToday: {
@@ -260,15 +229,16 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
+    paddingVertical: 35,
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   emptyText: {
-    fontSize: 11,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.3)',
-    fontWeight: '500',
+    fontWeight: '600',
   }
 });

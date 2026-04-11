@@ -44,12 +44,34 @@ export const dbService = {
   },
 
   // Mood History
-  saveMood: async (userId: string, moodData: { mood: string, timestamp: number }) => {
+  saveMood: async (userId: string, moodData: any, dateKey: string) => {
     try {
       await setDoc(doc(db, 'users', userId), {
-        moodHistory: arrayUnion(moodData),
+        moodHistory: {
+          [dateKey]: moodData
+        },
         currentMood: moodData.mood
       }, { merge: true });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+
+  // Habit Sync
+  syncHabits: async (userId: string, habits: any[]) => {
+    try {
+      await setDoc(doc(db, 'users', userId), { habits }, { merge: true });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+
+  // Mood Theme
+  saveMoodTheme: async (userId: string, theme: string) => {
+    try {
+      await setDoc(doc(db, 'users', userId), { moodTheme: theme }, { merge: true });
       return { error: null };
     } catch (error: any) {
       return { error: error.message };

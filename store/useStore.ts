@@ -22,7 +22,16 @@ interface Task {
 interface Habit {
   id: string;
   title: string;
+  icon: string;
+  category: string;
+  color: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  targetDays: number[]; // [0, 1, 2, 3, 4, 5, 6] for Sun-Sat
+  reminderTime: string | null;
+  goalDays: number;
   completedDays: string[]; // ISO Dates (e.g. "2024-04-10")
+  createdAt: number;
+  bestStreak: number;
 }
 
 interface FocusSession {
@@ -32,8 +41,12 @@ interface FocusSession {
 }
 
 interface MoodEntry {
-  mood: string;
+  mood: number; // 1-5 scale: 1=Awful, 2=Meh, 3=Okay, 4=Good, 5=Amazing
   timestamp: number;
+  reason?: string; // Legacy support
+  activities?: string[];
+  emotions?: string[];
+  note?: string;
 }
 
 interface UserState {
@@ -50,8 +63,9 @@ interface UserState {
   focusSession: FocusSession;
   focusGoalHours: number;
   focusHistory: Record<string, number>; // Date -> totalSeconds
-  moodHistory: MoodEntry[];
+  moodHistory: Record<string, MoodEntry>; // Date -> MoodEntry
   mood: string | null;
+  moodTheme: 'classic' | 'panda' | 'cat';
   lastResetDate: string | null;
 
   // Actions
@@ -68,16 +82,18 @@ interface UserState {
   performDailyReset: () => void;
   
   // Habit Actions
-  addHabit: (title: string) => void;
+  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
   toggleHabit: (id: string) => void;
+  updateHabit: (id: string, updates: Partial<Habit>) => void;
   
   // Focus Actions
   setFocusGoal: (hours: number) => void;
   toggleFocusSession: () => void;
   updateFocusTime: () => void;
   
-  setMood: (mood: string) => void;
+  setMood: (mood: number, extras?: { activities?: string[]; emotions?: string[]; note?: string; reason?: string }, date?: string) => void;
+  setMoodTheme: (theme: 'classic' | 'panda' | 'cat') => void;
   logout: () => void;
   hydrateFromCloud: () => Promise<void>;
   
@@ -105,6 +121,20 @@ const migrateTasks = (tasks: Task[]): Task[] => {
   });
 };
 
+const migrateMoodHistory = (history: any): Record<string, MoodEntry> => {
+  if (!history) return {};
+  if (!Array.isArray(history)) return history; // Already a map
+
+  const map: Record<string, MoodEntry> = {};
+  history.forEach((entry: any) => {
+    if (entry && entry.timestamp) {
+      const dateKey = formatLocalDate(new Date(entry.timestamp));
+      map[dateKey] = entry;
+    }
+  });
+  return map;
+};
+
 export const useStore = create<UserState>()(
   persist(
     (set, get) => ({
@@ -125,8 +155,9 @@ export const useStore = create<UserState>()(
       },
       focusGoalHours: 8,
       focusHistory: {},
-      moodHistory: [],
+      moodHistory: {},
       mood: null,
+      moodTheme: 'classic',
       lastResetDate: null,
       _syncUnsubscribe: null,
 
@@ -189,11 +220,15 @@ export const useStore = create<UserState>()(
 
       toggleTask: async (id) => {
         set((state) => {
+          const task = state.tasks.find(t => t.id === id);
+          // Commitment Rule: On main dashboard, toggling only completes.
+          if (!task || task.completed) return state;
+
           const newTasks: Task[] = state.tasks.map((t) => 
             t.id === id ? { 
               ...t, 
-              completed: !t.completed, 
-              status: (!t.completed ? 'completed' : 'pending') as Task['status']
+              completed: true, 
+              status: 'completed'
             } : t
           );
           if (state.userId) dbService.syncTasks(state.userId, newTasks);
@@ -210,27 +245,65 @@ export const useStore = create<UserState>()(
       },
       setTasks: (tasks) => set({ tasks }),
 
-      addHabit: (title) => set((state) => ({
-        habits: [...state.habits, { id: Math.random().toString(36).substring(7), title, completedDays: [] }]
-      })),
-      removeHabit: (id) => set((state) => ({
-        habits: state.habits.filter(h => h.id !== id)
-      })),
-      toggleHabit: (id) => set((state) => ({
-        habits: state.habits.map(h => {
+      addHabit: (habitData) => set((state) => {
+        const newHabit: Habit = { 
+          ...habitData, 
+          id: habitData.id || Math.random().toString(36).substring(7), 
+          completedDays: [],
+          bestStreak: 0,
+          createdAt: Date.now()
+        };
+        const newHabits = [...state.habits, newHabit];
+        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        return { habits: newHabits };
+      }),
+      removeHabit: (id) => set((state) => {
+        const newHabits = state.habits.filter(h => h.id !== id);
+        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        return { habits: newHabits };
+      }),
+      toggleHabit: (id) => set((state) => {
+        const newHabits = state.habits.map(h => {
           if (h.id === id) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayLocal();
             const isCompleted = h.completedDays.includes(today);
+            const newCompletedDays = isCompleted 
+              ? h.completedDays.filter(d => d !== today)
+              : [...h.completedDays, today];
+            
+            // Calculate streak to update bestStreak
+            let currentStreak = 0;
+            const checkDate = new Date();
+            // Start from today or yesterday depending on completion
+            for (let i = 0; i < 365; i++) {
+              const d = new Date();
+              d.setDate(checkDate.getDate() - i);
+              const dStr = d.toISOString().split('T')[0];
+              if (newCompletedDays.includes(dStr)) {
+                currentStreak++;
+              } else if (i > 0 || (i === 0 && !newCompletedDays.includes(dStr))) {
+                // If we check today and it's not done, and we check yesterday and it's not done -> break
+                // But specifically for bestStreak, we want the most recent contiguous streak including today if done.
+                if (i > 0) break; 
+              }
+            }
+
             return {
               ...h,
-              completedDays: isCompleted 
-                ? h.completedDays.filter(d => d !== today)
-                : [...h.completedDays, today]
+              completedDays: newCompletedDays,
+              bestStreak: Math.max(h.bestStreak || 0, currentStreak)
             };
           }
           return h;
-        })
-      })),
+        });
+        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        return { habits: newHabits };
+      }),
+      updateHabit: (id, updates) => set((state) => {
+        const newHabits = state.habits.map(h => h.id === id ? { ...h, ...updates } : h);
+        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        return { habits: newHabits };
+      }),
       getStreak: (id) => {
         const habit = get().habits.find(h => h.id === id);
         if (!habit) return 0;
@@ -347,15 +420,29 @@ export const useStore = create<UserState>()(
         };
       }),
 
-      setMood: async (mood) => {
-        const entry = { mood, timestamp: Date.now() };
+      setMood: async (mood, extras, date) => {
+        const dateKey = date || getTodayLocal();
+        const entry: MoodEntry = { 
+          mood, 
+          timestamp: Date.now(), 
+          reason: extras?.reason,
+          activities: extras?.activities,
+          emotions: extras?.emotions,
+          note: extras?.note,
+        };
+        
         set((state) => {
+          const newHistory = {
+            ...state.moodHistory,
+            [dateKey]: entry
+          };
+          
           if (state.userId) {
-            dbService.saveMood(state.userId, entry);
+            dbService.saveMood(state.userId, entry, dateKey);
           }
-          const newHistory = [...state.moodHistory, entry].slice(-20); // Keep last 20
+          
           return { 
-            mood,
+            mood: dateKey === getTodayLocal() ? mood.toString() : state.mood,
             moodHistory: newHistory
           };
         });
@@ -366,11 +453,15 @@ export const useStore = create<UserState>()(
         
         set({ 
           isAuthenticated: false, userId: null, userName: null, 
-          tasks: [], mood: null, habits: [], moodHistory: [],
+          tasks: [], mood: null, habits: [], moodHistory: {},
           _syncUnsubscribe: null,
           focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null }
         });
       },
+      setMoodTheme: (theme) => set((state) => {
+        if (state.userId) dbService.saveMoodTheme(state.userId, theme);
+        return { moodTheme: theme };
+      }),
       hydrateFromCloud: async () => {
         const userId = authService.currentUser?.uid || get().userId;
         if (userId) {
@@ -389,7 +480,8 @@ export const useStore = create<UserState>()(
                   struggles: data.struggles || []
                 },
                 habits: data.habits || [],
-                moodHistory: data.moodHistory || [],
+                moodHistory: data.moodHistory ? migrateMoodHistory(data.moodHistory) : get().moodHistory,
+                moodTheme: data.moodTheme || get().moodTheme,
                 focusGoalHours: data.focusGoalHours || 8
               });
             }
@@ -421,7 +513,8 @@ export const useStore = create<UserState>()(
           set({
             tasks: migratedTasks,
             mood: data.currentMood || get().mood,
-            moodHistory: data.moodHistory || get().moodHistory,
+            moodHistory: data.moodHistory ? migrateMoodHistory(data.moodHistory) : get().moodHistory,
+            moodTheme: data.moodTheme || get().moodTheme,
             habits: data.habits || get().habits,
             focusGoalHours: data.focusGoalHours || get().focusGoalHours
           });

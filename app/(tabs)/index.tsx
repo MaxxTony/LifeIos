@@ -3,16 +3,21 @@ import { DashboardAIButton } from '@/components/DashboardAIButton';
 import { FocusWidget } from '@/components/FocusWidget';
 import { HabitGrid } from '@/components/HabitGrid';
 import { MoodTrend } from '@/components/MoodTrend';
-import { Spacing, Typography } from '@/constants/theme';
+import { Spacing, Typography, TimeThemes } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { getTimePhase } from '@/utils/dateUtils';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 export default function HomeScreen() {
   const { userName, checkMissedTasks, performDailyReset } = useStore();
+  
+  const timePhase = useMemo(() => getTimePhase(), []);
+  const activeTheme = TimeThemes[timePhase];
 
   useEffect(() => {
     // Initial checks and maintenance
@@ -30,11 +35,11 @@ export default function HomeScreen() {
       {/* Background with a subtle gradient/texture feel */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={['#0B0B0F', '#1A1A2E']}
+          colors={activeTheme.bg}
           style={StyleSheet.absoluteFill}
         />
-        <View style={[styles.glowBackground, { top: -100, right: -100, backgroundColor: '#7C5CFF15' }]} />
-        <View style={[styles.glowBackground, { bottom: -150, left: -150, backgroundColor: '#5B8CFF10' }]} />
+        <View style={[styles.glowBackground, { top: -100, right: -100, backgroundColor: activeTheme.glow1 }]} />
+        <View style={[styles.glowBackground, { bottom: -150, left: -150, backgroundColor: activeTheme.glow2 }]} />
       </View>
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -45,7 +50,10 @@ export default function HomeScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.greeting}>Good morning,</Text>
+              <View style={styles.greetingRow}>
+                <Ionicons name={activeTheme.icon} size={14} color="rgba(255,255,255,0.7)" style={{ marginRight: 6 }} />
+                <Text style={styles.greeting}>{activeTheme.greeting},</Text>
+              </View>
               <Text style={styles.userName}>{userName || 'User'}!</Text>
             </View>
           </View>
@@ -110,16 +118,22 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     paddingHorizontal: 4,
   },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   greeting: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   userName: {
-    ...Typography.h1,
+    ...Typography.h1Hero,
     color: '#FFF',
-    fontSize: 28,
-    fontFamily: 'Outfit-Bold',
   },
   stack: {
     gap: Spacing.lg,

@@ -1,7 +1,8 @@
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -56,7 +57,15 @@ export function DailyTasksWidget() {
             >
               <TouchableOpacity
                 style={[styles.checkbox, { borderColor: priorityColors[task.priority] }, task.completed && styles.checkboxChecked]}
-                onPress={() => toggleTask(task.id)}
+                onPress={() => {
+                  if (!task.completed) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    toggleTask(task.id);
+                  } else {
+                    // Provide a subtle refusal haptic
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  }
+                }}
               >
                 {task.completed && <View style={[styles.innerCheck, { backgroundColor: priorityColors[task.priority] }]} />}
               </TouchableOpacity>
@@ -74,7 +83,7 @@ export function DailyTasksWidget() {
                   </View>
                   {task.startTime && (
                     <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.4)" />
+                      <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.6)" />
                       <Text style={styles.metaText}>{task.startTime}</Text>
                     </View>
                   )}
@@ -118,11 +127,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...Typography.labelSmall,
+    fontSize: 14,
+    color: '#FFF',
+    letterSpacing: 1.5,
   },
   addBtn: {
     width: 32,
@@ -140,22 +148,22 @@ const styles = StyleSheet.create({
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 14,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   taskCompleted: {
     opacity: 0.5,
-    backgroundColor: 'rgba(255,255,255,0.01)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    marginRight: 14,
+    marginRight: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -165,7 +173,7 @@ const styles = StyleSheet.create({
   innerCheck: {
     width: 12,
     height: 12,
-    borderRadius: 3,
+    borderRadius: 6,
   },
   taskInfo: {
     flex: 1,
@@ -182,27 +190,31 @@ const styles = StyleSheet.create({
   },
   taskMeta: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     alignItems: 'center',
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   metaText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
+    ...Typography.labelSmall,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 9,
   },
   missedTag: {
-    fontSize: 10,
+    ...Typography.labelSmall,
+    fontSize: 8,
     color: '#FF4B4B',
-    fontWeight: '700',
     backgroundColor: 'rgba(255, 75, 75, 0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   emptyState: {
     paddingVertical: 20,

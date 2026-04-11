@@ -7,7 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CreateTaskScreen() {
@@ -17,14 +18,21 @@ export default function CreateTaskScreen() {
   const [text, setText] = useState('');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [date, setDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(new Date(new Date().setHours(9, 0, 0, 0)));
-  const [endTime, setEndTime] = useState(new Date(new Date().setHours(10, 0, 0, 0)));
+  
+  // Default to current time for start, and +1 hour for end
+  const [startTime, setStartTime] = useState(new Date());
+  const [endTime, setEndTime] = useState(new Date(Date.now() + 3600 * 1000));
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'start' | 'end' | null>(null);
 
   const formatTime = (d: Date) => {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!d || isNaN(d.getTime())) return 'Not set';
+    return d.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true 
+    });
   };
 
   const formatDate = (d: Date) => {
@@ -140,23 +148,79 @@ export default function CreateTaskScreen() {
           </View>
 
 
-          {pickerMode && (
-            <DateTimePicker
-              value={pickerMode === 'start' ? startTime : endTime}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(e, d) => {
-                setPickerMode(null);
-                if (d) {
-                  if (pickerMode === 'start') setStartTime(d);
-                  else setEndTime(d);
-                }
-              }}
-              textColor="white"
-              themeVariant="dark"
-            />
-          )}
+          <Modal
+            visible={!!pickerMode}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setPickerMode(null)}
+          >
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1} 
+              onPress={() => setPickerMode(null)}
+            >
+               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+            </TouchableOpacity>
+            
+            <View style={styles.sheetContainer}>
+              <View style={styles.sheetHeader}>
+                <View style={styles.sheetHandle} />
+                <TouchableOpacity 
+                  onPress={() => {
+                    setPickerMode(null);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={styles.doneBtn}
+                >
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.pickerWrapper}>
+                <DateTimePicker
+                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(e, d) => {
+                    if (Platform.OS === 'android') {
+                      setPickerMode(null);
+                    }
+                    if (d) {
+                      const now = new Date();
+                      if (pickerMode === 'start') {
+                        // Ensure start time is not in the past
+                        if (d < now) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setStartTime(now);
+                          // If end time is now behind start time, bump it
+                          if (endTime <= now) {
+                            setEndTime(new Date(now.getTime() + 30 * 60000));
+                          }
+                        } else {
+                          setStartTime(d);
+                          // Ensure end time is after start time
+                          if (d >= endTime) {
+                            setEndTime(new Date(d.getTime() + 30 * 60000));
+                          }
+                        }
+                      } else {
+                        // Ensure end time is after start time
+                        if (d <= startTime) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                        } else {
+                          setEndTime(d);
+                        }
+                      }
+                    }
+                  }}
+                  textColor="white"
+                  themeVariant="dark"
+                />
+              </View>
+            </View>
+          </Modal>
 
           <TouchableOpacity
             style={[styles.saveButton, !text.trim() && styles.saveButtonDisabled]}
@@ -306,5 +370,56 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheetContainer: {
+    backgroundColor: '#14141A',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: 8,
+  },
+  doneBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(124, 92, 255, 0.15)',
+    borderRadius: 12,
+  },
+  doneBtnText: {
+    color: '#7C5CFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerWrapper: {
+    paddingVertical: 10,
+    alignItems: 'center',
   }
 });

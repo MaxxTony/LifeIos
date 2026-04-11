@@ -1,13 +1,14 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useAnimatedStyle, withRepeat, withSequence, withTiming, useSharedValue, interpolateColor } from 'react-native-reanimated';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 export function FocusWidget() {
+  const router = useRouter();
   const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession, updateFocusTime } = useStore();
   const pulse = useSharedValue(1);
 
@@ -33,15 +34,21 @@ export function FocusWidget() {
 
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
-    borderColor: focusSession.isActive ? Colors.dark.primary : 'rgba(255,255,255,0.1)',
-    shadowOpacity: focusSession.isActive ? 0.3 : 0,
-    backgroundColor: focusSession.isActive ? 'rgba(124, 92, 255, 0.05)' : 'transparent',
+    borderColor: focusSession.isActive ? Colors.dark.primary : 'rgba(255,255,255,0.08)',
+    borderWidth: focusSession.isActive ? 4 : 2,
+    backgroundColor: focusSession.isActive ? 'rgba(124, 92, 255, 0.08)' : 'rgba(255,255,255,0.02)',
   }));
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
+    const secs = Math.floor(seconds % 60);
+
+    const h = String(hrs).padStart(2, '0');
+    const m = String(mins).padStart(2, '0');
+    const s = String(secs).padStart(2, '0');
+
+    return `${h}:${m}:${s}`;
   };
 
   const calculatePercentage = () => {
@@ -50,6 +57,7 @@ export function FocusWidget() {
   };
 
   const cycleGoal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Cycle between 4, 6, 8, 10, 12 hours
     const goals = [4, 6, 8, 10, 12];
     const currentIndex = goals.indexOf(focusGoalHours);
@@ -57,29 +65,44 @@ export function FocusWidget() {
     setFocusGoal(nextGoal);
   };
 
+  const handleToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    toggleFocusSession();
+  };
+
+  const handleOpenDetail = () => {
+    router.push('/focus-detail');
+  };
+
   return (
     <View style={styles.container}>
-      <BlurView intensity={20} tint="dark" style={styles.blur}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Daily Focus</Text>
-          <TouchableOpacity onPress={cycleGoal}>
-            <Text style={styles.percentage}>{calculatePercentage()}% · {focusGoalHours}h Goal</Text>
-          </TouchableOpacity>
-        </View>
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={handleOpenDetail}
+        style={{ flex: 1 }}
+      >
+        <BlurView intensity={20} tint="dark" style={styles.blur}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Daily Focus</Text>
+            <TouchableOpacity onPress={cycleGoal}>
+              <Text style={styles.percentage}>{calculatePercentage()}% · {focusGoalHours}h Goal</Text>
+            </TouchableOpacity>
+          </View>
 
-        <TouchableOpacity 
-          activeOpacity={0.8} 
-          onPress={toggleFocusSession}
-          style={styles.content}
-        >
-          <Animated.View style={[styles.ring, animatedRingStyle]}>
-            <View style={styles.innerContent}>
-              <Text style={styles.timeValue}>{formatTime(focusSession.totalSecondsToday)}</Text>
-              <Text style={styles.timeLabel}>{focusSession.isActive ? 'Stop' : 'Start'}</Text>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-      </BlurView>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleToggle}
+            style={styles.content}
+          >
+            <Animated.View style={[styles.ring, animatedRingStyle]}>
+              <View style={styles.innerContent}>
+                <Text style={styles.timeValue}>{formatTime(focusSession.totalSecondsToday)}</Text>
+                <Text style={styles.timeLabel}>{focusSession.isActive ? 'Stop' : 'Start'}</Text>
+              </View>
+            </Animated.View>
+          </TouchableOpacity>
+        </BlurView>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -105,7 +128,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.caption,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#FFF',
     fontWeight: '600',
     fontSize: 12,
   },
@@ -116,36 +139,35 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   content: {
-    alignItems: 'center',
+    alignSelf: 'center',
     justifyContent: 'center',
     flex: 1,
   },
   ring: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 6,
-    borderStyle: 'solid',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.dark.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 15,
+    shadowOpacity: 0.4,
   },
   innerContent: {
     alignItems: 'center',
   },
   timeValue: {
-    ...Typography.h2,
+    ...Typography.h1,
     color: '#FFF',
-    fontSize: 22,
+    fontSize: 24,
+    marginBottom: -2,
   },
   timeLabel: {
-    ...Typography.caption,
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 10,
-    textTransform: 'uppercase',
+    ...Typography.labelSmall,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 9,
   },
   activeIndicator: {
     position: 'absolute',

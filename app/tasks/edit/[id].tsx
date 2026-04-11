@@ -7,7 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditTaskScreen() {
@@ -37,17 +38,39 @@ export default function EditTaskScreen() {
   }, [task]);
 
   const parseTimeString = (timeStr: string) => {
-    const [time, modifier] = timeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
-    const d = new Date();
-    d.setHours(hours, minutes, 0, 0);
-    return d;
+    if (!timeStr || typeof timeStr !== 'string') return new Date();
+    
+    try {
+      const parts = timeStr.trim().split(/\s+/);
+      const timePart = parts[0];
+      const modifier = parts[1] ? parts[1].toUpperCase() : null;
+      
+      let [hours, minutes] = timePart.split(':').map(Number);
+      
+      if (isNaN(hours) || isNaN(minutes)) {
+        // Fallback or attempt another parse if needed
+        return new Date();
+      }
+
+      if (modifier === 'PM' && hours < 12) hours += 12;
+      else if (modifier === 'AM' && hours === 12) hours = 0;
+      
+      const d = new Date();
+      d.setHours(hours, minutes, 0, 0);
+      
+      return isNaN(d.getTime()) ? new Date() : d;
+    } catch (e) {
+      return new Date();
+    }
   };
 
   const formatTime = (d: Date) => {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!d || isNaN(d.getTime())) return 'Not set';
+    return d.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true 
+    });
   };
 
   const formatDate = (d: Date) => {
@@ -173,23 +196,79 @@ export default function EditTaskScreen() {
           </View>
 
 
-          {pickerMode && (
-            <DateTimePicker
-              value={pickerMode === 'start' ? startTime : endTime}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(e, d) => {
-                setPickerMode(null);
-                if (d) {
-                  if (pickerMode === 'start') setStartTime(d);
-                  else setEndTime(d);
-                }
-              }}
-              textColor="white"
-              themeVariant="dark"
-            />
-          )}
+          <Modal
+            visible={!!pickerMode}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setPickerMode(null)}
+          >
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1} 
+              onPress={() => setPickerMode(null)}
+            >
+               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+            </TouchableOpacity>
+            
+            <View style={styles.sheetContainer}>
+              <View style={styles.sheetHeader}>
+                <View style={styles.sheetHandle} />
+                <TouchableOpacity 
+                  onPress={() => {
+                    setPickerMode(null);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={styles.doneBtn}
+                >
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.pickerWrapper}>
+                <DateTimePicker
+                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(e, d) => {
+                    if (Platform.OS === 'android') {
+                      setPickerMode(null);
+                    }
+                    if (d) {
+                      const now = new Date();
+                      if (pickerMode === 'start') {
+                        // Ensure start time is not in the past
+                        if (d < now) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setStartTime(now);
+                          // If end time is now behind start time, bump it
+                          if (endTime <= now) {
+                            setEndTime(new Date(now.getTime() + 30 * 60000));
+                          }
+                        } else {
+                          setStartTime(d);
+                          // Ensure end time is after start time
+                          if (d >= endTime) {
+                            setEndTime(new Date(d.getTime() + 30 * 60000));
+                          }
+                        }
+                      } else {
+                        // Ensure end time is after start time
+                        if (d <= startTime) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                        } else {
+                          setEndTime(d);
+                        }
+                      }
+                    }
+                  }}
+                  textColor="white"
+                  themeVariant="dark"
+                />
+              </View>
+            </View>
+          </Modal>
 
           <TouchableOpacity
             style={[styles.updateButton, !text.trim() && styles.saveButtonDisabled]}
@@ -347,6 +426,57 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheetContainer: {
+    backgroundColor: '#14141A',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: 8,
+  },
+  doneBtn: {
+    marginLeft: 'auto',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(124, 92, 255, 0.15)',
+    borderRadius: 12,
+  },
+  doneBtnText: {
+    color: '#7C5CFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerWrapper: {
+    paddingVertical: 10,
+    alignItems: 'center',
   },
   errorContainer: {
     flex: 1,

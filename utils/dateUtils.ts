@@ -15,3 +15,15 @@ export const formatLocalDate = (date: Date): string => {
 export const getTodayLocal = (): string => {
   return formatLocalDate(new Date());
 };
+export type TimePhase = 'morning' | 'afternoon' | 'evening' | 'night';
+
+/**
+ * Returns the current time phase based on the hour of the day.
+ */
+export const getTimePhase = (): TimePhase => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'evening';
+  return 'night';
+};
