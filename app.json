@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lifeos",
+      "bundleIdentifier": "com.lifeos.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
@@ -18,13 +18,11 @@
       }
     },
     "android": {
-      "package": "com.lifeOsForAll",
+      "package": "com.lifeos.app",
       "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundImage": "./assets/images/icon.png",
-        "monochromeImage": "./assets/images/icon.png"
+        "backgroundColor": "#0B0B0F"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -39,8 +37,8 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",
-          "imageWidth": 1242,
-          "resizeMode": "cover",
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "backgroundColor": "#0b0b0f",
           "dark": {
             "backgroundColor": "#0b0b0f"

@@ -1,6 +1,7 @@
 import { useStore } from '@/store/useStore';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { aiActionHandler } from './aiActionHandler';
+import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
@@ -9,12 +10,13 @@ const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 /**
- * Generates a comprehensive snapshot of the app's current state 
+ * Generates a comprehensive snapshot of the app's current state
  * to provide the AI with context.
  */
 const getCurrentAppContext = () => {
   const state = useStore.getState();
-  const today = new Date().toISOString().split('T')[0];
+  // FIX M-1: Use getTodayLocal() instead of toISOString() — avoids UTC date mismatch
+  const today = getTodayLocal();
 
   const context = {
     user: {
@@ -98,44 +100,46 @@ export const getAIResponse = async (
   messages: { role: 'user' | 'assistant' | 'system', content: string, image?: { base64: string, mimeType: string } }[]
 ) => {
   if (!genAI) {
-    console.warn('Gemini API key missing, falling back to legacy responder (if available)');
-    return 'Gemini API key is not configured. Please check your .env file.';
+    console.warn('Gemini API key missing. Please add EXPO_PUBLIC_GEMINI_API_KEY to your .env.local file.');
+    return 'AI is not configured. Please check your environment setup.';
   }
 
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: `You are LifeOS, a premium personal assistant. 
-      You help users manage tasks, habits, and moods. 
-      Be supportive, proactive, and concise. 
+      systemInstruction: `You are LifeOS, a premium personal assistant.
+      You help users manage tasks, habits, and moods.
+      Be supportive, proactive, and concise.
       You have access to the user's current app state via context.
-      Important: You can actually perform actions like adding tasks or habits using the provided tools. 
+      Important: You can actually perform actions like adding tasks or habits using the provided tools.
       If a user asks to "remind me to..." or "add a habit...", use the tools!
       If the user provides an image, analyze it carefully to help them.
-      
+
       ${getCurrentAppContext()}`,
       tools: tools as any,
     });
 
-    // Format messages for Gemini Chat API
-    const history = messages.slice(0, -1).map(m => {
-      const parts: any[] = [{ text: m.content }];
-      if (m.image) {
-        parts.push({
-          inlineData: {
-            data: m.image.base64,
-            mimeType: m.image.mimeType
-          }
-        });
-      }
-      return {
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts,
-      };
-    });
+    // Format messages for Gemini Chat API (exclude system role — not supported in chat history)
+    const history = messages.slice(0, -1)
+      .filter(m => m.role !== 'system')
+      .map(m => {
+        const parts: any[] = [{ text: m.content || '' }];
+        if (m.image) {
+          parts.push({
+            inlineData: {
+              data: m.image.base64,
+              mimeType: m.image.mimeType
+            }
+          });
+        }
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts,
+        };
+      });
 
     const lastMsg = messages[messages.length - 1];
-    const lastParts: any[] = [{ text: lastMsg.content }];
+    const lastParts: any[] = [{ text: lastMsg.content || '' }];
     if (lastMsg.image) {
       lastParts.push({
         inlineData: {
@@ -164,31 +168,24 @@ export const getAIResponse = async (
         }
       }
 
-      // Send tool results back to get final response
-      const result2 = await chat.sendMessage([{
-        functionResponse: {
-          name: calls[0].name,
-          response: toolResults[calls[0].name]
-        }
-      }]);
+      // FIX M-2: Send ALL tool results back, not just calls[0]
+      const result2 = await chat.sendMessage(
+        calls.map(call => ({
+          functionResponse: {
+            name: call.name,
+            response: toolResults[call.name] || { success: false, message: 'Unknown tool' }
+          }
+        }))
+      );
       return result2.response.text();
     }
 
     return response.text();
   } catch (error) {
     console.error('Gemini AI Service Error:', error);
-    return 'I am sorry, I am having trouble connecting to my brain right now.';
+    return 'I am sorry, I am having trouble connecting to my brain right now. Please try again.';
   }
 };
-
-/**
- * LEGACY/FALLBACK SUPPORT (Keeping Groq logic commented)
- * To use Groq, uncomment and update getAIResponse to switch based on config.
- */
-/*
-const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-export const getGroqResponse = async (messages: any) => { ... }
-*/
 
 export const getFocusQuote = async () => {
   try {

@@ -16,17 +16,14 @@ export function DailyTasksWidget() {
 
   const today = getTodayLocal();
 
-  // Weights for sorting
   const priorityWeight = { high: 1, medium: 2, low: 3 };
 
   const todayTasks = tasks
     .filter(t => t.date === today)
     .sort((a, b) => {
-      // First by priority
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
       }
-      // Then by time (if available)
       return (a.dueTime || 0) - (b.dueTime || 0);
     });
 
@@ -44,6 +41,8 @@ export function DailyTasksWidget() {
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
+            accessibilityLabel="Add new task"
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
@@ -51,56 +50,70 @@ export function DailyTasksWidget() {
 
         <View style={styles.list}>
           {todayTasks.length > 0 ? todayTasks.map((task) => (
-            <TouchableOpacity
+            // FIX M-5: Restructured from nested TouchableOpacity to sibling layout
+            // Nested touchables caused checkbox taps to fire row navigation on Android
+            <View
               key={task.id}
               style={[styles.taskItem, task.completed && styles.taskCompleted]}
-              onPress={() => router.push(`/tasks/${task.id}`)}
-              activeOpacity={0.7}
             >
               <TouchableOpacity
-                style={[styles.checkbox, { borderColor: priorityColors[task.priority] }, task.completed && styles.checkboxChecked]}
+                style={[
+                  styles.checkbox,
+                  { borderColor: priorityColors[task.priority] },
+                  task.completed && styles.checkboxChecked
+                ]}
                 onPress={() => {
                   if (!task.completed) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     toggleTask(task.id);
                   } else {
-                    // Provide a subtle refusal haptic
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                   }
                 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel={task.completed ? `${task.text}, completed` : `Mark ${task.text} as complete`}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: task.completed }}
               >
-                {task.completed && <View style={[styles.innerCheck, { backgroundColor: priorityColors[task.priority] }]} />}
+                {task.completed && (
+                  <View style={[styles.innerCheck, { backgroundColor: priorityColors[task.priority] }]} />
+                )}
               </TouchableOpacity>
 
-              <View style={styles.taskInfo}>
-                <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]} numberOfLines={1}>
-                  {task.text}
-                </Text>
-                <View style={styles.taskMeta}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="flag" size={10} color={priorityColors[task.priority]} />
-                    <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
-                      {(task.priority || 'medium').toUpperCase()}
-                    </Text>
-                  </View>
-                  {task.startTime && (
+              <TouchableOpacity
+                style={styles.taskInfoRow}
+                onPress={() => router.push(`/tasks/${task.id}`)}
+                activeOpacity={0.7}
+                accessibilityLabel={`View details for ${task.text}`}
+                accessibilityRole="button"
+              >
+                <View style={styles.taskInfo}>
+                  <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]} numberOfLines={1}>
+                    {task.text}
+                  </Text>
+                  <View style={styles.taskMeta}>
                     <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.6)" />
-                      <Text style={styles.metaText}>{task.startTime}</Text>
+                      <Ionicons name="flag" size={10} color={priorityColors[task.priority]} />
+                      <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
+                        {(task.priority || 'medium').toUpperCase()}
+                      </Text>
                     </View>
-                  )}
-                  {task.status === 'missed' && (
-                    <Text style={styles.missedTag}>Missed</Text>
-                  )}
+                    {task.startTime && (
+                      <View style={styles.metaItem}>
+                        <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.6)" />
+                        <Text style={styles.metaText}>{task.startTime}</Text>
+                      </View>
+                    )}
+                    {task.status === 'missed' && (
+                      <Text style={styles.missedTag}>Missed</Text>
+                    )}
+                  </View>
                 </View>
-              </View>
-
-              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
-            </TouchableOpacity>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+              </TouchableOpacity>
+            </View>
           )) : (
-            <View
-              style={styles.emptyState}
-            >
+            <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No tasks for today. Start fresh? ✨</Text>
             </View>
           )}
@@ -147,11 +160,13 @@ const styles = StyleSheet.create({
   list: {
     gap: 12,
   },
+  // FIX M-5: taskItem is now a View, not TouchableOpacity
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
@@ -168,6 +183,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   checkboxChecked: {
     borderColor: 'transparent',
@@ -176,6 +192,12 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  // FIX M-5: New style for the navigable right-side portion
+  taskInfoRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   taskInfo: {
     flex: 1,

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dbService } from '@/services/dbService';
 import { authService } from '@/services/authService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
+import * as Crypto from 'expo-crypto'; // FIX C-3: proper UUID generation
 
 interface Task {
   id: string;
@@ -92,18 +93,18 @@ interface UserState {
   setTasks: (tasks: Task[]) => void;
   checkMissedTasks: () => void;
   performDailyReset: () => void;
-  
+
   // Habit Actions
   addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
   toggleHabit: (id: string) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
-  
+
   // Focus Actions
   setFocusGoal: (hours: number) => void;
   toggleFocusSession: () => void;
   updateFocusTime: () => void;
-  
+
   setMood: (mood: number, extras?: { activities?: string[]; emotions?: string[]; note?: string; reason?: string }, date?: string) => void;
   setMoodTheme: (theme: 'classic' | 'panda' | 'cat') => void;
   updateProfile: (updates: Partial<{
@@ -116,14 +117,14 @@ interface UserState {
   }>) => Promise<void>;
   logout: () => void;
   hydrateFromCloud: () => Promise<void>;
-  
+
   // Cloud Sync
   subscribeToCloud: () => void;
   _syncUnsubscribe: (() => void) | null;
-  
+
   setThemePreference: (theme: 'light' | 'dark' | 'system') => void;
   setAccentColor: (color: string) => void;
-  
+
   // Utilities
   getStreak: (habitId: string) => number;
 }
@@ -156,6 +157,13 @@ const migrateMoodHistory = (history: any): Record<string, MoodEntry> => {
     }
   });
   return map;
+};
+
+// FIX H-6: Fire-and-forget sync with error logging instead of silent failure
+const fireSync = (fn: () => Promise<any>, label: string) => {
+  fn().catch((err: any) => {
+    console.error(`[LifeOS Sync] ${label} failed:`, err?.message || err);
+  });
 };
 
 export const useStore = create<UserState>()(
@@ -196,39 +204,39 @@ export const useStore = create<UserState>()(
       setAuth: (userId, userName) => {
         const currentUnsub = get()._syncUnsubscribe;
         if (currentUnsub) currentUnsub();
-        
+
         set({ userId, userName, isAuthenticated: !!userId });
-        
+
         if (userId) {
           get().subscribeToCloud();
         }
       },
-      setOnboardingData: (data) => set((state) => ({ 
-        onboardingData: { ...state.onboardingData, ...data } 
+      setOnboardingData: (data) => set((state) => ({
+        onboardingData: { ...state.onboardingData, ...data }
       })),
 
-      addTask: async (text, startTime, endTime, priority = 'medium', date = getTodayLocal()) => {
+      // FIX C-3: Use Crypto.randomUUID() instead of Math.random().substring(7)
+      // FIX L-1: Removed false async keyword
+      addTask: (text, startTime, endTime, priority = 'medium', date = getTodayLocal()) => {
         let dueTime: number | undefined;
-        
+
         if (startTime) {
-          // Parse "09:00 AM" into today's timestamp
           const [time, modifier] = startTime.split(' ');
           let [hours, minutes] = time.split(':').map(Number);
           if (modifier === 'PM' && hours < 12) hours += 12;
           if (modifier === 'AM' && hours === 12) hours = 0;
-          
-          // Parse "YYYY-MM-DD" into local date components
+
           const [year, month, day] = date.split('-').map(Number);
           const targetDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
           dueTime = targetDate.getTime();
         }
 
-        const newTask: Task = { 
-          id: Math.random().toString(36).substring(7), 
-          text, 
+        const newTask: Task = {
+          id: Crypto.randomUUID(), // FIX C-3
+          text,
           priority,
           date,
-          completed: false, 
+          completed: false,
           createdAt: Date.now(),
           startTime,
           endTime,
@@ -237,31 +245,28 @@ export const useStore = create<UserState>()(
         };
         set((state) => {
           const newTasks = [...state.tasks, newTask];
-          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          if (state.userId) fireSync(() => dbService.syncTasks(state.userId!, newTasks), 'addTask'); // FIX H-6
           return { tasks: newTasks };
         });
       },
 
       updateTask: (id, updates) => set((state) => {
         const newTasks = state.tasks.map(t => t.id === id ? { ...t, ...updates } : t);
-        if (state.userId) dbService.syncTasks(state.userId, newTasks);
+        if (state.userId) fireSync(() => dbService.syncTasks(state.userId!, newTasks), 'updateTask'); // FIX H-6
         return { tasks: newTasks };
       }),
 
-      toggleTask: async (id) => {
+      // FIX L-1: Removed false async keyword
+      toggleTask: (id) => {
         set((state) => {
           const task = state.tasks.find(t => t.id === id);
-          // Commitment Rule: On main dashboard, toggling only completes.
+          // Commitment Rule: toggling only completes, never un-completes.
           if (!task || task.completed) return state;
 
-          const newTasks: Task[] = state.tasks.map((t) => 
-            t.id === id ? { 
-              ...t, 
-              completed: true, 
-              status: 'completed'
-            } : t
+          const newTasks: Task[] = state.tasks.map((t) =>
+            t.id === id ? { ...t, completed: true, status: 'completed' } : t
           );
-          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          if (state.userId) fireSync(() => dbService.syncTasks(state.userId!, newTasks), 'toggleTask'); // FIX H-6
           return { tasks: newTasks };
         });
       },
@@ -269,27 +274,28 @@ export const useStore = create<UserState>()(
       removeTask: (id) => {
         set((state) => {
           const newTasks = state.tasks.filter((t) => t.id !== id);
-          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          if (state.userId) fireSync(() => dbService.syncTasks(state.userId!, newTasks), 'removeTask'); // FIX H-6
           return { tasks: newTasks };
         });
       },
       setTasks: (tasks) => set({ tasks }),
 
+      // FIX C-3: Use Crypto.randomUUID() for habit ID
       addHabit: (habitData) => set((state) => {
-        const newHabit: Habit = { 
-          ...habitData, 
-          id: habitData.id || Math.random().toString(36).substring(7), 
+        const newHabit: Habit = {
+          ...habitData,
+          id: habitData.id || Crypto.randomUUID(), // FIX C-3
           completedDays: [],
           bestStreak: 0,
           createdAt: Date.now()
         };
         const newHabits = [...state.habits, newHabit];
-        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        if (state.userId) fireSync(() => dbService.syncHabits(state.userId!, newHabits), 'addHabit'); // FIX H-6
         return { habits: newHabits };
       }),
       removeHabit: (id) => set((state) => {
         const newHabits = state.habits.filter(h => h.id !== id);
-        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        if (state.userId) fireSync(() => dbService.syncHabits(state.userId!, newHabits), 'removeHabit'); // FIX H-6
         return { habits: newHabits };
       }),
       toggleHabit: (id) => set((state) => {
@@ -297,24 +303,20 @@ export const useStore = create<UserState>()(
           if (h.id === id) {
             const today = getTodayLocal();
             const isCompleted = h.completedDays.includes(today);
-            const newCompletedDays = isCompleted 
+            const newCompletedDays = isCompleted
               ? h.completedDays.filter(d => d !== today)
               : [...h.completedDays, today];
-            
-            // Calculate streak to update bestStreak
+
+            // FIX H-3: Use formatLocalDate instead of toISOString() to avoid UTC off-by-one
             let currentStreak = 0;
-            const checkDate = new Date();
-            // Start from today or yesterday depending on completion
             for (let i = 0; i < 365; i++) {
               const d = new Date();
-              d.setDate(checkDate.getDate() - i);
-              const dStr = d.toISOString().split('T')[0];
+              d.setDate(d.getDate() - i);
+              const dStr = formatLocalDate(d); // FIX H-3
               if (newCompletedDays.includes(dStr)) {
                 currentStreak++;
-              } else if (i > 0 || (i === 0 && !newCompletedDays.includes(dStr))) {
-                // If we check today and it's not done, and we check yesterday and it's not done -> break
-                // But specifically for bestStreak, we want the most recent contiguous streak including today if done.
-                if (i > 0) break; 
+              } else if (i > 0) {
+                break;
               }
             }
 
@@ -326,14 +328,16 @@ export const useStore = create<UserState>()(
           }
           return h;
         });
-        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        if (state.userId) fireSync(() => dbService.syncHabits(state.userId!, newHabits), 'toggleHabit'); // FIX H-6
         return { habits: newHabits };
       }),
       updateHabit: (id, updates) => set((state) => {
         const newHabits = state.habits.map(h => h.id === id ? { ...h, ...updates } : h);
-        if (state.userId) dbService.syncHabits(state.userId, newHabits);
+        if (state.userId) fireSync(() => dbService.syncHabits(state.userId!, newHabits), 'updateHabit'); // FIX H-6
         return { habits: newHabits };
       }),
+
+      // FIX H-3: Use formatLocalDate instead of toISOString() to avoid UTC off-by-one
       getStreak: (id) => {
         const habit = get().habits.find(h => h.id === id);
         if (!habit) return 0;
@@ -342,10 +346,10 @@ export const useStore = create<UserState>()(
         for (let i = 0; i < 365; i++) {
           const checkDate = new Date();
           checkDate.setDate(today.getDate() - i);
-          const dateStr = checkDate.toISOString().split('T')[0];
+          const dateStr = formatLocalDate(checkDate); // FIX H-3
           if (habit.completedDays.includes(dateStr)) {
             streak++;
-          } else if (i > 0) { // If missing a day (other than potentially today), streak breaks
+          } else if (i > 0) {
             break;
           }
         }
@@ -353,26 +357,28 @@ export const useStore = create<UserState>()(
       },
 
       setFocusGoal: (hours) => set({ focusGoalHours: hours }),
+
+      // FIX H-4: Use task's own date to build endDateTime, not today's date
       checkMissedTasks: () => set((state) => {
         const now = new Date();
         let changed = false;
         const newTasks = state.tasks.map(task => {
           if (task.status === 'pending' && task.endTime) {
-            // Parse "06:00 PM" to Date
             const [time, modifier] = task.endTime.split(' ');
             let [hours, minutes] = time.split(':').map(Number);
             if (modifier === 'PM' && hours < 12) hours += 12;
             if (modifier === 'AM' && hours === 12) hours = 0;
-            
-            const endDateTime = new Date();
-            endDateTime.setHours(hours, minutes, 0, 0);
+
+            // FIX H-4: Build endDateTime from task.date not today
+            const [taskYear, taskMonth, taskDay] = task.date.split('-').map(Number);
+            const endDateTime = new Date(taskYear, taskMonth - 1, taskDay, hours, minutes, 0, 0);
 
             if (now > endDateTime) {
               changed = true;
-              return { 
-                ...task, 
-                status: 'missed' as const, 
-                systemComment: 'You missed this daily task! 😔' 
+              return {
+                ...task,
+                status: 'missed' as const,
+                systemComment: 'You missed this daily task! 😔'
               };
             }
           }
@@ -380,33 +386,34 @@ export const useStore = create<UserState>()(
         });
 
         if (changed) {
-          if (state.userId) dbService.syncTasks(state.userId, newTasks);
+          if (state.userId) fireSync(() => dbService.syncTasks(state.userId!, newTasks), 'checkMissedTasks'); // FIX H-6
           return { tasks: newTasks };
         }
         return state;
       }),
 
+      // FIX C-4: Call this on app start via useEffect in _layout.tsx
+      // FIX C-4: Use formatLocalDate (not toISOString) for UTC-safe archiving
       performDailyReset: () => set((state) => {
         const today = getTodayLocal();
         if (state.lastResetDate === today) return state;
 
-        // Archive yesterday's focus to history
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        
-        const newFocusHistory = { 
-          ...state.focusHistory, 
-          [yesterdayStr]: state.focusSession.totalSecondsToday 
+        const yesterdayStr = formatLocalDate(yesterday); // FIX C-4: was toISOString().split('T')[0]
+
+        const newFocusHistory = {
+          ...state.focusHistory,
+          [yesterdayStr]: state.focusSession.totalSecondsToday
         };
 
-        // Reset tasks list (keep as empty for now, or move to history in DB)
-        // In a real app we'd archive these tasks to a "history" collection
-        
+        // FIX C-4: Keep future-dated tasks instead of wiping everything
+        const newTasks = state.tasks.filter(t => t.date > today);
+
         return {
           lastResetDate: today,
-          tasks: [] as Task[],
-          focusSession: { ...state.focusSession, totalSecondsToday: 0 },
+          tasks: newTasks,
+          focusSession: { ...state.focusSession, totalSecondsToday: 0, isActive: false, lastStartTime: null },
           focusHistory: newFocusHistory
         };
       }),
@@ -414,7 +421,6 @@ export const useStore = create<UserState>()(
       toggleFocusSession: () => set((state) => {
         const now = Date.now();
         if (state.focusSession.isActive) {
-          // Stopping: Calculate final elapsed from last sync
           const elapsed = state.focusSession.lastStartTime ? (now - state.focusSession.lastStartTime) / 1000 : 0;
           return {
             focusSession: {
@@ -425,7 +431,6 @@ export const useStore = create<UserState>()(
             }
           };
         } else {
-          // Starting: Record start time
           return {
             focusSession: {
               ...state.focusSession,
@@ -435,12 +440,11 @@ export const useStore = create<UserState>()(
           };
         }
       }),
+
       updateFocusTime: () => set((state) => {
         if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
         const now = Date.now();
         const elapsed = (now - state.focusSession.lastStartTime) / 1000;
-        // Reset check: if it's a new day, reset totalSecondsToday (simplistic for now)
-        // In a real app we'd compare dates of lastStartTime and now
         return {
           focusSession: {
             ...state.focusSession,
@@ -450,65 +454,70 @@ export const useStore = create<UserState>()(
         };
       }),
 
-      setMood: async (mood, extras, date) => {
+      // FIX L-1: Removed false async keyword
+      setMood: (mood, extras, date) => {
         const dateKey = date || getTodayLocal();
-        const entry: MoodEntry = { 
-          mood, 
-          timestamp: Date.now(), 
+        const entry: MoodEntry = {
+          mood,
+          timestamp: Date.now(),
           reason: extras?.reason,
           activities: extras?.activities,
           emotions: extras?.emotions,
           note: extras?.note,
         };
-        
+
         set((state) => {
           const newHistory = {
             ...state.moodHistory,
             [dateKey]: entry
           };
-          
+
           if (state.userId) {
-            dbService.saveMood(state.userId, entry, dateKey);
+            fireSync(() => dbService.saveMood(state.userId!, entry, dateKey), 'saveMood'); // FIX H-6
           }
-          
-          return { 
+
+          return {
             mood: dateKey === getTodayLocal() ? mood.toString() : state.mood,
             moodHistory: newHistory
           };
         });
       },
+
       setMoodTheme: (theme) => set((state) => {
-        if (state.userId) dbService.saveMoodTheme(state.userId, theme);
+        if (state.userId) fireSync(() => dbService.saveMoodTheme(state.userId!, theme), 'saveMoodTheme'); // FIX H-6
         return { moodTheme: theme };
       }),
+
       updateProfile: async (updates) => {
         const { userId } = get();
         if (!userId) return;
-        
+
         set((state) => ({ ...state, ...updates }));
         await dbService.saveUserProfile(userId, updates);
       },
+
       logout: () => {
         const unsub = get()._syncUnsubscribe;
         if (unsub) unsub();
-        set({ 
-          isAuthenticated: false, userId: null, userName: null, 
+        set({
+          isAuthenticated: false, userId: null, userName: null,
           tasks: [], mood: null, habits: [], moodHistory: {},
           _syncUnsubscribe: null,
           focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null }
         });
       },
+
       hydrateFromCloud: async () => {
         const userId = authService.currentUser?.uid || get().userId;
         if (userId) {
           try {
             const { data, error } = await dbService.getUserProfile(userId);
             if (error) throw new Error(error);
-            
+
             if (data) {
               const migratedTasks = migrateTasks(data.tasks || []);
-              set({ 
-                tasks: migratedTasks, 
+              set({
+                tasks: migratedTasks,
                 mood: data.currentMood || null,
                 userName: data.userName || null,
                 hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
@@ -540,16 +549,13 @@ export const useStore = create<UserState>()(
         const userId = get().userId;
         if (!userId) return;
 
-        // Clean up existing listener if any
-        if (get()._syncUnsubscribe) {
-          get()._syncUnsubscribe?.();
-        }
+        // Clean up existing listener first to avoid duplicates
+        const existing = get()._syncUnsubscribe;
+        if (existing) existing();
 
         const unsub = dbService.subscribeToUserData(userId, (data) => {
           if (!data) return;
-          
-          // Only update if we are not in an active session to avoid overwriting non-synced focus time
-          // unless focus time is explicitly different on server
+
           const migratedTasks = migrateTasks(data.tasks || []);
           set({
             tasks: migratedTasks,

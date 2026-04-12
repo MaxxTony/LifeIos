@@ -22,25 +22,35 @@ export function HabitGrid() {
   const renderDots = (completedDays: string[]) => {
     const dots = [];
     const today = new Date();
-    for (let i = 6; i >= 0; i--) { 
+    for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       const dateString = formatLocalDate(date);
       const isCompleted = completedDays.includes(dateString);
       const isToday = i === 0;
-      
+
       dots.push(
-        <View 
-          key={i} 
+        <View
+          key={i}
           style={[
-            styles.dot, 
+            styles.dot,
             isCompleted && styles.dotCompleted,
             isToday && styles.dotToday
-          ]} 
+          ]}
         />
       );
     }
     return dots;
+  };
+
+  // FIX M-6: Derive day labels dynamically from the last 7 calendar days
+  // Previously hardcoded ['M','T','W','T','F','S','S'] which misaligned with actual dot dates
+  const getDayLabels = () => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()];
+    });
   };
 
   return (
@@ -50,14 +60,17 @@ export function HabitGrid() {
           <View style={styles.titleGroup}>
             <Text style={styles.title}>Habit Streaks</Text>
             <View style={styles.dayLabels}>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+              {/* FIX M-6: Labels now match actual calendar days shown in dots */}
+              {getDayLabels().map((d, i) => (
                 <Text key={i} style={styles.dayLabelText}>{d}</Text>
               ))}
             </View>
           </View>
-          <TouchableOpacity 
-            onPress={() => router.push('/(habits)/templates')} 
+          <TouchableOpacity
+            onPress={() => router.push('/(habits)/templates')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
+            accessibilityLabel="Add new habit"
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
@@ -71,10 +84,12 @@ export function HabitGrid() {
 
             return (
               <View key={habit.id} style={[styles.habitRow, isCompletedToday && styles.habitRowCompleted]}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.habitInfo}
                   onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
                   activeOpacity={0.6}
+                  accessibilityLabel={`View ${habit.title} habit details`}
+                  accessibilityRole="button"
                 >
                   <Text style={[styles.habitTitle, isCompletedToday && styles.completedTitle]} numberOfLines={1}>
                     {habit.icon} {habit.title}
@@ -86,25 +101,44 @@ export function HabitGrid() {
                     </Text>
                   </View>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.dotsContainer}
                   onPress={() => handleToggle(habit.id)}
                   activeOpacity={0.7}
+                  accessibilityLabel={isCompletedToday ? `Mark ${habit.title} as incomplete` : `Complete ${habit.title}`}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isCompletedToday }}
                 >
                   {renderDots(habit.completedDays)}
                 </TouchableOpacity>
               </View>
             );
           }) : (
-            <TouchableOpacity 
-              onPress={() => router.push('/(habits)/templates')} 
+            <TouchableOpacity
+              onPress={() => router.push('/(habits)/templates')}
               style={styles.emptyContainer}
+              accessibilityLabel="Add habits to track streaks"
+              accessibilityRole="button"
             >
-               <Ionicons name="sparkles-outline" size={20} color="rgba(255,255,255,0.2)" style={{marginBottom: 8}} />
-               <Text style={styles.emptyText}>Add habits to track streaks +</Text>
+              <Ionicons name="sparkles-outline" size={20} color="rgba(255,255,255,0.2)" style={{ marginBottom: 8 }} />
+              <Text style={styles.emptyText}>Add habits to track streaks +</Text>
             </TouchableOpacity>
           )}
         </View>
+
+        {/* FIX M-13: Show overflow indicator when more than 3 habits exist */}
+        {habits.length > 3 && (
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/progress')}
+            style={styles.viewMore}
+            accessibilityLabel={`View all ${habits.length} habits`}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.viewMoreText, { color: colors.primary }]}>
+              +{habits.length - 3} more habits
+            </Text>
+          </TouchableOpacity>
+        )}
       </BlurView>
     </View>
   );
@@ -242,5 +276,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.3)',
     fontWeight: '600',
-  }
+  },
+  // FIX M-13: Style for "view all habits" overflow link
+  viewMore: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+  },
+  viewMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });

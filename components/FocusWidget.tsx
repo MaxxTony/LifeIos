@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, AppStateStatus, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 export function FocusWidget() {
@@ -14,8 +14,9 @@ export function FocusWidget() {
   const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession, updateFocusTime } = useStore();
   const pulse = useSharedValue(1);
 
+  // FIX L-8: Added updateFocusTime to dependency array to avoid stale closure
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (focusSession.isActive) {
       pulse.value = withRepeat(
         withSequence(
@@ -31,8 +32,24 @@ export function FocusWidget() {
     } else {
       pulse.value = withTiming(1);
     }
-    return () => clearInterval(interval);
-  }, [focusSession.isActive]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [focusSession.isActive, updateFocusTime]); // FIX L-8
+
+  // FIX H-5: Sync elapsed time when app returns to foreground
+  // setInterval is paused by iOS in background — without this, returning from background
+  // would credit all background time in a single tick (time warp bug)
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active' && focusSession.isActive) {
+        updateFocusTime();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [focusSession.isActive, updateFocusTime]);
 
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -60,7 +77,6 @@ export function FocusWidget() {
 
   const cycleGoal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Cycle between 4, 6, 8, 10, 12 hours
     const goals = [4, 6, 8, 10, 12];
     const currentIndex = goals.indexOf(focusGoalHours);
     const nextGoal = goals[(currentIndex + 1) % goals.length];
@@ -82,12 +98,20 @@ export function FocusWidget() {
         activeOpacity={1}
         onPress={handleOpenDetail}
         style={{ flex: 1 }}
+        accessibilityLabel="Open focus detail"
+        accessibilityRole="button"
       >
         <BlurView intensity={20} tint="dark" style={styles.blur}>
           <View style={styles.header}>
             <Text style={styles.title}>Daily Focus</Text>
-            <TouchableOpacity onPress={cycleGoal}>
-              <Text style={[styles.percentage, { color: colors.primary }]}>{calculatePercentage()}% · {focusGoalHours}h Goal</Text>
+            <TouchableOpacity
+              onPress={cycleGoal}
+              accessibilityLabel={`Focus goal: ${focusGoalHours} hours. Tap to change.`}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.percentage, { color: colors.primary }]}>
+                {calculatePercentage()}% · {focusGoalHours}h Goal
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -95,6 +119,8 @@ export function FocusWidget() {
             activeOpacity={0.8}
             onPress={handleToggle}
             style={styles.content}
+            accessibilityLabel={focusSession.isActive ? 'Stop focus session' : 'Start focus session'}
+            accessibilityRole="button"
           >
             <Animated.View style={[styles.ring, animatedRingStyle]}>
               <View style={styles.innerContent}>
@@ -169,11 +195,4 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     fontSize: 9,
   },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-  }
 });

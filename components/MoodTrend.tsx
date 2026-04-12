@@ -116,7 +116,11 @@ export function MoodTrend() {
                   ]}
                 />
                 <Text style={[styles.trendLabel, isToday && styles.trendLabelToday]}>
-                  {['S','M','T','W','T','F','S'][new Date(day.date).getDay()]}
+                  {/* FIX M-7: Parse date components manually to avoid UTC off-by-one */}
+                  {(() => {
+                    const [y, m, d] = day.date.split('-').map(Number);
+                    return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(y, m - 1, d).getDay()];
+                  })()}
                 </Text>
               </View>
             );

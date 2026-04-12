@@ -29,7 +29,7 @@ const ACCENTS = [
 
 /**
  * Theme Card Component
- * A premium card showing a glimpse of the theme's colors
+ * FIX M-12: All text and colors now use theme-aware values instead of hardcoded dark styles
  */
 function ThemeCard({ theme, isActive, onSelect }: any) {
   const colors = useThemeColors();
@@ -41,8 +41,12 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
       activeOpacity={0.8}
       style={[
         styles.themeCard,
-        isActive && { borderColor: colors.primary, borderWidth: 2 }
+        { borderColor: isActive ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' },
+        isActive && { borderWidth: 2 }
       ]}
+      accessibilityLabel={`Select ${theme.label} theme`}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: isActive }}
     >
       <View style={[styles.themePreview, { backgroundColor: themeColors.background }]}>
         <View style={[styles.previewBar, { backgroundColor: themeColors.card }]}>
@@ -53,16 +57,22 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
           <View style={[styles.previewCircle, { backgroundColor: colors.primary }]} />
           <View style={styles.previewLines}>
             <View style={[styles.previewLineShort, { backgroundColor: themeColors.textSecondary }]} />
-            <View style={[styles.previewLineLong, { backgroundColor: themeColors.text || (theme.id === 'light' ? '#333' : '#FFF') }]} />
+            <View style={[styles.previewLineLong, { backgroundColor: themeColors.text }]} />
           </View>
         </View>
       </View>
-      <View style={styles.themeInfo}>
+      <View style={[styles.themeInfo, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
         <View style={styles.themeLabelRow}>
           <theme.icon size={16} color={isActive ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.themeLabel, isActive && { color: colors.primary }]}>{theme.label}</Text>
+          {/* FIX M-12: Use colors.text instead of hardcoded '#FFF' */}
+          <Text style={[styles.themeLabel, { color: isActive ? colors.primary : colors.text }]}>
+            {theme.label}
+          </Text>
         </View>
-        <Text style={styles.themeDescription}>{theme.description}</Text>
+        {/* FIX M-12: Use colors.textSecondary instead of hardcoded 'rgba(255,255,255,0.4)' */}
+        <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
+          {theme.description}
+        </Text>
       </View>
       {isActive && (
         <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
@@ -92,6 +102,7 @@ export default function AppearanceSettings() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(100).duration(600)}>
+          {/* FIX M-12: Use colors.textSecondary */}
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Theme</Text>
           <View style={styles.themeGrid}>
             {THEMES.map((theme) => (
@@ -109,7 +120,7 @@ export default function AppearanceSettings() {
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Accent Color</Text>
           <GlassCard style={styles.accentCard}>
             <View style={styles.accentGrid}>
-              {ACCENTS.map((color, index) => {
+              {ACCENTS.map((color) => {
                 const isSelected = accentColor === color;
                 return (
                   <TouchableOpacity
@@ -128,6 +139,9 @@ export default function AppearanceSettings() {
                       }
                     ]}
                     onPress={() => setAccentColor(color)}
+                    accessibilityLabel={`Select accent color ${color}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     {isSelected && (
                       <View style={styles.accentInnerCircle} />
@@ -152,11 +166,12 @@ export default function AppearanceSettings() {
                   <View style={styles.mockUserInfo}>
                     <View style={[styles.mockAvatar, { backgroundColor: colors.primary }]} />
                     <View>
+                      {/* FIX M-12: Use colors.text for mock labels */}
                       <Text style={[styles.mockTitle, { color: colors.text }]}>Dashboard</Text>
                       <Text style={[styles.mockSub, { color: colors.textSecondary }]}>Good Morning, Maxx</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={styles.mockIcon}>
+                  <TouchableOpacity style={[styles.mockIcon, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}>
                     <Bell size={18} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -220,9 +235,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 180,
     borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
   },
   themePreview: {
@@ -262,12 +275,12 @@ const styles = StyleSheet.create({
   themeLabel: {
     ...Typography.caption,
     fontWeight: '700',
-    color: '#FFF',
+    // FIX M-12: color is now applied inline using colors.text
   },
   themeDescription: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '500',
+    // FIX M-12: color is now applied inline using colors.textSecondary
   },
   themeCheck: {
     position: 'absolute',
@@ -341,7 +354,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },

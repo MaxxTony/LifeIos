@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 /** @ts-ignore - experimental API */
 import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -9,20 +9,26 @@ import { BlurView } from 'expo-blur';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
-
 /**
  * Custom Animated Tab Bar for Android
- * Creates a floating "pill" design with responsive icons and smooth transitions.
+ * FIX M-3: Uses colors.isDark to support both light and dark themes
  */
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
 
-
   return (
-    <View style={[styles.tabBarContainer, { bottom: insets.bottom + 16 }]}>
-      <BlurView intensity={40} tint="dark" style={styles.tabBarBlur}>
+    // FIX M-3: backgroundColor and borderColor now respond to theme
+    <View style={[
+      styles.tabBarContainer,
+      {
+        bottom: insets.bottom + 16,
+        backgroundColor: colors.isDark ? 'rgba(18, 18, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+        borderColor: colors.isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+      }
+    ]}>
+      {/* FIX M-3: tint responds to theme instead of hardcoded "dark" */}
+      <BlurView intensity={40} tint={colors.isDark ? 'dark' : 'light'} style={styles.tabBarBlur}>
         <View style={styles.tabBarItems}>
           {state.routes.map((route: any, index: number) => {
             const { options } = descriptors[route.key];
@@ -56,6 +62,9 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                 onPress={onPress}
                 style={styles.tabItem}
                 activeOpacity={0.7}
+                accessibilityLabel={label}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isFocused }}
               >
                 <View style={styles.iconWrapper}>
                   <Ionicons
@@ -63,9 +72,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     size={22}
                     color={isFocused ? colors.primary : colors.textSecondary}
                   />
-
                 </View>
-                <Text style={[styles.tabLabel, isFocused && styles.activeTabLabel]}>
+                <Text style={[
+                  styles.tabLabel,
+                  { color: isFocused ? colors.primary : colors.textSecondary }
+                ]}>
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -122,7 +133,6 @@ function IOSTabs() {
 }
 
 export default function TabsLayout() {
-  // Use Native iOS tabs on iPhone, and Animated Premium Tabs on Android
   return Platform.OS === 'ios' ? <IOSTabs /> : <AndroidTabs />;
 }
 
@@ -134,9 +144,8 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35,
     overflow: 'hidden',
-    backgroundColor: 'rgba(18, 18, 26, 0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    // FIX M-3: backgroundColor and borderColor moved to inline style (theme-aware)
     elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -167,24 +176,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2,
   },
-
-  activeDot: {
-    position: 'absolute',
-    bottom: -2,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-
-    backgroundColor: '#FFF', // Keeping indicator white/neutral for better contrast
-  },
+  // FIX M-4: Removed dead activeDot style that was defined but never rendered
   tabLabel: {
     ...Typography.caption,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '500',
-  },
-  activeTabLabel: {
-    color: '#FFF',
-    fontWeight: '700',
   },
 });

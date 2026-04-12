@@ -75,7 +75,7 @@ export const Typography = {
     fontWeight: '600' as const,
   },
   bodyLarge: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-SemiBold', // FIX M-11: Inter-Medium not loaded — use Inter-SemiBold
     fontSize: 18,
     lineHeight: 26,
   },
@@ -91,7 +91,7 @@ export const Typography = {
     color: '#A1A1AA',
   },
   labelSmall: {
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Inter-SemiBold', // FIX M-11: Inter-Bold not loaded — use Inter-SemiBold
     fontSize: 10,
     textTransform: 'uppercase' as const,
     letterSpacing: 1,

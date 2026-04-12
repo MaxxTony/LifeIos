@@ -1,21 +1,18 @@
-import { 
-  collection, 
-  addDoc, 
-  setDoc, 
-  doc, 
-  getDocs, 
-  getDoc,
-  query, 
-  orderBy, 
-  serverTimestamp, 
+import {
+  collection,
+  addDoc,
+  doc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp,
   deleteDoc,
   updateDoc,
-  limit
+  limit,
+  writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
-
-// No longer using Firebase Storage to avoid billing requirements
-// Images are stored as Base64 strings in the database
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 
 export interface ChatConversation {
   id: string;
@@ -52,12 +49,13 @@ export const chatService = {
     }
   },
 
-  // Get messages for a specific conversation
+  // FIX M-8: Added limit(100) to prevent fetching unbounded message history
   getMessages: async (userId: string, conversationId: string): Promise<ChatMessage[]> => {
     try {
       const q = query(
         collection(db, 'users', userId, 'conversations', conversationId, 'messages'),
-        orderBy('createdAt', 'asc')
+        orderBy('createdAt', 'asc'),
+        limit(100) // FIX M-8: cap at 100 messages per load
       );
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
@@ -73,9 +71,8 @@ export const chatService = {
   // Create a new conversation
   createConversation: async (userId: string, firstMessage: string): Promise<string> => {
     try {
-      // Create a short title from the first message
-      const title = firstMessage.length > 30 
-        ? firstMessage.substring(0, 27) + '...' 
+      const title = firstMessage.length > 30
+        ? firstMessage.substring(0, 27) + '...'
         : firstMessage;
 
       const convRef = await addDoc(collection(db, 'users', userId, 'conversations'), {
@@ -93,14 +90,13 @@ export const chatService = {
 
   // Add a message to a conversation
   addMessage: async (
-    userId: string, 
-    conversationId: string, 
-    role: 'user' | 'assistant', 
+    userId: string,
+    conversationId: string,
+    role: 'user' | 'assistant',
     content: string,
     imageUrl?: string
   ) => {
     try {
-      // 1. Add the message to the subcollection
       await addDoc(collection(db, 'users', userId, 'conversations', conversationId, 'messages'), {
         role,
         content,
@@ -108,7 +104,6 @@ export const chatService = {
         createdAt: serverTimestamp(),
       });
 
-      // 2. Update the conversation metadata
       await updateDoc(doc(db, 'users', userId, 'conversations', conversationId), {
         lastMessage: imageUrl ? 'Sent an image' : content,
         updatedAt: serverTimestamp(),
@@ -118,31 +113,41 @@ export const chatService = {
     }
   },
 
-  // Process an image and return a data URL that can be stored in the database
+  // FIX C-5: Use Firebase Storage instead of base64 in Firestore
+  // Firestore has a 1MB document limit — base64 images easily exceed this
   uploadImage: async (userId: string, uri: string, base64?: string, mimeType?: string): Promise<string> => {
-    if (base64 && mimeType) {
-      return `data:${mimeType};base64,${base64}`;
-    }
-    
     try {
-      // Fallback: if we only have URI, try to fetch and convert to base64
+      const fileName = `chat-images/${userId}/${Date.now()}.jpg`;
+      const storageRef = ref(storage, fileName);
+
+      // Fetch the local URI and convert to blob for upload
       const response = await fetch(uri);
       const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+
+      await uploadBytes(storageRef, blob, { contentType: mimeType || 'image/jpeg' });
+      const downloadURL = await getDownloadURL(storageRef);
+      return downloadURL;
     } catch (error) {
-      console.error('Error processing image:', error);
-      return uri; // Return original URI as last resort
+      console.error('Image upload to Firebase Storage failed:', error);
+      throw new Error('Failed to upload image. Please try again.');
     }
   },
 
-  // Delete a conversation and its messages
+  // FIX M-14: Delete sub-collection messages before deleting the conversation
+  // Firestore does NOT cascade-delete sub-collections automatically
   deleteConversation: async (userId: string, conversationId: string) => {
     try {
+      // Step 1: Delete all messages in the sub-collection via batch
+      const messagesRef = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
+      const messagesSnap = await getDocs(messagesRef);
+
+      if (messagesSnap.docs.length > 0) {
+        const batch = writeBatch(db);
+        messagesSnap.docs.forEach(msgDoc => batch.delete(msgDoc.ref));
+        await batch.commit();
+      }
+
+      // Step 2: Delete the parent conversation document
       await deleteDoc(doc(db, 'users', userId, 'conversations', conversationId));
     } catch (error) {
       console.error('Error deleting conversation:', error);

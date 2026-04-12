@@ -1,6 +1,5 @@
 import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
-import { VoiceWaves } from '@/components/VoiceWaves';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { getAIResponse } from '@/services/ai';
@@ -8,8 +7,8 @@ import { ChatMessage, chatService } from '@/services/chatService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
-import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -19,6 +18,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,8 +45,7 @@ export default function AIChatScreen() {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(false);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // FIX H-2: Removed isVoiceActive — voice feature was non-functional (fake UI)
   const [attachedImage, setAttachedImage] = useState<{ uri: string, base64: string, mimeType: string } | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -59,27 +58,15 @@ export default function AIChatScreen() {
       setMessages([{
         id: 'welcome',
         role: 'assistant',
+        // FIX H-7: null guard on userName — avoids "Hi null!"
         content: `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`,
         createdAt: Date.now()
       }]);
     }
   }, [userName, currentConversationId, messages.length]);
 
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => setKeyboardHeight(e.endCoordinates.height)
-    );
-    const hideSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardHeight(0)
-    );
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
+  // FIX M-9: Removed unused keyboardHeight state and its Keyboard.addListener useEffect
+  // KeyboardAvoidingView handles keyboard offset — manual tracking was dead code
 
   const loadConversation = async (id: string) => {
     if (!userId || id === currentConversationId) return;
@@ -96,7 +83,8 @@ export default function AIChatScreen() {
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: `Hi ${userName}! Let's start fresh. What's on your mind?`,
+      // FIX H-7: null guard on userName
+      content: `Hi ${userName || 'there'}! Let's start fresh. What's on your mind?`,
       createdAt: Date.now()
     }]);
   };
@@ -104,7 +92,7 @@ export default function AIChatScreen() {
   const handleSend = async (textOverride?: string) => {
     const text = textOverride || input;
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
-    
+
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     let convId = currentConversationId;
@@ -122,7 +110,7 @@ export default function AIChatScreen() {
       id: Date.now().toString(),
       role: 'user',
       content: text,
-      imageUrl: currentAttachedImage?.uri, // Temp local URI for immediate display
+      imageUrl: currentAttachedImage?.uri,
       createdAt: Date.now()
     };
 
@@ -130,32 +118,30 @@ export default function AIChatScreen() {
     setMessages(newMessages);
     setLoading(true);
 
-    // Scroll to bottom
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
 
     try {
       let finalImageUrl = undefined;
       if (currentAttachedImage) {
         setUploading(true);
-        // Use direct base64 storage to avoid Firebase Storage billing requirements
+        // FIX C-5: uploadImage now uses Firebase Storage, not base64 Firestore field
         finalImageUrl = await chatService.uploadImage(
-          userId, 
-          currentAttachedImage.uri, 
-          currentAttachedImage.base64, 
+          userId,
+          currentAttachedImage.uri,
+          currentAttachedImage.base64,
           currentAttachedImage.mimeType
         );
         setUploading(false);
       }
 
-      // Format messages for AI with image data if available
       const aiInputMessages = newMessages.map(m => {
         if (m.id === userMsg.id && currentAttachedImage) {
           return {
             role: m.role as 'user' | 'assistant' | 'system',
             content: m.content,
-            image: { 
+            image: {
               base64: currentAttachedImage.base64,
-              mimeType: currentAttachedImage.mimeType 
+              mimeType: currentAttachedImage.mimeType
             }
           };
         }
@@ -166,7 +152,7 @@ export default function AIChatScreen() {
       });
 
       const response = await getAIResponse(aiInputMessages);
-      
+
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -176,23 +162,25 @@ export default function AIChatScreen() {
 
       const finalMessages = [...newMessages, aiMsg];
       setMessages(finalMessages);
-      
-      // Persist to store/cloud
+
       await chatService.addMessage(userId, convId, userMsg.role, userMsg.content, finalImageUrl);
       await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content);
-      
+
     } catch (error) {
+      // FIX H-1: Show error message in chat instead of silently swallowing it
       console.error('AI Chat Error:', error);
+      const errMsg: ChatMessage = {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: 'Sorry, I could not connect right now. Please check your internet connection and try again.',
+        createdAt: Date.now()
+      };
+      setMessages(prev => [...prev, errMsg]);
     } finally {
       setLoading(false);
       setUploading(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
     }
-  };
-
-  const toggleVoice = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsVoiceActive(!isVoiceActive);
   };
 
   return (
@@ -211,17 +199,21 @@ export default function AIChatScreen() {
           headerBlurEffect: 'dark',
           headerBackButtonDisplayMode: 'generic',
           headerRight: () => (
-            <TouchableOpacity onPress={() => setIsHistoryVisible(true)} style={styles.headerBtn}>
+            <Pressable
+              onPress={() => setIsHistoryVisible(true)}
+              style={styles.headerBtn}
+            >
               <IconSymbol name="clock.arrow.2.circlepath" size={20} color="#FFF" />
-            </TouchableOpacity>
+            </Pressable>
           )
         }}
       />
 
+      {/* FIX M-10: keyboardVerticalOffset set to header height + status bar */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
@@ -245,9 +237,9 @@ export default function AIChatScreen() {
                 )}
                 <View style={[styles.messageBubble, m.role === 'user' ? styles.userBubble : styles.aiBubble]}>
                   {m.imageUrl && (
-                    <Image 
-                      source={{ uri: m.imageUrl }} 
-                      style={styles.messageImage} 
+                    <Image
+                      source={{ uri: m.imageUrl }}
+                      style={styles.messageImage}
                       contentFit="cover"
                       transition={200}
                     />
@@ -280,9 +272,10 @@ export default function AIChatScreen() {
             <View style={styles.previewContainer}>
               <View style={styles.previewWrapper}>
                 <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} />
-                <TouchableOpacity 
-                  style={styles.removePreview} 
+                <TouchableOpacity
+                  style={styles.removePreview}
                   onPress={() => setAttachedImage(null)}
+                  accessibilityLabel="Remove attached image"
                 >
                   <IconSymbol name="trash.fill" size={14} color="#FFF" />
                 </TouchableOpacity>
@@ -294,11 +287,17 @@ export default function AIChatScreen() {
               </View>
             </View>
           )}
-          
+
           {messages.length <= 1 && !loading && !attachedImage && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer} contentContainerStyle={styles.chipsContent}>
               {ACTION_CHIPS.map((chip, i) => (
-                <TouchableOpacity key={i} style={styles.chip} onPress={() => handleSend(chip.label)}>
+                <TouchableOpacity
+                  key={i}
+                  style={styles.chip}
+                  onPress={() => handleSend(chip.label)}
+                  accessibilityLabel={chip.label}
+                  accessibilityRole="button"
+                >
                   <IconSymbol name={chip.icon as any} size={14} color={Colors.dark.textSecondary} />
                   <Text style={styles.chipText}>{chip.label}</Text>
                 </TouchableOpacity>
@@ -314,6 +313,8 @@ export default function AIChatScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 attachmentSheetRef.current?.present();
               }}
+              accessibilityLabel="Attach image"
+              accessibilityRole="button"
             >
               <View style={styles.attachIconBg}>
                 <IconSymbol name="plus" size={20} color={Colors.dark.text} />
@@ -328,20 +329,27 @@ export default function AIChatScreen() {
                 value={input}
                 onChangeText={setInput}
                 multiline
+                maxLength={2000}
+                accessibilityLabel="Message input"
               />
-              {(input.length > 0 || attachedImage) ? (
-                <TouchableOpacity onPress={() => handleSend()} style={styles.sendBtn} disabled={uploading}>
-                  <LinearGradient colors={['#6366f1', '#a855f7']} style={[styles.sendBtnGradient, uploading && { opacity: 0.5 }]}>
-                    {uploading ? <ActivityIndicator size="small" color="#FFF" /> : <IconSymbol name="arrow.up" size={18} color="#FFF" />}
+              {/* FIX H-2: Removed fake voice button — replaced with send-only logic */}
+              {(input.length > 0 || attachedImage) && (
+                <TouchableOpacity
+                  onPress={() => handleSend()}
+                  style={styles.sendBtn}
+                  disabled={uploading}
+                  accessibilityLabel="Send message"
+                  accessibilityRole="button"
+                >
+                  <LinearGradient
+                    colors={['#6366f1', '#a855f7']}
+                    style={[styles.sendBtnGradient, uploading && { opacity: 0.5 }]}
+                  >
+                    {uploading
+                      ? <ActivityIndicator size="small" color="#FFF" />
+                      : <IconSymbol name="arrow.up" size={18} color="#FFF" />
+                    }
                   </LinearGradient>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={toggleVoice} style={styles.voiceBtn}>
-                  {isVoiceActive ? (
-                    <VoiceWaves isActive={true} />
-                  ) : (
-                    <IconSymbol name="waveform" size={20} color={Colors.dark.textSecondary} />
-                  )}
                 </TouchableOpacity>
               )}
             </View>
@@ -384,7 +392,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerBtn: {
-    marginRight: 8,
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -552,13 +559,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  voiceBtn: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
   },
   previewContainer: {
     paddingHorizontal: Spacing.md,

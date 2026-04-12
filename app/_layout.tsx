@@ -17,7 +17,7 @@ import { useColorScheme } from 'react-native';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setAuth, themePreference, accentColor } = useStore();
+  const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset } = useStore();
   const systemColorScheme = useColorScheme();
 
   const themeMode = themePreference === 'system' 
@@ -52,6 +52,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded, error]);
+
+  // FIX C-4: Trigger daily reset once store has hydrated from AsyncStorage
+  useEffect(() => {
+    if (_hasHydrated) {
+      performDailyReset();
+    }
+  }, [_hasHydrated]);
 
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
