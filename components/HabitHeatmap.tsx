@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { formatLocalDate } from '@/utils/dateUtils';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Typography } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Flame, Activity } from 'lucide-react-native';
 
 interface HabitHeatmapProps {
   completedDays: string[];
@@ -14,12 +15,44 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 export function HabitHeatmap({ completedDays, createdAt }: HabitHeatmapProps) {
   const colors = useThemeColors();
-  // We'll show the last 24 weeks (roughly 6 months)
   const weeks = 22;
   const today = new Date();
   
+  // Calculate Streak
+  const currentStreak = useMemo(() => {
+    let streak = 0;
+    const checkDate = new Date(today);
+    const todayStr = formatLocalDate(checkDate);
+    
+    // If not done today, start checking from yesterday
+    if (!completedDays.includes(todayStr)) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    for (let i = 0; i < 365; i++) {
+      const dStr = formatLocalDate(checkDate);
+      if (completedDays.includes(dStr)) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [completedDays]);
+
+  // Calculate Consistency % (Last 30 days)
+  const consistency = useMemo(() => {
+    let count = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      if (completedDays.includes(formatLocalDate(d))) count++;
+    }
+    return Math.round((count / 30) * 100);
+  }, [completedDays]);
+
   // Calculate the start date (Monday of the starting week)
-  // Ensure the current week is the last column (index 21)
   const currentWeekMonday = new Date(today);
   const currentDayOfWeek = currentWeekMonday.getDay();
   const diffToMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
@@ -48,17 +81,11 @@ export function HabitHeatmap({ completedDays, createdAt }: HabitHeatmapProps) {
               styles.cell,
               { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' },
               isCompleted && { 
-                backgroundColor: colors.success, 
-                shadowColor: colors.success,
-                shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: 0.5,
-                shadowRadius: 4,
-                elevation: 2
+                backgroundColor: colors.success,
               },
               isToday && { 
                 borderColor: colors.success, 
                 borderWidth: 1.5,
-                backgroundColor: isCompleted ? colors.success : (colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)')
               },
               isFuture && styles.cellFuture,
             ]}
@@ -76,79 +103,132 @@ export function HabitHeatmap({ completedDays, createdAt }: HabitHeatmapProps) {
 
   const renderMonthLabels = () => {
     const labels = [];
-    for (let i = 0; i < weeks; i += 4) {
+    let lastMonth = -1;
+    
+    for (let i = 0; i < weeks; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + (i * 7));
-      labels.push(
-        <Text key={i} style={[styles.monthLabel, { left: i * 14, color: colors.textSecondary }]}>
-          {MONTHS[date.getMonth()]}
-        </Text>
-      );
+      const month = date.getMonth();
+      
+      if (month !== lastMonth) {
+        labels.push(
+          <Text key={i} style={[styles.monthLabel, { position: 'absolute', left: i * 14.5, color: colors.textSecondary }]}>
+            {MONTHS[month]}
+          </Text>
+        );
+        lastMonth = month;
+      }
     }
     return labels;
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.labelsContainer}>
-        {DAYS_OF_WEEK.map((day, i) => (
-          <Text key={i} style={[styles.dayLabel, { color: colors.textSecondary }]}>{day}</Text>
-        ))}
-      </View>
-      <View style={styles.gridContainer}>
-        <View style={styles.monthLabelsContainer}>
-          {renderMonthLabels()}
+    <View style={styles.outerContainer}>
+      <View style={styles.statsRow}>
+        <View style={[styles.statChip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+          <Flame size={14} color={colors.danger} fill={currentStreak > 0 ? colors.danger : 'transparent'} />
+          <Text style={[styles.statText, { color: colors.text }]}>{currentStreak} Day Streak</Text>
         </View>
-        <View style={styles.grid}>
-          {renderGrid()}
+        <View style={[styles.statChip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+          <Activity size={14} color={colors.primary} />
+          <Text style={[styles.statText, { color: colors.text }]}>{consistency}% Consistency</Text>
         </View>
       </View>
+
+      <View style={styles.container}>
+        <View style={styles.labelsContainer}>
+          {DAYS_OF_WEEK.map((day, i) => (
+            <Text key={i} style={[styles.dayLabel, { color: colors.textSecondary }]}>{day}</Text>
+          ))}
+        </View>
+        <View style={styles.gridContainer}>
+          <View style={styles.monthLabelsContainer}>
+            {renderMonthLabels()}
+          </View>
+          <View style={styles.grid}>
+            {renderGrid()}
+          </View>
+        </View>
+      </View>
+      
+      <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+        Tracking since {new Date(createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    gap: Spacing.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: 4,
+  },
+  statChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+  },
+  statText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   container: {
     flexDirection: 'row',
-    paddingVertical: 10,
   },
   labelsContainer: {
     justifyContent: 'space-between',
-    paddingTop: 22,
-    paddingRight: 8,
-    height: 110,
+    paddingTop: 24,
+    paddingRight: 10,
+    height: 126,
   },
   dayLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
-    height: 10,
+    height: 12,
   },
   gridContainer: {
     flex: 1,
+    overflow: 'hidden',
   },
   monthLabelsContainer: {
     flexDirection: 'row',
-    height: 20,
+    height: 18,
     position: 'relative',
+    marginBottom: 6,
   },
   monthLabel: {
-    position: 'absolute',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   grid: {
-    gap: 4,
+    gap: 4.5,
   },
   row: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 4.5,
   },
   cell: {
     width: 10,
     height: 10,
-    borderRadius: 2,
+    borderRadius: 3,
   },
   cellFuture: {
-    opacity: 0.2,
+    opacity: 0.1,
+  },
+  footerText: {
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'right',
+    marginTop: 4,
+    opacity: 0.6,
   }
 });

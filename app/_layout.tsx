@@ -1,18 +1,18 @@
+import { useFocusTimer } from '@/hooks/useFocusTimer';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-import * as Notifications from 'expo-notifications';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { useColorScheme } from 'react-native';
-import { useFocusTimer } from '@/hooks/useFocusTimer';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -20,16 +20,16 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset } = useStore();
   const systemColorScheme = useColorScheme();
-  
+
   // Start the global focus timer
   useFocusTimer();
 
-  const themeMode = themePreference === 'system' 
+  const themeMode = themePreference === 'system'
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')
     : themePreference;
 
   const isDark = themeMode === 'dark';
-  
+
   // Create a custom theme object that injects the accent color
   const navTheme = isDark ? {
     ...DarkTheme,
@@ -44,7 +44,7 @@ export default function RootLayout() {
       primary: accentColor,
     }
   };
-  
+
   const [loaded, error] = useFonts({
     'Inter-Regular': require('../assets/fonts/Inter-Regular.ttf'),
     'Inter-SemiBold': require('../assets/fonts/Inter-SemiBold.ttf'),
@@ -70,7 +70,7 @@ export default function RootLayout() {
       if (user) {
         // Double check session validity (handles server-side deletion)
         const isValid = await authService.validateSession(user);
-        
+
         if (!isValid) {
           await authService.logout();
           setAuth(null, null);
@@ -78,7 +78,7 @@ export default function RootLayout() {
         }
 
         setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
-        
+
         // Fetch tasks and other data from Firestore
         try {
           await useStore.getState().hydrateFromCloud();
@@ -133,7 +133,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
         <ThemeProvider value={navTheme}>
-          <Stack screenOptions={{ 
+          <Stack screenOptions={{
             headerShown: false,
             headerBackTitle: '',
             headerTintColor: accentColor,
@@ -145,18 +145,20 @@ export default function RootLayout() {
 
             <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="focus-detail" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-log" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="all-habits" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="all-tasks" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications' }} />
             <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance' }} />
             <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security' }} />
             <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback' }} />
             <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center' }} />
             <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS' }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style={isDark ? "light" : "dark"} />
           <Toast />

@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MoodEmoji } from './MoodEmoji';
+import { History, Pencil, Plus, PlusCircle } from 'lucide-react-native';
 
 export function MoodTrend() {
   const router = useRouter();
@@ -101,13 +102,13 @@ export function MoodTrend() {
           <Text style={[styles.title, { color: colors.text }]}>Mood</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={[styles.headerBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
+              style={[styles.headerBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted, borderWidth: 1 }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/mood-history');
               }}
             >
-              <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
+              <History size={16} color={colors.primary} />
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -117,7 +118,11 @@ export function MoodTrend() {
                 router.push({ pathname: '/mood-log', params: { date: selectedDate } });
               }}
             >
-              <Ionicons name={displayMood ? "create-outline" : "add"} size={displayMood ? 18 : 20} color={colors.primary} />
+              {displayMood ? (
+                <Pencil size={16} color={colors.primary} strokeWidth={2.5} />
+              ) : (
+                <Plus size={20} color={colors.primary} strokeWidth={3} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -150,7 +155,7 @@ export function MoodTrend() {
                 colors={[colors.primaryTransparent, colors.isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)']}
                 style={styles.ctaGradient}
               >
-                <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
+                <PlusCircle size={28} color={colors.primary} strokeWidth={2} />
                 <Text style={[styles.ctaText, { color: colors.primary }]}>How were you feeling?</Text>
               </LinearGradient>
             </TouchableOpacity>

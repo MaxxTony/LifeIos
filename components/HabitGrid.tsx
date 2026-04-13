@@ -89,7 +89,7 @@ export function HabitGrid() {
         )}
 
         <View style={styles.habitList}>
-          {habits.length > 0 ? habits.slice(0, 3).map((habit) => {
+          {habits.length > 0 ? habits.slice(0, 5).map((habit) => {
             const streak = getStreak(habit.id);
             const todayStr = getTodayLocal();
             const isCompletedToday = habit.completedDays.includes(todayStr);
@@ -150,15 +150,15 @@ export function HabitGrid() {
           )}
         </View>
 
-        {habits.length > 3 && (
+        {habits.length > 5 && (
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/progress')}
+            onPress={() => router.push('/all-habits')}
             style={[styles.viewMore, { borderTopColor: colors.border }]}
             accessibilityLabel={`View all ${habits.length} habits`}
             accessibilityRole="button"
           >
             <Text style={[styles.viewMoreText, { color: colors.primary }]}>
-              +{habits.length - 3} more habits
+              +{habits.length - 5} more habits
             </Text>
           </TouchableOpacity>
         )}

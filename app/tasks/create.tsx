@@ -1,15 +1,16 @@
-import { Spacing, Typography, Colors } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
+import { getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Calendar, Clock, Flag, X } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Defined at module scope to avoid recreation on every render
@@ -34,7 +35,7 @@ function PriorityChip({
         selected && { backgroundColor: color + '20', borderColor: color }
       ]}
     >
-      <Ionicons name="flag" size={14} color={selected ? color : borderColor + '60'} />
+      <Flag size={14} color={selected ? color : borderColor + '60'} />
       <Text style={[styles.priorityText, { color: borderColor }, selected && { color }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -83,168 +84,174 @@ export default function CreateTaskScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient 
-        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]} 
-        style={StyleSheet.absoluteFill} 
+      <LinearGradient
+        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]}
+        style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
-          >
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>New Task</Text>
-          <View style={{ width: 44 }} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={[styles.inputSection, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>What needs to be done?</Text>
-            <TextInput
-              style={[styles.textInput, { color: colors.text }]}
-              placeholder="Enter task name..."
-              placeholderTextColor={colors.textSecondary + '70'}
-              value={text}
-              onChangeText={setText}
-              autoFocus
-              multiline
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Set Priority</Text>
-            <View style={styles.priorityRow}>
-              <PriorityChip level="high" label="High" color={colors.danger} selected={priority === 'high'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
-              <PriorityChip level="medium" label="Medium" color={colors.isDark ? '#FFB347' : '#D97706'} selected={priority === 'medium'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
-              <PriorityChip level="low" label="Low" color={colors.success} selected={priority === 'low'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
-            </View>
-          </View>
-
-          <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
-            <View style={styles.selectLeft}>
-              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Today)</Text>
-            </View>
-            <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
-          </View>
-
-          <View style={styles.timeRow}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={styles.header}>
             <TouchableOpacity
-              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-              onPress={() => setPickerMode('start')}
+              onPress={() => router.back()}
+              style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
             >
-              <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <View>
-                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Start Time</Text>
-                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(startTime)}</Text>
-                </View>
-              </View>
+              <X size={24} color={colors.text} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-              onPress={() => setPickerMode('end')}
-            >
-              <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <View>
-                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
-                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>New Task</Text>
+            <View style={{ width: 44 }} />
           </View>
 
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={[styles.inputSection, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>What needs to be done?</Text>
+              <TextInput
+                style={[styles.textInput, { color: colors.text }]}
+                placeholder="Enter task name..."
+                placeholderTextColor={colors.textSecondary + '70'}
+                value={text}
+                onChangeText={setText}
+                autoFocus
+                multiline
+              />
+            </View>
 
-          <Modal
-            visible={!!pickerMode}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setPickerMode(null)}
-          >
-            <TouchableOpacity 
-              style={styles.modalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setPickerMode(null)}
-            >
-               <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-            </TouchableOpacity>
-            
-            <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-                <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
-                <TouchableOpacity 
-                  onPress={() => {
-                    setPickerMode(null);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
-                >
-                  <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
-                </TouchableOpacity>
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Set Priority</Text>
+              <View style={styles.priorityRow}>
+                <PriorityChip level="high" label="High" color={colors.danger} selected={priority === 'high'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
+                <PriorityChip level="medium" label="Medium" color={colors.isDark ? '#FFB347' : '#D97706'} selected={priority === 'medium'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
+                <PriorityChip level="low" label="Low" color={colors.success} selected={priority === 'low'} onSelect={setPriority} borderColor={colors.textSecondary} isDark={colors.isDark} />
               </View>
-              
-              <View style={styles.pickerWrapper}>
-                <DateTimePicker
-                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                  mode="time"
-                  is24Hour={false}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(e, d) => {
-                    if (Platform.OS === 'android') {
+            </View>
+
+            <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
+              <View style={styles.selectLeft}>
+                <Calendar size={20} color={colors.primary} />
+                <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Today)</Text>
+              </View>
+              <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
+            </View>
+
+            <View style={styles.timeRow}>
+              <TouchableOpacity
+                style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                onPress={() => setPickerMode('start')}
+              >
+                <View style={styles.selectLeft}>
+                  <Clock size={20} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Start Time</Text>
+                    <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(startTime)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                onPress={() => setPickerMode('end')}
+              >
+                <View style={styles.selectLeft}>
+                  <Ionicons name="time-outline" size={20} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
+                    <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+
+            <Modal
+              visible={!!pickerMode}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setPickerMode(null)}
+            >
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setPickerMode(null)}
+              >
+                <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+              </TouchableOpacity>
+
+              <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                  <TouchableOpacity
+                    onPress={() => {
                       setPickerMode(null);
-                    }
-                    if (d) {
-                      const now = new Date();
-                      if (pickerMode === 'start') {
-                        if (d < now) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setStartTime(now);
-                          if (endTime <= now) {
-                            setEndTime(new Date(now.getTime() + 30 * 60000));
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
+                  >
+                    <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.pickerWrapper}>
+                  <DateTimePicker
+                    value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(e, d) => {
+                      if (Platform.OS === 'android') {
+                        setPickerMode(null);
+                      }
+                      if (d) {
+                        const now = new Date();
+                        if (pickerMode === 'start') {
+                          if (d < now) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                            setStartTime(now);
+                            if (endTime <= now) {
+                              setEndTime(new Date(now.getTime() + 30 * 60000));
+                            }
+                          } else {
+                            setStartTime(d);
+                            if (d >= endTime) {
+                              setEndTime(new Date(d.getTime() + 30 * 60000));
+                            }
                           }
                         } else {
-                          setStartTime(d);
-                          if (d >= endTime) {
-                            setEndTime(new Date(d.getTime() + 30 * 60000));
+                          if (d <= startTime) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                            setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                          } else {
+                            setEndTime(d);
                           }
-                        }
-                      } else {
-                        if (d <= startTime) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
-                        } else {
-                          setEndTime(d);
                         }
                       }
-                    }
-                  }}
-                  textColor={colors.text}
-                  themeVariant={colors.isDark ? "dark" : "light"}
-                />
+                    }}
+                    textColor={colors.text}
+                    themeVariant={colors.isDark ? "dark" : "light"}
+                  />
+                </View>
               </View>
-            </View>
-          </Modal>
+            </Modal>
 
-          <TouchableOpacity
-            style={[styles.saveButton, !text.trim() && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={!text.trim()}
-          >
-            <LinearGradient
-              colors={colors.gradient}
-              style={styles.gradientBtn}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+            <TouchableOpacity
+              style={[styles.saveButton, !text.trim() && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={!text.trim()}
             >
-              <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Create Task</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </ScrollView>
+              <LinearGradient
+                colors={colors.gradient}
+                style={styles.gradientBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Create Task</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

@@ -2,13 +2,12 @@ import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
 export function DailyTasksWidget() {
   const router = useRouter();
   const colors = useThemeColors();
@@ -44,16 +43,16 @@ export function DailyTasksWidget() {
             accessibilityLabel="Add new task"
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={20} color={colors.primary} />
+            <Plus size={18} color={colors.primary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.list}>
-          {todayTasks.length > 0 ? todayTasks.map((task) => (
+          {todayTasks.length > 0 ? todayTasks.slice(0, 5).map((task) => (
             <View
               key={task.id}
               style={[
-                styles.taskItem, 
+                styles.taskItem,
                 { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderColor: colors.border },
                 task.completed && styles.taskCompleted
               ]}
@@ -90,26 +89,26 @@ export function DailyTasksWidget() {
                 accessibilityRole="button"
               >
                 <View style={styles.taskInfo}>
-                  <Text 
+                  <Text
                     style={[
-                      styles.taskText, 
+                      styles.taskText,
                       { color: colors.text },
                       task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '80' }]
-                    ]} 
+                    ]}
                     numberOfLines={1}
                   >
                     {task.text}
                   </Text>
                   <View style={styles.taskMeta}>
                     <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                      <Ionicons name="flag" size={10} color={priorityColors[task.priority]} />
+                      <Flag size={10} color={priorityColors[task.priority]} />
                       <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
                         {(task.priority || 'medium').toUpperCase()}
                       </Text>
                     </View>
                     {task.startTime && (
                       <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-                        <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
+                        <Clock size={10} color={colors.textSecondary} />
                         <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
                       </View>
                     )}
@@ -118,7 +117,7 @@ export function DailyTasksWidget() {
                     )}
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                <ChevronRight size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           )) : (
@@ -128,8 +127,19 @@ export function DailyTasksWidget() {
           )}
         </View>
 
+        {todayTasks.length > 5 && (
+          <TouchableOpacity
+            onPress={() => router.push('/all-tasks')}
+            style={styles.viewMore}
+          >
+            <Text style={[styles.viewMoreText, { color: colors.primary }]}>
+              +{todayTasks.length - 5} more daily tasks
+            </Text>
+          </TouchableOpacity>
+        )}
       </BlurView>
     </View>
+
   );
 }
 
@@ -243,5 +253,16 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     fontWeight: '500',
+  },
+  viewMore: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+  },
+  viewMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

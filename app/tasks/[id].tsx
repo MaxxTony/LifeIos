@@ -1,14 +1,14 @@
 import { Spacing, Typography, Colors } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { X, Pencil, Trash2, Flag, Calendar, Clock, CheckCircle, RotateCcw, AlertTriangle } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -56,7 +56,7 @@ export default function TaskDetailScreen() {
 
   const priorityColors = {
     high: colors.danger,
-    medium: '#FFB347',
+    medium: colors.isDark ? '#FFB347' : '#D97706',
     low: colors.success
   };
 
@@ -83,7 +83,7 @@ export default function TaskDetailScreen() {
             onPress={() => router.back()} 
             style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
           >
-            <Ionicons name="close" size={24} color={colors.text} />
+            <X size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Task Details</Text>
           <View style={styles.headerActions}>
@@ -92,7 +92,7 @@ export default function TaskDetailScreen() {
                 onPress={() => router.push(`/tasks/edit/${task.id}`)} 
                 style={[styles.editBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
               >
-                <Ionicons name="create-outline" size={20} color={colors.text} />
+                <Pencil size={20} color={colors.text} />
               </TouchableOpacity>
             )}
             {!task.completed ? (
@@ -100,7 +100,7 @@ export default function TaskDetailScreen() {
                 onPress={handleDelete} 
                 style={[styles.deleteBtn, { backgroundColor: colors.danger + '15' }]}
               >
-                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                <Trash2 size={20} color={colors.danger} />
               </TouchableOpacity>
             ) : (
               <View style={{ width: 44 }} />
@@ -111,7 +111,7 @@ export default function TaskDetailScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { borderColor: colors.border }]}>
             <View style={[styles.priorityBadge, { backgroundColor: priorityColors[task.priority || 'medium'] + '20' }]}>
-              <Ionicons name="flag" size={14} color={priorityColors[task.priority || 'medium']} />
+              <Flag size={14} color={priorityColors[task.priority || 'medium']} />
               <Text style={[styles.priorityText, { color: priorityColors[task.priority || 'medium'] }]}>
                 {(task.priority || 'medium').toUpperCase()}
               </Text>
@@ -121,7 +121,7 @@ export default function TaskDetailScreen() {
 
             {task.systemComment && (
               <View style={[styles.commentBox, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}>
-                <Ionicons name="alert-circle-outline" size={16} color={colors.danger} style={{ marginRight: 8, marginTop: 2 }} />
+                <AlertTriangle size={16} color={colors.danger} style={{ marginRight: 8, marginTop: 2 }} />
                 <Text style={[styles.commentText, { color: colors.isDark ? '#FF7676' : colors.danger }]}>{task.systemComment}</Text>
               </View>
             )}
@@ -129,7 +129,7 @@ export default function TaskDetailScreen() {
             <View style={[styles.infoGrid, { borderTopColor: colors.border }]}>
               <View style={styles.infoItem}>
                 <View style={[styles.infoIconBox, { backgroundColor: colors.primaryTransparent }]}>
-                  <Ionicons name="calendar" size={20} color={colors.primary} />
+                  <Calendar size={20} color={colors.primary} />
                 </View>
                 <View>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Scheduled for</Text>
@@ -139,7 +139,7 @@ export default function TaskDetailScreen() {
 
               <View style={styles.infoItem}>
                 <View style={[styles.infoIconBox, { backgroundColor: colors.success + '15' }]}>
-                  <Ionicons name="time" size={20} color={colors.success} />
+                  <Clock size={20} color={colors.success} />
                 </View>
                 <View>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Block</Text>
@@ -154,11 +154,11 @@ export default function TaskDetailScreen() {
             <View style={[styles.statusContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
               <View style={[styles.statusLine, { backgroundColor: task.completed ? colors.success : colors.primary }]} />
               <View style={[styles.statusIndicator, { backgroundColor: task.completed ? colors.success + '40' : colors.primary + '40' }]}>
-                <Ionicons
-                  name={task.completed ? "checkmark" : "sync"}
-                  size={14}
-                  color={colors.text}
-                />
+                {task.completed ? (
+                  <CheckCircle size={14} color={colors.text} />
+                ) : (
+                  <RotateCcw size={14} color={colors.text} />
+                )}
               </View>
               <Text style={[styles.statusText, { color: colors.textSecondary }]}>
                 {task.completed ? 'Tasks finalized and archived' :
@@ -178,7 +178,7 @@ export default function TaskDetailScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Ionicons name="checkmark-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
                 <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
               </LinearGradient>
             </TouchableOpacity>
