@@ -1,5 +1,6 @@
-import { Spacing, Typography } from '@/constants/theme';
+import { Spacing, Typography, Colors } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
@@ -14,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function EditTaskScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const colors = useThemeColors();
   const { tasks, updateTask } = useStore();
 
   const task = tasks.find(t => t.id === id);
@@ -30,8 +32,6 @@ export default function EditTaskScreen() {
     if (task) {
       setText(task.text);
       setPriority(task.priority || 'medium');
-      
-
       if (task.startTime) setStartTime(parseTimeString(task.startTime));
       if (task.endTime) setEndTime(parseTimeString(task.endTime));
     }
@@ -39,25 +39,15 @@ export default function EditTaskScreen() {
 
   const parseTimeString = (timeStr: string) => {
     if (!timeStr || typeof timeStr !== 'string') return new Date();
-    
     try {
       const parts = timeStr.trim().split(/\s+/);
       const timePart = parts[0];
       const modifier = parts[1] ? parts[1].toUpperCase() : null;
-      
       let [hours, minutes] = timePart.split(':').map(Number);
-      
-      if (isNaN(hours) || isNaN(minutes)) {
-        // Fallback or attempt another parse if needed
-        return new Date();
-      }
-
       if (modifier === 'PM' && hours < 12) hours += 12;
       else if (modifier === 'AM' && hours === 12) hours = 0;
-      
       const d = new Date();
       d.setHours(hours, minutes, 0, 0);
-      
       return isNaN(d.getTime()) ? new Date() : d;
     } catch (e) {
       return new Date();
@@ -79,26 +69,23 @@ export default function EditTaskScreen() {
 
   const handleSave = () => {
     if (!text.trim() || !task) return;
-
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
     updateTask(task.id, {
       text: text.trim(),
       priority,
-      date: getTodayLocal(), // Keep it on today's list
+      date: getTodayLocal(),
       startTime: formatTime(startTime),
       endTime: formatTime(endTime),
     });
-    
     router.back();
   };
 
   if (!task) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Task not found</Text>
+      <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.text }]}>Task not found</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backLink}>Go Back</Text>
+          <Text style={[styles.backLink, { color: colors.primary }]}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -112,36 +99,43 @@ export default function EditTaskScreen() {
       }}
       style={[
         styles.priorityChip,
+        { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border },
         priority === level && { backgroundColor: color + '20', borderColor: color }
       ]}
     >
-      <Ionicons name="flag" size={14} color={priority === level ? color : 'rgba(255,255,255,0.3)'} />
-      <Text style={[styles.priorityText, priority === level && { color }]}>{label}</Text>
+      <Ionicons name="flag" size={14} color={priority === level ? color : colors.textSecondary + '60'} />
+      <Text style={[styles.priorityText, { color: colors.textSecondary }, priority === level && { color }]}>{label}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0B0B0F', '#1A1A2E']} style={StyleSheet.absoluteFill} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient 
+        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]} 
+        style={StyleSheet.absoluteFill} 
+      />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color="#FFF" />
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Task</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Task</Text>
           <TouchableOpacity onPress={handleSave} disabled={!text.trim()} style={styles.headerSave}>
-             <Text style={[styles.saveLink, !text.trim() && { opacity: 0.5 }]}>Save</Text>
+             <Text style={[styles.saveLink, { color: colors.primary }, !text.trim() && { opacity: 0.5 }]}>Save</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.inputSection}>
-            <Text style={styles.label}>Task Description</Text>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={[styles.inputSection, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Task Description</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: colors.text }]}
               placeholder="What needs to be done?"
-              placeholderTextColor="rgba(255,255,255,0.2)"
+              placeholderTextColor={colors.textSecondary + '70'}
               value={text}
               onChangeText={setText}
               multiline
@@ -149,47 +143,45 @@ export default function EditTaskScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Priority Level</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Priority Level</Text>
             <View style={styles.priorityRow}>
-              <PriorityChip level="high" label="High" color="#FF4B4B" />
+              <PriorityChip level="high" label="High" color={colors.danger} />
               <PriorityChip level="medium" label="Medium" color="#FFB347" />
-              <PriorityChip level="low" label="Low" color="#00D68F" />
+              <PriorityChip level="low" label="Low" color={colors.success} />
             </View>
           </View>
 
-          <View
-            style={[styles.selectItem, { opacity: 0.8 }]}
-          >
+          <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
             <View style={styles.selectLeft}>
-              <Ionicons name="calendar-outline" size={20} color="rgba(124, 92, 255, 0.5)" />
-              <Text style={styles.selectLabel}>Date (Locked to Today)</Text>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+              <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Today)</Text>
             </View>
-            <Text style={styles.selectValue}>{formatDate(date)}</Text>
+            <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
           </View>
 
           <View style={styles.timeRow}>
             <TouchableOpacity
-              style={[styles.selectItem, { flex: 1 }]}
+              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
               onPress={() => setPickerMode('start')}
             >
               <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color="#7C5CFF" />
+                <Ionicons name="time-outline" size={20} color={colors.primary} />
                 <View>
-                  <Text style={styles.selectLabelSmall}>Start Time</Text>
-                  <Text style={styles.selectValue}>{formatTime(startTime)}</Text>
+                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Start Time</Text>
+                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(startTime)}</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.selectItem, { flex: 1 }]}
+              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
               onPress={() => setPickerMode('end')}
             >
               <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color="#7C5CFF" />
+                <Ionicons name="time-outline" size={20} color={colors.primary} />
                 <View>
-                  <Text style={styles.selectLabelSmall}>End Time</Text>
-                  <Text style={styles.selectValue}>{formatTime(endTime)}</Text>
+                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
+                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -207,20 +199,20 @@ export default function EditTaskScreen() {
               activeOpacity={1} 
               onPress={() => setPickerMode(null)}
             >
-               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+               <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             </TouchableOpacity>
             
-            <View style={styles.sheetContainer}>
-              <View style={styles.sheetHeader}>
-                <View style={styles.sheetHandle} />
+            <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
                 <TouchableOpacity 
                   onPress={() => {
                     setPickerMode(null);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
-                  style={styles.doneBtn}
+                  style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
                 >
-                  <Text style={styles.doneBtnText}>Done</Text>
+                  <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
                 </TouchableOpacity>
               </View>
               
@@ -237,23 +229,19 @@ export default function EditTaskScreen() {
                     if (d) {
                       const now = new Date();
                       if (pickerMode === 'start') {
-                        // Ensure start time is not in the past
                         if (d < now) {
                           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                           setStartTime(now);
-                          // If end time is now behind start time, bump it
                           if (endTime <= now) {
                             setEndTime(new Date(now.getTime() + 30 * 60000));
                           }
                         } else {
                           setStartTime(d);
-                          // Ensure end time is after start time
                           if (d >= endTime) {
                             setEndTime(new Date(d.getTime() + 30 * 60000));
                           }
                         }
                       } else {
-                        // Ensure end time is after start time
                         if (d <= startTime) {
                           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                           setEndTime(new Date(startTime.getTime() + 30 * 60000));
@@ -263,8 +251,8 @@ export default function EditTaskScreen() {
                       }
                     }
                   }}
-                  textColor="white"
-                  themeVariant="dark"
+                  textColor={colors.text}
+                  themeVariant={colors.isDark ? "dark" : "light"}
                 />
               </View>
             </View>
@@ -276,12 +264,12 @@ export default function EditTaskScreen() {
             disabled={!text.trim()}
           >
             <LinearGradient
-              colors={['#7C5CFF', '#5B8CFF']}
+              colors={colors.gradient}
               style={styles.gradientBtn}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.saveButtonText}>Update Changes</Text>
+              <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Update Changes</Text>
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
@@ -293,7 +281,6 @@ export default function EditTaskScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   header: {
     flexDirection: 'row',
@@ -304,7 +291,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.h3,
-    color: '#FFF',
     fontSize: 18,
     fontFamily: 'Outfit-Bold',
   },
@@ -313,41 +299,36 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 22,
   },
   headerSave: {
     paddingHorizontal: 12,
   },
   saveLink: {
-    color: '#7C5CFF',
     fontSize: 16,
     fontWeight: '700',
   },
   content: {
     padding: Spacing.md,
     gap: Spacing.lg,
+    paddingBottom: 40,
   },
   inputSection: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   label: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '600',
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   textInput: {
     fontSize: 18,
-    color: '#FFF',
     minHeight: 40,
     textAlignVertical: 'top',
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-Regular',
   },
   section: {
     gap: 12,
@@ -363,25 +344,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1.5,
-    borderColor: 'transparent',
     gap: 6,
   },
   priorityText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.4)',
   },
   selectItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   selectLeft: {
     flexDirection: 'row',
@@ -390,12 +366,10 @@ const styles = StyleSheet.create({
   },
   selectLabel: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
     fontWeight: '500',
   },
   selectValue: {
     fontSize: 15,
-    color: '#FFF',
     fontWeight: '600',
   },
   timeRow: {
@@ -404,7 +378,6 @@ const styles = StyleSheet.create({
   },
   selectLabelSmall: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
@@ -412,7 +385,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderRadius: 18,
     overflow: 'hidden',
-    height: 56,
+    height: 58,
   },
   saveButtonDisabled: {
     opacity: 0.5,
@@ -423,21 +396,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheetContainer: {
-    backgroundColor: '#14141A',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingBottom: 40,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -450,12 +419,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   sheetHandle: {
     width: 40,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 2,
     position: 'absolute',
     left: '50%',
@@ -466,11 +433,9 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(124, 92, 255, 0.15)',
     borderRadius: 12,
   },
   doneBtnText: {
-    color: '#7C5CFF',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -482,15 +447,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   errorText: {
-    color: '#FFF',
     fontSize: 18,
     marginBottom: 10,
   },
   backLink: {
-    color: '#7C5CFF',
     fontSize: 16,
   }
 });

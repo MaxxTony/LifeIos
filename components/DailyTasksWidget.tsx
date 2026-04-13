@@ -28,16 +28,16 @@ export function DailyTasksWidget() {
     });
 
   const priorityColors = {
-    high: '#FF4B4B',
-    medium: '#FFB347',
-    low: '#00D68F'
+    high: colors.danger,
+    medium: colors.isDark ? '#FFB347' : '#D97706', // Dynamic amber/orange
+    low: colors.success
   };
 
   return (
-    <View style={styles.container}>
-      <BlurView intensity={20} tint="dark" style={styles.blur}>
+    <View style={[styles.container, { borderColor: colors.border }]}>
+      <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
         <View style={styles.header}>
-          <Text style={styles.title}>Daily Tasks</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Daily Tasks</Text>
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
@@ -50,11 +50,13 @@ export function DailyTasksWidget() {
 
         <View style={styles.list}>
           {todayTasks.length > 0 ? todayTasks.map((task) => (
-            // FIX M-5: Restructured from nested TouchableOpacity to sibling layout
-            // Nested touchables caused checkbox taps to fire row navigation on Android
             <View
               key={task.id}
-              style={[styles.taskItem, task.completed && styles.taskCompleted]}
+              style={[
+                styles.taskItem, 
+                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
+                task.completed && styles.taskCompleted
+              ]}
             >
               <TouchableOpacity
                 style={[
@@ -88,33 +90,40 @@ export function DailyTasksWidget() {
                 accessibilityRole="button"
               >
                 <View style={styles.taskInfo}>
-                  <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]} numberOfLines={1}>
+                  <Text 
+                    style={[
+                      styles.taskText, 
+                      { color: colors.text },
+                      task.completed && [styles.taskTextCompleted, { color: colors.textSecondary }]
+                    ]} 
+                    numberOfLines={1}
+                  >
                     {task.text}
                   </Text>
                   <View style={styles.taskMeta}>
-                    <View style={styles.metaItem}>
+                    <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
                       <Ionicons name="flag" size={10} color={priorityColors[task.priority]} />
                       <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
                         {(task.priority || 'medium').toUpperCase()}
                       </Text>
                     </View>
                     {task.startTime && (
-                      <View style={styles.metaItem}>
-                        <Ionicons name="time-outline" size={10} color="rgba(255,255,255,0.6)" />
-                        <Text style={styles.metaText}>{task.startTime}</Text>
+                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                        <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
+                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
                       </View>
                     )}
                     {task.status === 'missed' && (
-                      <Text style={styles.missedTag}>Missed</Text>
+                      <Text style={[styles.missedTag, { color: colors.danger, backgroundColor: colors.danger + '15' }]}>Missed</Text>
                     )}
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           )) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No tasks for today. Start fresh? ✨</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tasks for today. Start fresh? ✨</Text>
             </View>
           )}
         </View>
@@ -129,7 +138,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     marginBottom: Spacing.md,
   },
   blur: {
@@ -144,36 +152,29 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.labelSmall,
     fontSize: 14,
-    color: '#FFF',
     letterSpacing: 1.5,
   },
   addBtn: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(124, 92, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.3)',
   },
   list: {
     gap: 12,
   },
-  // FIX M-5: taskItem is now a View, not TouchableOpacity
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   taskCompleted: {
     opacity: 0.5,
-    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   checkbox: {
     width: 22,
@@ -193,7 +194,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  // FIX M-5: New style for the navigable right-side portion
   taskInfoRow: {
     flex: 1,
     flexDirection: 'row',
@@ -204,13 +204,11 @@ const styles = StyleSheet.create({
   },
   taskText: {
     fontSize: 15,
-    color: '#FFF',
     fontWeight: '600',
     marginBottom: 4,
   },
   taskTextCompleted: {
     textDecorationLine: 'line-through',
-    color: 'rgba(255,255,255,0.3)',
   },
   taskMeta: {
     flexDirection: 'row',
@@ -221,21 +219,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.04)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
   metaText: {
     ...Typography.labelSmall,
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 9,
   },
   missedTag: {
     ...Typography.labelSmall,
     fontSize: 8,
-    color: '#FF4B4B',
-    backgroundColor: 'rgba(255, 75, 75, 0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -246,18 +240,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.3)',
     fontWeight: '500',
   },
-  viewMore: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-  },
-  viewMoreText: {
-    fontSize: 13,
-    fontWeight: '600',
-  }
 });

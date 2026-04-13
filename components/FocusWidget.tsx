@@ -5,18 +5,19 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { AppState, AppStateStatus, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 export function FocusWidget() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession, updateFocusTime } = useStore();
+  const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession } = useStore();
   const pulse = useSharedValue(1);
 
-  // FIX L-8: Added updateFocusTime to dependency array to avoid stale closure
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+    // FocusWidget drives the pulse animation.
+    // The actual timer interval lives globally in hooks/useFocusTimer.ts
+    // to ensure shared accumulation across all screens.
     if (focusSession.isActive) {
       pulse.value = withRepeat(
         withSequence(
@@ -26,36 +27,17 @@ export function FocusWidget() {
         -1,
         true
       );
-      interval = setInterval(() => {
-        updateFocusTime();
-      }, 1000);
     } else {
       pulse.value = withTiming(1);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [focusSession.isActive, updateFocusTime]); // FIX L-8
-
-  // FIX H-5: Sync elapsed time when app returns to foreground
-  // setInterval is paused by iOS in background — without this, returning from background
-  // would credit all background time in a single tick (time warp bug)
-  useEffect(() => {
-    const handleAppStateChange = (nextState: AppStateStatus) => {
-      if (nextState === 'active' && focusSession.isActive) {
-        updateFocusTime();
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription.remove();
-  }, [focusSession.isActive, updateFocusTime]);
+  }, [focusSession.isActive]);
 
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
-    borderColor: focusSession.isActive ? colors.primary : 'rgba(255,255,255,0.08)',
+    borderColor: focusSession.isActive ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
     borderWidth: focusSession.isActive ? 4 : 2,
-    backgroundColor: focusSession.isActive ? colors.primaryMuted : 'rgba(255,255,255,0.02)',
+    backgroundColor: focusSession.isActive ? colors.primaryTransparent : colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+    shadowColor: focusSession.isActive ? colors.primary : 'transparent',
   }));
 
   const formatTime = (seconds: number) => {
@@ -93,7 +75,7 @@ export function FocusWidget() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { borderColor: colors.border }]}>
       <TouchableOpacity
         activeOpacity={1}
         onPress={handleOpenDetail}
@@ -101,9 +83,9 @@ export function FocusWidget() {
         accessibilityLabel="Open focus detail"
         accessibilityRole="button"
       >
-        <BlurView intensity={20} tint="dark" style={styles.blur}>
+        <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
           <View style={styles.header}>
-            <Text style={styles.title}>Daily Focus</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Daily Focus</Text>
             <TouchableOpacity
               onPress={cycleGoal}
               accessibilityLabel={`Focus goal: ${focusGoalHours} hours. Tap to change.`}
@@ -124,8 +106,8 @@ export function FocusWidget() {
           >
             <Animated.View style={[styles.ring, animatedRingStyle]}>
               <View style={styles.innerContent}>
-                <Text style={styles.timeValue}>{formatTime(focusSession.totalSecondsToday)}</Text>
-                <Text style={styles.timeLabel}>{focusSession.isActive ? 'Stop' : 'Start'}</Text>
+                <Text style={[styles.timeValue, { color: colors.text }]}>{formatTime(focusSession.totalSecondsToday)}</Text>
+                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>{focusSession.isActive ? 'Stop' : 'Start'}</Text>
               </View>
             </Animated.View>
           </TouchableOpacity>
@@ -141,7 +123,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     height: 180,
   },
   blur: {
@@ -156,7 +137,6 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.caption,
-    color: '#FFF',
     fontWeight: '600',
     fontSize: 12,
   },
@@ -186,13 +166,11 @@ const styles = StyleSheet.create({
   },
   timeValue: {
     ...Typography.h1,
-    color: '#FFF',
     fontSize: 24,
     marginBottom: -2,
   },
   timeLabel: {
     ...Typography.labelSmall,
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 9,
   },
 });

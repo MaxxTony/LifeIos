@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, withRepeat, withSequence, withTiming, useSharedValue } from 'react-native-reanimated';
-import { Typography, BorderRadius } from '@/constants/theme';
+import { Typography, BorderRadius, Colors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
@@ -36,16 +36,16 @@ export function DashboardAIButton() {
       <TouchableOpacity 
         activeOpacity={0.9}
         onPress={() => router.push('/ai-chat')}
-        style={styles.buttonWrap}
+        style={[styles.buttonWrap, { borderColor: colors.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}
       >
         <LinearGradient
-          colors={[colors.primary, colors.secondary]}
+          colors={colors.gradient}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 1, y: 0 }}
           style={styles.gradient}
         >
           <IconSymbol name="sparkles" size={20} color="#FFF" />
-          <Text style={styles.text}>LifeOS AI</Text>
+          <Text style={[styles.text, { color: '#FFF' }]}>LifeOS AI</Text>
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -63,10 +63,10 @@ const styles = StyleSheet.create({
     width: 200,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#7C5CFF',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 20, elevation: 10,
+    shadowOpacity: 0.8, 
+    shadowRadius: 20, 
+    elevation: 10,
   },
   buttonWrap: {
     width: 180,
@@ -74,7 +74,6 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   gradient: {
     flex: 1,
@@ -85,8 +84,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.h3,
-    color: '#FFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '800',
   }
 });

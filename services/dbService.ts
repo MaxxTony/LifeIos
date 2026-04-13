@@ -1,15 +1,8 @@
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  onSnapshot,
-  arrayUnion,
-  arrayRemove
+import {
+  doc,
+  setDoc,
+  getDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 

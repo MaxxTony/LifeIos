@@ -34,17 +34,18 @@ export function HabitGrid() {
           key={i}
           style={[
             styles.dot,
-            isCompleted && styles.dotCompleted,
-            isToday && styles.dotToday
+            { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+            isCompleted && [styles.dotCompleted, { backgroundColor: colors.success, shadowColor: colors.success }],
+            isToday && [styles.dotToday, { borderColor: colors.textSecondary + '60' }]
           ]}
-        />
+        >
+          {isCompleted && <Ionicons name="checkmark" size={7} color="#FFF" />}
+        </View>
       );
     }
     return dots;
   };
 
-  // FIX M-6: Derive day labels dynamically from the last 7 calendar days
-  // Previously hardcoded ['M','T','W','T','F','S','S'] which misaligned with actual dot dates
   const getDayLabels = () => {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
@@ -53,16 +54,17 @@ export function HabitGrid() {
     });
   };
 
+  const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
+
   return (
-    <View style={styles.container}>
-      <BlurView intensity={25} tint="dark" style={styles.blur}>
+    <View style={[styles.container, { borderColor: colors.border }]}>
+      <BlurView intensity={25} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
         <View style={styles.header}>
           <View style={styles.titleGroup}>
-            <Text style={styles.title}>Habit Streaks</Text>
+            <Text style={[styles.title, { color: colors.textSecondary }]}>Habit Streaks</Text>
             <View style={styles.dayLabels}>
-              {/* FIX M-6: Labels now match actual calendar days shown in dots */}
               {getDayLabels().map((d, i) => (
-                <Text key={i} style={styles.dayLabelText}>{d}</Text>
+                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary + '60' }]}>{d}</Text>
               ))}
             </View>
           </View>
@@ -83,7 +85,14 @@ export function HabitGrid() {
             const isCompletedToday = habit.completedDays.includes(todayStr);
 
             return (
-              <View key={habit.id} style={[styles.habitRow, isCompletedToday && styles.habitRowCompleted]}>
+              <View 
+                key={habit.id} 
+                style={[
+                  styles.habitRow, 
+                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
+                  isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.habitInfo}
                   onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
@@ -91,12 +100,12 @@ export function HabitGrid() {
                   accessibilityLabel={`View ${habit.title} habit details`}
                   accessibilityRole="button"
                 >
-                  <Text style={[styles.habitTitle, isCompletedToday && styles.completedTitle]} numberOfLines={1}>
+                  <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
                     {habit.icon} {habit.title}
                   </Text>
                   <View style={styles.streakInfo}>
-                    <Ionicons name="flame" size={10} color={streak > 0 ? '#FF8C42' : 'rgba(255,255,255,0.2)'} />
-                    <Text style={[styles.habitStreak, streak > 0 && styles.activeStreak]}>
+                    <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+                    <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
                       {streak} day streak
                     </Text>
                   </View>
@@ -116,21 +125,20 @@ export function HabitGrid() {
           }) : (
             <TouchableOpacity
               onPress={() => router.push('/(habits)/templates')}
-              style={styles.emptyContainer}
+              style={[styles.emptyContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
               accessibilityLabel="Add habits to track streaks"
               accessibilityRole="button"
             >
-              <Ionicons name="sparkles-outline" size={20} color="rgba(255,255,255,0.2)" style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyText}>Add habits to track streaks +</Text>
+              <Ionicons name="sparkles-outline" size={20} color={colors.textSecondary + '40'} style={{ marginBottom: 8 }} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Add habits to track streaks +</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* FIX M-13: Show overflow indicator when more than 3 habits exist */}
         {habits.length > 3 && (
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/progress')}
-            style={styles.viewMore}
+            style={[styles.viewMore, { borderTopColor: colors.border }]}
             accessibilityLabel={`View all ${habits.length} habits`}
             accessibilityRole="button"
           >
@@ -150,7 +158,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
     minHeight: 180,
   },
   blur: {
@@ -168,7 +175,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -177,12 +183,10 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: -2,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   dayLabels: {
     flexDirection: 'row',
@@ -191,7 +195,6 @@ const styles = StyleSheet.create({
   },
   dayLabelText: {
     fontSize: 7,
-    color: 'rgba(255,255,255,0.2)',
     width: 8,
     textAlign: 'center',
     fontWeight: '700',
@@ -203,27 +206,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
   },
   habitRowCompleted: {
-    backgroundColor: 'rgba(0, 214, 143, 0.05)',
-    borderColor: 'rgba(0, 214, 143, 0.15)',
   },
   habitInfo: {
     flex: 1,
   },
   habitTitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
     fontWeight: '700',
     marginBottom: 3,
-  },
-  completedTitle: {
-    color: '#00D68F',
   },
   streakInfo: {
     flexDirection: 'row',
@@ -232,11 +227,7 @@ const styles = StyleSheet.create({
   },
   habitStreak: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.3)',
     fontWeight: '600',
-  },
-  activeStreak: {
-    color: '#FF8C42',
   },
   dotsContainer: {
     flexDirection: 'row',
@@ -246,21 +237,19 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: 10,
+    height: 10,
+    borderRadius: 3.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dotCompleted: {
-    backgroundColor: '#00D68F',
-    shadowColor: '#00D68F',
     shadowRadius: 4,
     shadowOpacity: 0.5,
     elevation: 3,
   },
   dotToday: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -268,21 +257,16 @@ const styles = StyleSheet.create({
     paddingVertical: 35,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   emptyText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
     fontWeight: '600',
   },
-  // FIX M-13: Style for "view all habits" overflow link
   viewMore: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center',
   },
   viewMoreText: {

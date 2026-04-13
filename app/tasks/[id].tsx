@@ -1,5 +1,6 @@
-import { Spacing, Typography } from '@/constants/theme';
+import { Spacing, Typography, Colors } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -12,16 +13,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const colors = useThemeColors();
   const { tasks, toggleTask, removeTask } = useStore();
 
   const task = tasks.find(t => t.id === id);
 
   if (!task) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Task not found</Text>
+      <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.text }]}>Task not found</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backLink}>Go Back</Text>
+          <Text style={[styles.backLink, { color: colors.primary }]}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -53,43 +55,52 @@ export default function TaskDetailScreen() {
   };
 
   const priorityColors = {
-    high: '#FF4B4B',
+    high: colors.danger,
     medium: '#FFB347',
-    low: '#00D68F'
+    low: colors.success
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0B0B15', '#08080C']} style={StyleSheet.absoluteFill} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient 
+        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]} 
+        style={StyleSheet.absoluteFill} 
+      />
 
       {/* Background Glows */}
       <LinearGradient 
-        colors={['rgba(124, 92, 255, 0.2)', 'transparent']} 
-        style={[styles.glow, { top: -100, left: -50 }]} 
+        colors={[colors.primaryTransparent, 'transparent']} 
+        style={[styles.glow, { top: -100, left: -50, shadowColor: colors.primary }]} 
       />
       <LinearGradient 
-        colors={['rgba(91, 140, 255, 0.2)', 'transparent']} 
-        style={[styles.glow, { bottom: 100, right: -100 }]} 
+        colors={[colors.isDark ? colors.primary + '20' : colors.primary + '0A', 'transparent']} 
+        style={[styles.glow, { bottom: 100, right: -100, shadowColor: colors.primary }]} 
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color="#FFF" />
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Task Details</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Task Details</Text>
           <View style={styles.headerActions}>
             {!task.completed && (
               <TouchableOpacity 
                 onPress={() => router.push(`/tasks/edit/${task.id}`)} 
-                style={styles.editBtn}
+                style={[styles.editBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
               >
-                <Ionicons name="create-outline" size={20} color="#FFF" />
+                <Ionicons name="create-outline" size={20} color={colors.text} />
               </TouchableOpacity>
             )}
             {!task.completed ? (
-              <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={20} color="#FF4B4B" />
+              <TouchableOpacity 
+                onPress={handleDelete} 
+                style={[styles.deleteBtn, { backgroundColor: colors.danger + '15' }]}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.danger} />
               </TouchableOpacity>
             ) : (
               <View style={{ width: 44 }} />
@@ -98,7 +109,7 @@ export default function TaskDetailScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <BlurView intensity={20} tint="dark" style={styles.card}>
+          <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { borderColor: colors.border }]}>
             <View style={[styles.priorityBadge, { backgroundColor: priorityColors[task.priority || 'medium'] + '20' }]}>
               <Ionicons name="flag" size={14} color={priorityColors[task.priority || 'medium']} />
               <Text style={[styles.priorityText, { color: priorityColors[task.priority || 'medium'] }]}>
@@ -106,51 +117,51 @@ export default function TaskDetailScreen() {
               </Text>
             </View>
 
-            <Text style={styles.taskTitle}>{task.text}</Text>
+            <Text style={[styles.taskTitle, { color: colors.text }]}>{task.text}</Text>
 
             {task.systemComment && (
-              <View style={styles.commentBox}>
-                <Ionicons name="alert-circle-outline" size={16} color="#FF4B4B" style={{ marginRight: 8, marginTop: 2 }} />
-                <Text style={styles.commentText}>{task.systemComment}</Text>
+              <View style={[styles.commentBox, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}>
+                <Ionicons name="alert-circle-outline" size={16} color={colors.danger} style={{ marginRight: 8, marginTop: 2 }} />
+                <Text style={[styles.commentText, { color: colors.isDark ? '#FF7676' : colors.danger }]}>{task.systemComment}</Text>
               </View>
             )}
 
-            <View style={styles.infoGrid}>
+            <View style={[styles.infoGrid, { borderTopColor: colors.border }]}>
               <View style={styles.infoItem}>
-                <View style={[styles.infoIconBox, { backgroundColor: 'rgba(124, 92, 255, 0.15)' }]}>
-                  <Ionicons name="calendar" size={20} color="#7C5CFF" />
+                <View style={[styles.infoIconBox, { backgroundColor: colors.primaryTransparent }]}>
+                  <Ionicons name="calendar" size={20} color={colors.primary} />
                 </View>
                 <View>
-                  <Text style={styles.infoLabel}>Scheduled for</Text>
-                  <Text style={styles.infoValue}>{task.date}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Scheduled for</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{task.date}</Text>
                 </View>
               </View>
 
               <View style={styles.infoItem}>
-                <View style={[styles.infoIconBox, { backgroundColor: 'rgba(0, 214, 143, 0.15)' }]}>
-                  <Ionicons name="time" size={20} color="#00D68F" />
+                <View style={[styles.infoIconBox, { backgroundColor: colors.success + '15' }]}>
+                  <Ionicons name="time" size={20} color={colors.success} />
                 </View>
                 <View>
-                  <Text style={styles.infoLabel}>Time Block</Text>
-                  <Text style={styles.infoValue}>{task.startTime} — {task.endTime}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Block</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{task.startTime} — {task.endTime}</Text>
                 </View>
               </View>
             </View>
           </BlurView>
 
           <View style={styles.statusSection}>
-            <Text style={styles.sectionTitle}>Task Progress</Text>
-            <View style={styles.statusContainer}>
-              <View style={[styles.statusLine, task.completed ? styles.lineCompleted : styles.linePending]} />
-              <View style={[styles.statusIndicator, task.completed ? styles.indicatorCompleted : styles.indicatorPending]}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Task Progress</Text>
+            <View style={[styles.statusContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
+              <View style={[styles.statusLine, { backgroundColor: task.completed ? colors.success : colors.primary }]} />
+              <View style={[styles.statusIndicator, { backgroundColor: task.completed ? colors.success + '40' : colors.primary + '40' }]}>
                 <Ionicons
                   name={task.completed ? "checkmark" : "sync"}
                   size={14}
-                  color="#FFF"
+                  color={colors.text}
                 />
               </View>
-              <Text style={styles.statusText}>
-                {task.status === 'completed' ? 'Tasks finalized and archived' :
+              <Text style={[styles.statusText, { color: colors.textSecondary }]}>
+                {task.completed ? 'Tasks finalized and archived' :
                   task.status === 'missed' ? 'Deadline passed without completion' :
                     'Work in progress...'}
               </Text>
@@ -162,13 +173,13 @@ export default function TaskDetailScreen() {
           <View style={styles.footer}>
             <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
               <LinearGradient
-                colors={['#7C5CFF', '#5B8CFF']}
+                colors={colors.gradient}
                 style={styles.gradientBtn}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 1, y: 0 }}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={styles.completeBtnText}>Mark as Completed</Text>
+                <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -191,7 +202,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.h3,
-    color: '#FFF',
     fontSize: 18,
     fontFamily: 'Outfit-Bold',
   },
@@ -200,7 +210,6 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 22,
   },
   deleteBtn: {
@@ -208,7 +217,6 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 75, 75, 0.1)',
     borderRadius: 12,
   },
   editBtn: {
@@ -216,7 +224,6 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 12,
   },
   headerActions: {
@@ -231,7 +238,6 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
   priorityBadge: {
@@ -251,7 +257,6 @@ const styles = StyleSheet.create({
   },
   taskTitle: {
     ...Typography.h1,
-    color: '#FFF',
     fontSize: 32,
     lineHeight: 40,
     fontFamily: 'Outfit-Bold',
@@ -263,7 +268,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 16,
@@ -272,11 +276,9 @@ const styles = StyleSheet.create({
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   statusLine: {
     position: 'absolute',
@@ -286,8 +288,6 @@ const styles = StyleSheet.create({
     width: 2,
     opacity: 0.1,
   },
-  linePending: { backgroundColor: '#7C5CFF' },
-  lineCompleted: { backgroundColor: '#00D68F' },
   statusIndicator: {
     width: 28,
     height: 28,
@@ -296,12 +296,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
   },
-  indicatorPending: { backgroundColor: 'rgba(124, 92, 255, 0.3)' },
-  indicatorCompleted: { backgroundColor: 'rgba(0, 214, 143, 0.3)' },
   statusText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     fontWeight: '500',
     lineHeight: 18,
   },
@@ -310,7 +307,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   infoItem: {
     flexDirection: 'row',
@@ -319,14 +315,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 16,
-    color: '#FFF',
     fontWeight: '600',
   },
   infoIconBox: {
@@ -338,16 +332,13 @@ const styles = StyleSheet.create({
   },
   commentBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 75, 75, 0.08)',
     padding: 14,
     borderRadius: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 75, 75, 0.15)',
   },
   commentText: {
     flex: 1,
-    color: '#FF7676',
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
@@ -368,7 +359,6 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -381,7 +371,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   completeBtnText: {
-    color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -389,15 +378,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   errorText: {
-    color: '#FFF',
     fontSize: 18,
     marginBottom: 10,
   },
   backLink: {
-    color: '#7C5CFF',
     fontSize: 16,
   }
 });

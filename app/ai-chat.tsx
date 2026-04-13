@@ -1,7 +1,8 @@
 import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';
 import { ChatMessage, chatService } from '@/services/chatService';
 import { useStore } from '@/store/useStore';
@@ -11,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
+import { useHeaderHeight } from '@react-navigation/elements';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,34 +41,31 @@ const ACTION_CHIPS = [
 
 export default function AIChatScreen() {
   const { userId, userName } = useStore();
+  const colors = useThemeColors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(false);
-  // FIX H-2: Removed isVoiceActive — voice feature was non-functional (fake UI)
   const [attachedImage, setAttachedImage] = useState<{ uri: string, base64: string, mimeType: string } | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const attachmentSheetRef = useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
 
   useEffect(() => {
     if (!currentConversationId && messages.length === 0) {
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        // FIX H-7: null guard on userName — avoids "Hi null!"
         content: `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`,
         createdAt: Date.now()
       }]);
     }
   }, [userName, currentConversationId, messages.length]);
-
-  // FIX M-9: Removed unused keyboardHeight state and its Keyboard.addListener useEffect
-  // KeyboardAvoidingView handles keyboard offset — manual tracking was dead code
 
   const loadConversation = async (id: string) => {
     if (!userId || id === currentConversationId) return;
@@ -83,7 +82,6 @@ export default function AIChatScreen() {
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      // FIX H-7: null guard on userName
       content: `Hi ${userName || 'there'}! Let's start fresh. What's on your mind?`,
       createdAt: Date.now()
     }]);
@@ -124,12 +122,9 @@ export default function AIChatScreen() {
       let finalImageUrl = undefined;
       if (currentAttachedImage) {
         setUploading(true);
-        // FIX C-5: uploadImage now uses Firebase Storage, not base64 Firestore field
         finalImageUrl = await chatService.uploadImage(
           userId,
-          currentAttachedImage.uri,
-          currentAttachedImage.base64,
-          currentAttachedImage.mimeType
+          currentAttachedImage.uri
         );
         setUploading(false);
       }
@@ -167,7 +162,6 @@ export default function AIChatScreen() {
       await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content);
 
     } catch (error) {
-      // FIX H-1: Show error message in chat instead of silently swallowing it
       console.error('AI Chat Error:', error);
       const errMsg: ChatMessage = {
         id: (Date.now() + 2).toString(),
@@ -184,7 +178,7 @@ export default function AIChatScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -193,23 +187,23 @@ export default function AIChatScreen() {
           headerTitleStyle: {
             fontFamily: 'Outfit-Bold',
             fontSize: 20,
-            color: '#FFF'
+            color: colors.text
           },
           headerTransparent: true,
-          headerBlurEffect: 'dark',
+          headerBlurEffect: colors.isDark ? 'dark' : 'light',
           headerBackButtonDisplayMode: 'generic',
+          headerTintColor: colors.text,
           headerRight: () => (
             <Pressable
               onPress={() => setIsHistoryVisible(true)}
-              style={styles.headerBtn}
+              style={[styles.headerBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
             >
-              <IconSymbol name="clock.arrow.2.circlepath" size={20} color="#FFF" />
+              <IconSymbol name="clock.arrow.2.circlepath" size={20} color={colors.text} />
             </Pressable>
           )
         }}
       />
 
-      {/* FIX M-10: keyboardVerticalOffset set to header height + status bar */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -217,25 +211,28 @@ export default function AIChatScreen() {
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
-            <ActivityIndicator size="large" color={Colors.dark.primary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 8 }]}
             showsVerticalScrollIndicator={false}
           >
             {messages.map((m) => (
               <View key={m.id} style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
                 {m.role === 'assistant' && (
                   <View style={styles.aiAvatar}>
-                    <LinearGradient colors={['#6366f1', '#a855f7']} style={styles.avatarGradient}>
+                    <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
                       <IconSymbol name="sparkles" size={14} color="#FFF" />
                     </LinearGradient>
                   </View>
                 )}
-                <View style={[styles.messageBubble, m.role === 'user' ? styles.userBubble : styles.aiBubble]}>
+                <View style={[
+                  styles.messageBubble, 
+                  m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
+                ]}>
                   {m.imageUrl && (
                     <Image
                       source={{ uri: m.imageUrl }}
@@ -245,7 +242,7 @@ export default function AIChatScreen() {
                     />
                   )}
                   {m.content ? (
-                    <Text style={[styles.messageText, m.role === 'user' ? styles.userText : styles.aiText]}>
+                    <Text style={[styles.messageText, m.role === 'user' ? styles.userText : [styles.aiText, { color: colors.text }]]}>
                       {m.content}
                     </Text>
                   ) : m.imageUrl && (
@@ -258,19 +255,22 @@ export default function AIChatScreen() {
             ))}
             {loading && (
               <View style={styles.aiWrapper}>
-                <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble]}>
-                  <ActivityIndicator size="small" color={Colors.dark.textSecondary} />
+                <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
                 </View>
               </View>
             )}
           </ScrollView>
         )}
 
-        {/* Floating Input Area */}
-        <BlurView intensity={80} tint="dark" style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+        <BlurView 
+          intensity={80} 
+          tint={colors.isDark ? 'dark' : 'light'} 
+          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md), backgroundColor: colors.isDark ? 'rgba(11, 11, 15, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderTopColor: colors.border }]}
+        >
           {attachedImage && (
             <View style={styles.previewContainer}>
-              <View style={styles.previewWrapper}>
+              <View style={[styles.previewWrapper, { borderColor: colors.border }]}>
                 <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} />
                 <TouchableOpacity
                   style={styles.removePreview}
@@ -293,13 +293,13 @@ export default function AIChatScreen() {
               {ACTION_CHIPS.map((chip, i) => (
                 <TouchableOpacity
                   key={i}
-                  style={styles.chip}
+                  style={[styles.chip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                   onPress={() => handleSend(chip.label)}
                   accessibilityLabel={chip.label}
                   accessibilityRole="button"
                 >
-                  <IconSymbol name={chip.icon as any} size={14} color={Colors.dark.textSecondary} />
-                  <Text style={styles.chipText}>{chip.label}</Text>
+                  <IconSymbol name={chip.icon as any} size={14} color={colors.textSecondary} />
+                  <Text style={[styles.chipText, { color: colors.textSecondary }]}>{chip.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -316,23 +316,22 @@ export default function AIChatScreen() {
               accessibilityLabel="Attach image"
               accessibilityRole="button"
             >
-              <View style={styles.attachIconBg}>
-                <IconSymbol name="plus" size={20} color={Colors.dark.text} />
+              <View style={[styles.attachIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+                <IconSymbol name="plus" size={20} color={colors.text} />
               </View>
             </TouchableOpacity>
 
-            <View style={styles.textInputContainer}>
+            <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Message LifeOS..."
-                placeholderTextColor={Colors.dark.textSecondary}
+                placeholderTextColor={colors.textSecondary + '60'}
                 value={input}
                 onChangeText={setInput}
                 multiline
                 maxLength={2000}
                 accessibilityLabel="Message input"
               />
-              {/* FIX H-2: Removed fake voice button — replaced with send-only logic */}
               {(input.length > 0 || attachedImage) && (
                 <TouchableOpacity
                   onPress={() => handleSend()}
@@ -342,7 +341,7 @@ export default function AIChatScreen() {
                   accessibilityRole="button"
                 >
                   <LinearGradient
-                    colors={['#6366f1', '#a855f7']}
+                    colors={[colors.primary, colors.secondary]}
                     style={[styles.sendBtnGradient, uploading && { opacity: 0.5 }]}
                   >
                     {uploading
@@ -381,7 +380,6 @@ export default function AIChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   keyboardView: {
     flex: 1,
@@ -395,18 +393,15 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
   messagesContainer: {
     flex: 1,
   },
   scrollContent: {
     padding: Spacing.md,
-    paddingTop: Platform.OS === 'ios' ? 130 : 110,
     paddingBottom: Spacing.xl,
   },
   messageWrapper: {
@@ -440,7 +435,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   userBubble: {
-    backgroundColor: '#3730a3',
     borderBottomRightRadius: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -449,13 +443,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   aiBubble: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   loadingBubble: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 18,
@@ -469,13 +460,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   aiText: {
-    color: '#E0E1E5',
   },
   footer: {
-    backgroundColor: 'rgba(11, 11, 15, 0.95)',
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.3,
@@ -492,17 +480,14 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 6,
   },
   chipText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
     fontSize: 13,
   },
   inputWrapper: {
@@ -522,27 +507,22 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   textInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 24,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   input: {
     flex: 1,
     ...Typography.body,
-    color: '#FFFFFF',
     paddingTop: 8,
     paddingBottom: 8,
     paddingHorizontal: 8,
@@ -571,7 +551,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   previewImage: {
     width: '100%',

@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
 import { Send, MessageSquare, Bug, Sparkles, AlertCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { useHeaderHeight } from '@react-navigation/elements';
 import Toast from 'react-native-toast-message';
 
 const CATEGORIES = [
@@ -18,11 +20,12 @@ export default function FeedbackSettings() {
   const [category, setCategory] = useState('general');
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const colors = useThemeColors();
+  const headerHeight = useHeaderHeight();
 
   const handleSubmit = () => {
     if (!feedback.trim()) return;
     setSubmitting(true);
-    // Mock submission
     setTimeout(() => {
       setSubmitting(false);
       Toast.show({
@@ -36,7 +39,7 @@ export default function FeedbackSettings() {
 
   return (
     <KeyboardAvoidingView 
-      style={styles.container} 
+      style={[styles.container, { backgroundColor: colors.background }]} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen 
@@ -44,18 +47,18 @@ export default function FeedbackSettings() {
           title: 'Send Feedback',
           headerShown: true,
           headerTransparent: true,
-          headerBlurEffect: 'dark',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: '#FFF' },
-          headerTintColor: Colors.dark.primary,
+          headerBlurEffect: colors.isDark ? 'dark' : 'light',
+          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
+          headerTintColor: colors.primary,
         }} 
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.description}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
+        <Text style={[styles.description, { color: colors.textSecondary }]}>
           Your feedback helps us build the best version of LifeOS. We read every message!
         </Text>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Category</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Category</Text>
           <View style={styles.categoryGrid}>
             {CATEGORIES.map((cat) => {
               const isActive = category === cat.id;
@@ -63,11 +66,18 @@ export default function FeedbackSettings() {
               return (
                 <TouchableOpacity 
                   key={cat.id} 
-                  style={[styles.categoryItem, isActive && styles.categoryItemActive]}
+                  style={[
+                    styles.categoryItem, 
+                    { 
+                      backgroundColor: colors.isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.01)',
+                      borderColor: isActive ? colors.primary + '30' : 'transparent'
+                    },
+                    isActive && { backgroundColor: colors.primaryTransparent }
+                  ]}
                   onPress={() => setCategory(cat.id)}
                 >
-                  <Icon size={20} color={isActive ? '#FFF' : Colors.dark.textSecondary} />
-                  <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>{cat.label}</Text>
+                  <Icon size={20} color={isActive ? colors.primary : colors.textSecondary} />
+                  <Text style={[styles.categoryLabel, { color: colors.textSecondary }, isActive && { color: colors.primary }]}>{cat.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -75,12 +85,12 @@ export default function FeedbackSettings() {
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={styles.sectionTitle}>Message</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Message</Text>
           <GlassCard style={styles.inputCard}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: colors.text }]}
               placeholder="Tell us what's on your mind..."
-              placeholderTextColor={Colors.dark.textSecondary}
+              placeholderTextColor={colors.textSecondary + '60'}
               multiline
               numberOfLines={6}
               textAlignVertical="top"
@@ -96,7 +106,7 @@ export default function FeedbackSettings() {
           disabled={!feedback.trim() || submitting}
         >
           <LinearGradient
-            colors={Colors.dark.gradient as any}
+            colors={colors.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.submitGradient}
@@ -113,8 +123,8 @@ export default function FeedbackSettings() {
         </TouchableOpacity>
 
         <View style={styles.disclaimer}>
-          <AlertCircle size={14} color={Colors.dark.textSecondary} />
-          <Text style={styles.disclaimerText}>
+          <AlertCircle size={14} color={colors.textSecondary} />
+          <Text style={[styles.disclaimerText, { color: colors.textSecondary }]}>
             For urgent technical support, please head to the Help Center.
           </Text>
         </View>
@@ -126,15 +136,12 @@ export default function FeedbackSettings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   content: {
     padding: Spacing.md,
-    paddingTop: 120,
   },
   description: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.xs,
   },
@@ -143,7 +150,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.labelSmall,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
   },
@@ -153,27 +159,17 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  categoryItemActive: {
-    borderColor: 'rgba(124, 92, 255, 0.3)',
-    backgroundColor: 'rgba(124, 92, 255, 0.08)',
   },
   categoryLabel: {
     ...Typography.caption,
     fontSize: 11,
-    color: Colors.dark.textSecondary,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  categoryLabelActive: {
-    color: '#FFF',
   },
   inputSection: {
     marginBottom: Spacing.xxl,
@@ -184,7 +180,6 @@ const styles = StyleSheet.create({
   },
   textInput: {
     ...Typography.body,
-    color: '#FFF',
     flex: 1,
     paddingTop: 0,
   },
@@ -217,7 +212,6 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
     fontSize: 12,
   },
 });

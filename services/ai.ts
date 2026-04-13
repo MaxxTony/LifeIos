@@ -4,7 +4,6 @@ import { aiActionHandler } from './aiActionHandler';
 import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
 // Initialize Gemini
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;

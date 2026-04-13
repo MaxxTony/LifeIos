@@ -1,13 +1,13 @@
 import { Colors, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Dimensions,
-  FlatList,
   Image,
   Platform,
   StatusBar,
@@ -49,13 +49,11 @@ const STRUGGLES = [
 ];
 
 // ─── Animated Pulsing Orb ────────────────────────────────────────────────────
-// Smooth sonar ripple: withDelay is OUTSIDE withRepeat so the offset applies
-// only once (initial phase shift). All 4 rings share the same CYCLE period,
-// keeping them in perfect sync forever.
 const RIPPLE_CYCLE = 3200;        // ms for one full ring expansion
 const RIPPLE_STAGGER = RIPPLE_CYCLE / 4; // 800 ms between each ring
 
 function PulsingOrb() {
+  const colors = useThemeColors();
   const scale = useSharedValue(1);
   const orbOpacity = useSharedValue(0.6);
 
@@ -118,13 +116,11 @@ function PulsingOrb() {
 
   return (
     <View style={orbStyles.container}>
-      {/* Ripple rings — rendered largest → smallest so they layer correctly */}
-      <Animated.View style={[orbStyles.ring, ring4Style]} />
-      <Animated.View style={[orbStyles.ring, ring3Style]} />
-      <Animated.View style={[orbStyles.ring, ring2Style]} />
-      <Animated.View style={[orbStyles.ring, ring1Style]} />
-      {/* App Icon */}
-      <Animated.View style={[orbStyles.iconWrapper, orbStyle]}>
+      <Animated.View style={[orbStyles.ring, { borderColor: colors.primary }, ring4Style]} />
+      <Animated.View style={[orbStyles.ring, { borderColor: colors.primary }, ring3Style]} />
+      <Animated.View style={[orbStyles.ring, { borderColor: colors.primary }, ring2Style]} />
+      <Animated.View style={[orbStyles.ring, { borderColor: colors.primary }, ring1Style]} />
+      <Animated.View style={[orbStyles.iconWrapper, { shadowColor: colors.primary }, orbStyle]}>
         <Image
           source={require('../../assets/images/splash-icon.png')}
           style={orbStyles.iconImage}
@@ -142,26 +138,24 @@ const orbStyles = StyleSheet.create({
     height: 180,
     borderRadius: 90,
     overflow: 'hidden',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 24,
     elevation: 12,
   },
   iconImage: { width: 180, height: 180, borderRadius: 90 },
-  // Single base ring — scale transform handles expansion for all 4 rings
   ring: {
     position: 'absolute',
     width: 180,
     height: 180,
     borderRadius: 90,
     borderWidth: 1.5,
-    borderColor: '#7C5CFF',
   },
 });
 
 // ─── Animated Brain / Neural Icon ────────────────────────────────────────────
 function BrainVisual() {
+  const colors = useThemeColors();
   const glow = useSharedValue(0.5);
   const float = useSharedValue(0);
 
@@ -187,7 +181,7 @@ function BrainVisual() {
   return (
     <Animated.View style={[brainStyles.container, floatStyle]}>
       <Text style={brainStyles.icon}>🧠</Text>
-      <View style={brainStyles.glowBehind} />
+      <View style={[brainStyles.glowBehind, { backgroundColor: colors.primary + '22' }]} />
     </Animated.View>
   );
 }
@@ -200,12 +194,12 @@ const brainStyles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: '#7C5CFF22',
   },
 });
 
 // ─── Final Hero Visual (Slide 4) ─────────────────────────────────────────────
 function FinalHero() {
+  const colors = useThemeColors();
   const glow = useSharedValue(0.6);
   const iconS = useSharedValue(0);
   const p1 = useSharedValue(0); const p2 = useSharedValue(0);
@@ -242,32 +236,15 @@ function FinalHero() {
   const r2Style = useAnimatedStyle(() => ({ transform: [{ scale: rir2.value }], opacity: rio2.value }));
   const r3Style = useAnimatedStyle(() => ({ transform: [{ scale: rir3.value }], opacity: rio3.value }));
 
-  const orbitStyle = (sv: { value: number }, radius: number, phase: number) =>
-    useAnimatedStyle(() => ({
-      transform: [
-        { translateX: Math.cos(sv.value + phase) * radius },
-        { translateY: Math.sin(sv.value + phase) * radius },
-      ],
-    }));
-
-  const o1 = orbitStyle(p1 as any, 88, 0);
-  const o2 = orbitStyle(p2 as any, 88, Math.PI / 2);
-  const o3 = orbitStyle(p3 as any, 88, Math.PI);
-  const o4 = orbitStyle(p4 as any, 88, (Math.PI * 3) / 2);
-
   return (
     <View style={heroStyles.container}>
-      <Animated.View style={[heroStyles.ring, r3Style]} />
-      <Animated.View style={[heroStyles.ring, r2Style]} />
-      <Animated.View style={[heroStyles.ring, r1Style]} />
-      <Animated.View style={[heroStyles.glow, glowStyle]} />
+      <Animated.View style={[heroStyles.ring, { borderColor: colors.primary }, r3Style]} />
+      <Animated.View style={[heroStyles.ring, { borderColor: colors.primary }, r2Style]} />
+      <Animated.View style={[heroStyles.ring, { borderColor: colors.primary }, r1Style]} />
+      <Animated.View style={[heroStyles.glow, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
       <Animated.View style={[heroStyles.iconWrap, iconStyle]}>
         <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} resizeMode="cover" />
       </Animated.View>
-      {/* <Animated.View style={[heroStyles.particle, o1]}><Text style={heroStyles.pText}>✨</Text></Animated.View>
-      <Animated.View style={[heroStyles.particle, o2]}><Text style={heroStyles.pText}>🚀</Text></Animated.View>
-      <Animated.View style={[heroStyles.particle, o3]}><Text style={heroStyles.pText}>⭐</Text></Animated.View>
-      <Animated.View style={[heroStyles.particle, o4]}><Text style={heroStyles.pText}>💜</Text></Animated.View> */}
     </View>
   );
 }
@@ -278,12 +255,10 @@ const heroStyles = StyleSheet.create({
   icon: { width: 130, height: 130, borderRadius: 65 },
   glow: {
     position: 'absolute', width: 150, height: 150, borderRadius: 75,
-    backgroundColor: '#7C5CFF',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1, shadowRadius: 50, elevation: 20, zIndex: 1,
   },
-  ring: { position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1.5, borderColor: '#7C5CFF' },
+  ring: { position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1.5 },
   particle: { position: 'absolute', zIndex: 3 },
   pText: { fontSize: 20 },
 });
@@ -291,6 +266,7 @@ const heroStyles = StyleSheet.create({
 
 // ─── Struggle Chip ───────────────────────────────────────────────────────────
 function StruggleChip({ item, selected, onToggle }: { item: typeof STRUGGLES[0]; selected: boolean; onToggle: () => void }) {
+  const colors = useThemeColors();
   const scale = useSharedValue(1);
   const borderOpacity = useSharedValue(selected ? 1 : 0);
 
@@ -310,10 +286,9 @@ function StruggleChip({ item, selected, onToggle }: { item: typeof STRUGGLES[0];
   return (
     <TouchableOpacity onPress={handlePress} activeOpacity={1}>
       <Animated.View style={[chipStyles.chip, chipStyle]}>
-        {/* Glow border when selected */}
-        <Animated.View style={[StyleSheet.absoluteFillObject, chipStyles.selectedBorder, glowStyle]} />
-        <BlurView intensity={20} tint="dark" style={chipStyles.blur}>
-          <Text style={[chipStyles.label, selected && chipStyles.labelSelected]}>{item.label}</Text>
+        <Animated.View style={[StyleSheet.absoluteFillObject, chipStyles.selectedBorder, { borderColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
+        <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[chipStyles.blur, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]}>
+          <Text style={[chipStyles.label, { color: colors.textSecondary }, selected && { color: colors.primary, fontFamily: 'Inter-SemiBold' }]}>{item.label}</Text>
         </BlurView>
       </Animated.View>
     </TouchableOpacity>
@@ -322,30 +297,28 @@ function StruggleChip({ item, selected, onToggle }: { item: typeof STRUGGLES[0];
 
 const chipStyles = StyleSheet.create({
   chip: { margin: 4, borderRadius: 24, overflow: 'hidden' },
-  blur: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: 'rgba(255,255,255,0.06)' },
+  blur: { paddingHorizontal: 14, paddingVertical: 10 },
   selectedBorder: {
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#7C5CFF',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 8,
   },
-  label: { ...Typography.body, color: Colors.dark.textSecondary, fontSize: 13 },
-  labelSelected: { color: '#A78BFF', fontFamily: 'Inter-SemiBold' },
+  label: { ...Typography.body, fontSize: 13 },
 });
 
 // ─── Dot Indicator ───────────────────────────────────────────────────────────
 function DotIndicator({ current }: { current: number }) {
+  const colors = useThemeColors();
   return (
     <View style={dotStyles.row}>
       {Array.from({ length: TOTAL_SLIDES }).map((_, i) => {
         const isActive = i === current;
         return (
-          <Animated.View
+          <View
             key={i}
-            style={[dotStyles.dot, isActive && dotStyles.active]}
+            style={[dotStyles.dot, { backgroundColor: colors.textSecondary + '40' }, isActive && [dotStyles.active, { backgroundColor: colors.primary }]]}
           />
         );
       })}
@@ -357,19 +330,18 @@ const dotStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
   dot: {
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     marginHorizontal: 4,
   },
-  active: { width: 24, backgroundColor: '#7C5CFF' },
+  active: { width: 24 },
 });
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedStruggles, setSelectedStruggles] = useState<string[]>([]);
-  const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
-  const { setOnboardingData, completeOnboarding, userId } = useStore();
+  const colors = useThemeColors();
+  const { setOnboardingData, completeOnboarding } = useStore();
 
   const slideOpacity = useSharedValue(1);
 
@@ -378,7 +350,6 @@ export default function OnboardingScreen() {
       runOnJS(setCurrentSlide)(index);
       slideOpacity.value = withTiming(1, { duration: 300 });
     });
-    flatListRef.current?.scrollToIndex({ index, animated: true });
   }, []);
 
   const handleNext = async () => {
@@ -386,10 +357,8 @@ export default function OnboardingScreen() {
     if (currentSlide < TOTAL_SLIDES - 1) {
       goToSlide(currentSlide + 1);
     } else {
-      // Save onboarding selections and mark as complete
       setOnboardingData({ struggles: selectedStruggles });
       completeOnboarding();
-      // Always go to Login — user chooses their method there (Email, Google, or Guest)
       router.replace('/(auth)/login');
     }
   };
@@ -410,7 +379,7 @@ export default function OnboardingScreen() {
     // ── Slide 1: Welcome ─────────────────────────────────────────────────
     <View style={styles.slide} key="slide-1">
       <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
       </TouchableOpacity>
 
       <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
@@ -418,9 +387,9 @@ export default function OnboardingScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.textBlock}>
-        <Text style={styles.heading}>Master your</Text>
-        <Text style={[styles.heading, styles.gradient]}>Life OS</Text>
-        <Text style={styles.subheading}>
+        <Text style={[styles.heading, { color: colors.text }]}>Master your</Text>
+        <Text style={[styles.heading, { color: colors.primary }]}>Life OS</Text>
+        <Text style={[styles.subheading, { color: colors.textSecondary }]}>
           Your AI-powered life companion.{'\n'}Built to help you grow, every single day.
         </Text>
       </Animated.View>
@@ -434,7 +403,7 @@ export default function OnboardingScreen() {
     // ── Slide 2: AI Coach ─────────────────────────────────────────────────
     <View style={styles.slide} key="slide-2">
       <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
       </TouchableOpacity>
 
       <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
@@ -442,17 +411,17 @@ export default function OnboardingScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.textBlock}>
-        <Text style={styles.heading}>A coach that</Text>
-        <Text style={[styles.heading, styles.gradient]}>gets you.</Text>
-        <Text style={styles.subheading}>
+        <Text style={[styles.heading, { color: colors.text }]}>A coach that</Text>
+        <Text style={[styles.heading, { color: colors.primary }]}>gets you.</Text>
+        <Text style={[styles.subheading, { color: colors.textSecondary }]}>
           Powered by AI — your coach adapts to your goals, mood and schedule in real time.
         </Text>
       </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(300).springify()} style={styles.chatPreview}>
-        <BlurView intensity={30} tint="dark" style={styles.chatCard}>
-          <Text style={styles.chatLine}>🤖 <Text style={styles.chatBold}>LifeOS AI</Text></Text>
-          <Text style={styles.chatText}>"You seem to be most productive in the morning. Want me to schedule your deep work then?"</Text>
+        <BlurView intensity={30} tint={colors.isDark ? "dark" : "light"} style={[styles.chatCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+          <Text style={[styles.chatLine, { color: colors.textSecondary }]}>🤖 <Text style={[styles.chatBold, { color: colors.primary }]}>LifeOS AI</Text></Text>
+          <Text style={[styles.chatText, { color: colors.text }]}>"You seem to be most productive in the morning. Want me to schedule your deep work then?"</Text>
         </BlurView>
       </Animated.View>
 
@@ -464,12 +433,11 @@ export default function OnboardingScreen() {
 
     // ── Slide 3: Struggles ────────────────────────────────────────────────
     <View style={styles.slide} key="slide-3">
-      {/* Text + chips together so space-between only separates from button */}
       <View style={styles.slide3Wrapper}>
         <Animated.View entering={FadeInDown.delay(50).springify()} style={[styles.textBlock, { marginBottom: 20 }]}>
-          <Text style={styles.heading}>What holds</Text>
-          <Text style={[styles.heading, styles.gradient]}>you back?</Text>
-          <Text style={styles.subheading}>Select all that apply — your AI will adapt</Text>
+          <Text style={[styles.heading, { color: colors.text }]}>What holds</Text>
+          <Text style={[styles.heading, { color: colors.primary }]}>you back?</Text>
+          <Text style={[styles.subheading, { color: colors.textSecondary }]}>Select all that apply — your AI will adapt</Text>
         </Animated.View>
 
         <Animated.View entering={FadeIn.delay(200)} style={styles.chipsGrid}>
@@ -497,42 +465,36 @@ export default function OnboardingScreen() {
     // ── Slide 4: Final ───────────────────────────────────────────────────────
     <View style={[styles.slide, { paddingTop: Platform.OS === 'ios' ? 48 : 32 }]} key="slide-4">
 
-      {/* Hero Visual */}
       <Animated.View entering={ZoomIn.delay(80).springify()} style={styles.visualContainer}>
         <FinalHero />
       </Animated.View>
 
-      {/* Headline */}
       <Animated.View entering={FadeInUp.delay(250).springify()} style={[styles.textBlock, { marginBottom: 20 }]}>
-
-        <Text style={[styles.subheading, { marginTop: 12, fontSize: 16, color: 'rgba(255,255,255,0.65)' }]}>
+        <Text style={[styles.subheading, { marginTop: 12, fontSize: 16, color: colors.textSecondary }]}>
           Your AI-powered OS is ready.{'\n'}Everything you need. Nothing you don't.
         </Text>
       </Animated.View>
 
-      {/* Promise list */}
-      <Animated.View entering={FadeInUp.delay(400).springify()} style={slide4Styles.promiseList}>
+      <Animated.View entering={FadeInUp.delay(400).springify()} style={[slide4Styles.promiseList, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
         {[
           { icon: '🧠', text: 'AI coach that learns you' },
           { icon: '✅', text: 'Daily tasks, auto-planned' },
           { icon: '💜', text: 'Mood & habit tracking' },
         ].map((item, i) => (
           <Animated.View key={item.text} entering={FadeInUp.delay(500 + i * 80).springify()} style={slide4Styles.promiseRow}>
-            <View style={slide4Styles.iconBadge}>
+            <View style={[slide4Styles.iconBadge, { backgroundColor: colors.primary + '20' }]}>
               <Text style={{ fontSize: 16 }}>{item.icon}</Text>
             </View>
-            <Text style={slide4Styles.promiseText}>{item.text}</Text>
-            <Text style={slide4Styles.tick}>✓</Text>
+            <Text style={[slide4Styles.promiseText, { color: colors.text }]}>{item.text}</Text>
+            <Text style={[slide4Styles.tick, { color: colors.primary }]}>✓</Text>
           </Animated.View>
         ))}
       </Animated.View>
 
-      {/* Social proof */}
       <Animated.View entering={FadeInUp.delay(750).springify()} style={slide4Styles.socialProof}>
-        <Text style={slide4Styles.socialText}>🔥 Join thousands building better lives</Text>
+        <Text style={[slide4Styles.socialText, { color: colors.primary + 'A0' }]}>Your journey starts today. Let's build something great.</Text>
       </Animated.View>
 
-      {/* CTA */}
       <Animated.View entering={FadeInUp.delay(900).springify()} style={styles.bottomArea}>
         <DotIndicator current={3} />
         <GradientButton label="Begin My Journey →" onPress={handleNext} />
@@ -541,13 +503,12 @@ export default function OnboardingScreen() {
   ];
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.isDark ? "light-content" : "dark-content"} />
 
-      {/* Background gradient blobs */}
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <LinearGradient
-          colors={['#1A0A3E', '#0B0B0F', '#0B0B0F']}
+          colors={colors.isDark ? ['#1A0A3E', '#0B0B0F', '#0B0B0F'] : ['#F3F4F6', '#FFFFFF', '#FFFFFF']}
           style={StyleSheet.absoluteFillObject}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 0.6 }}
@@ -563,6 +524,7 @@ export default function OnboardingScreen() {
 
 // ─── Gradient Button ──────────────────────────────────────────────────────────
 function GradientButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const colors = useThemeColors();
   const scale = useSharedValue(1);
   const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const press = () => {
@@ -573,10 +535,10 @@ function GradientButton({ label, onPress }: { label: string; onPress: () => void
     <TouchableOpacity onPress={press} activeOpacity={1} style={{ width: '100%' }}>
       <Animated.View style={[btnStyle, { borderRadius: 16, overflow: 'hidden' }]}>
         <LinearGradient
-          colors={['#8B5CF6', '#7C5CFF', '#5B8CFF']}
+          colors={colors.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={styles.gradientBtn}
+          style={[styles.gradientBtn, { shadowColor: colors.primary }]}
         >
           <Text style={styles.btnText}>{label}</Text>
         </LinearGradient>
@@ -587,7 +549,7 @@ function GradientButton({ label, onPress }: { label: string; onPress: () => void
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0B0F' },
+  container: { flex: 1 },
   slide: {
     flex: 1,
     paddingHorizontal: 24,
@@ -603,7 +565,6 @@ const styles = StyleSheet.create({
   },
   skipText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     fontSize: 15,
   },
   visualContainer: {
@@ -617,14 +578,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit-Bold',
     fontSize: 36,
     fontWeight: '700',
-    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 44,
   },
-  gradient: { color: '#A78BFF' },
   subheading: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 23,
@@ -635,14 +593,12 @@ const styles = StyleSheet.create({
   chatCard: {
     borderRadius: 20,
     padding: 20,
-    backgroundColor: 'rgba(124,92,255,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(124,92,255,0.25)',
     overflow: 'hidden',
   },
-  chatLine: { ...Typography.caption, color: Colors.dark.textSecondary, marginBottom: 6 },
-  chatBold: { color: '#A78BFF', fontFamily: 'Inter-SemiBold' },
-  chatText: { ...Typography.body, color: Colors.dark.text, lineHeight: 22, fontSize: 15 },
+  chatLine: { ...Typography.caption, marginBottom: 6 },
+  chatBold: { fontFamily: 'Inter-SemiBold' },
+  chatText: { ...Typography.body, lineHeight: 22, fontSize: 15 },
   chipsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -655,19 +611,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 8,
   },
-  benefitsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  benefitCard: {
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(124,92,255,0.2)',
-    overflow: 'hidden',
-    width: (width - 72) / 3,
-  },
-  benefitIcon: { fontSize: 28, marginBottom: 6 },
-  benefitLabel: { ...Typography.caption, color: Colors.dark.textSecondary, textAlign: 'center', fontSize: 12 },
   bottomArea: { width: '100%', marginTop: 4 },
   gradientBtn: {
     width: '100%',
@@ -675,7 +618,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#7C5CFF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.45,
     shadowRadius: 16,
@@ -687,11 +629,9 @@ const styles = StyleSheet.create({
 const slide4Styles = StyleSheet.create({
   promiseList: {
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   promiseRow: {
     flexDirection: 'row',
@@ -703,20 +643,17 @@ const slide4Styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(124,92,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   promiseText: {
     flex: 1,
     ...Typography.body,
-    color: 'rgba(255,255,255,0.9)',
     fontSize: 15,
   },
   tick: {
-    color: '#7C5CFF',
     fontSize: 18,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Inter-SemiBold',
   },
   socialProof: {
     marginTop: 16,
@@ -724,7 +661,6 @@ const slide4Styles = StyleSheet.create({
   },
   socialText: {
     ...Typography.caption,
-    color: 'rgba(124,92,255,0.6)',
     fontSize: 13,
     letterSpacing: 0.5,
     fontWeight: '600',

@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useHeaderHeight } from '@react-navigation/elements';
+import * as Haptics from 'expo-haptics';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
 import { Shield, Fingerprint, Lock, Download, Trash2, ChevronRight, EyeOff } from 'lucide-react-native';
 
 export default function PrivacySettings() {
+  const colors = useThemeColors();
+  const headerHeight = useHeaderHeight();
   const [settings, setSettings] = useState({
     faceId: true,
     shareData: false,
@@ -13,115 +18,119 @@ export default function PrivacySettings() {
   });
 
   const toggle = (key: keyof typeof settings) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
         options={{ 
           title: 'Privacy & Security',
           headerShown: true,
           headerTransparent: true,
-          headerBlurEffect: 'dark',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: '#FFF' },
-          headerTintColor: Colors.dark.primary,
+          headerBlurEffect: colors.isDark ? 'dark' : 'light',
+          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
+          headerTintColor: colors.primary,
         }} 
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Security</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Security</Text>
           <GlassCard style={styles.card}>
-            <View style={styles.item}>
+            <View style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={[styles.iconBg, { backgroundColor: 'rgba(124, 92, 255, 0.1)' }]}>
-                  <Fingerprint size={18} color={Colors.dark.primary} />
+                <View style={[styles.iconBg, { backgroundColor: colors.primaryTransparent }]}>
+                  <Fingerprint size={18} color={colors.primary} />
                 </View>
                 <View>
-                  <Text style={styles.itemLabel}>Face ID / Biometrics</Text>
-                  <Text style={styles.itemSublabel}>Require biometric to open LifeOS</Text>
+                  <Text style={[styles.itemLabel, { color: colors.text }]}>Face ID / Biometrics</Text>
+                  <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Require biometric to open LifeOS</Text>
                 </View>
               </View>
               <Switch 
                 value={settings.faceId} 
                 onValueChange={() => toggle('faceId')}
-                trackColor={{ false: '#3A3A3C', true: Colors.dark.primary }}
+                trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
+                thumbColor={colors.isDark ? '#FFF' : '#FFF'}
               />
             </View>
-            <TouchableOpacity style={styles.item}>
+            <TouchableOpacity style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={styles.iconBg}>
-                  <Lock size={18} color={Colors.dark.text} />
+                <View style={[styles.iconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                  <Lock size={18} color={colors.text} />
                 </View>
-                <Text style={styles.itemLabel}>Change App PIN</Text>
+                <Text style={[styles.itemLabel, { color: colors.text }]}>Change App PIN</Text>
               </View>
-              <ChevronRight size={18} color={Colors.dark.textSecondary} />
+              <ChevronRight size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </GlassCard>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Privacy</Text>
           <GlassCard style={styles.card}>
-            <View style={styles.item}>
+            <View style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={styles.iconBg}>
-                  <EyeOff size={18} color={Colors.dark.text} />
+                <View style={[styles.iconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                  <EyeOff size={18} color={colors.text} />
                 </View>
                 <View>
-                  <Text style={styles.itemLabel}>Public Profile</Text>
-                  <Text style={styles.itemSublabel}>Allow others to see your stats</Text>
+                  <Text style={[styles.itemLabel, { color: colors.text }]}>Public Profile</Text>
+                  <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Allow others to see your stats</Text>
                 </View>
               </View>
               <Switch 
                 value={settings.publicProfile} 
                 onValueChange={() => toggle('publicProfile')}
-                trackColor={{ false: '#3A3A3C', true: Colors.dark.primary }}
+                trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
+                thumbColor="#FFF"
               />
             </View>
-            <View style={styles.item}>
+            <View style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={styles.iconBg}>
-                  <Shield size={18} color={Colors.dark.text} />
+                <View style={[styles.iconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Shield size={18} color={colors.text} />
                 </View>
                 <View>
-                  <Text style={styles.itemLabel}>Anonymized Analytics</Text>
-                  <Text style={styles.itemSublabel}>Help us improve anonymously</Text>
+                  <Text style={[styles.itemLabel, { color: colors.text }]}>Anonymized Analytics</Text>
+                  <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Help us improve anonymously</Text>
                 </View>
               </View>
               <Switch 
                 value={settings.shareData} 
                 onValueChange={() => toggle('shareData')}
-                trackColor={{ false: '#3A3A3C', true: Colors.dark.primary }}
+                trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
+                thumbColor="#FFF"
               />
             </View>
           </GlassCard>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data Management</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Data Management</Text>
           <GlassCard style={styles.card}>
-            <TouchableOpacity style={styles.item}>
+            <TouchableOpacity style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={styles.iconBg}>
-                  <Download size={18} color={Colors.dark.text} />
+                <View style={[styles.iconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Download size={18} color={colors.text} />
                 </View>
-                <Text style={styles.itemLabel}>Export My Data</Text>
+                <Text style={[styles.itemLabel, { color: colors.text }]}>Export My Data</Text>
               </View>
-              <ChevronRight size={18} color={Colors.dark.textSecondary} />
+              <ChevronRight size={18} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.item}>
+            <TouchableOpacity style={[styles.item, { borderBottomColor: colors.border }]}>
               <View style={styles.itemLeft}>
-                <View style={[styles.iconBg, { backgroundColor: 'rgba(255, 75, 75, 0.1)' }]}>
-                  <Trash2 size={18} color={Colors.dark.danger} />
+                <View style={[styles.iconBg, { backgroundColor: colors.danger + '15' }]}>
+                  <Trash2 size={18} color={colors.danger} />
                 </View>
-                <Text style={[styles.itemLabel, { color: Colors.dark.danger }]}>Delete Account</Text>
+                <Text style={[styles.itemLabel, { color: colors.danger }]}>Delete Account</Text>
               </View>
             </TouchableOpacity>
           </GlassCard>
         </View>
 
-        <Text style={styles.footerNote}>
+        <Text style={[styles.footerNote, { color: colors.textSecondary }]}>
           LifeOS uses end-to-end encryption for all your habit and mood notes. Your data is your own.
         </Text>
       </ScrollView>
@@ -132,18 +141,15 @@ export default function PrivacySettings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   content: {
     padding: Spacing.md,
-    paddingTop: 120,
   },
   section: {
     marginBottom: Spacing.xxl,
   },
   sectionTitle: {
     ...Typography.labelSmall,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
   },
@@ -157,7 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   itemLeft: {
     flexDirection: 'row',
@@ -168,25 +173,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
   itemLabel: {
     ...Typography.body,
-    color: Colors.dark.text,
   },
   itemSublabel: {
     ...Typography.caption,
     fontSize: 12,
-    color: Colors.dark.textSecondary,
     marginTop: 2,
   },
   footerNote: {
     ...Typography.caption,
     textAlign: 'center',
-    color: Colors.dark.textSecondary,
     opacity: 0.6,
     paddingHorizontal: Spacing.xl,
     lineHeight: 20,

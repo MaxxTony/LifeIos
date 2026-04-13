@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const CATEGORIES = ['Popular', 'Health & Nutrition', 'Fitness', 'Growth', 'Mindfulness'];
 
@@ -20,6 +21,7 @@ const HABIT_TEMPLATES = [
 
 export default function TemplatesScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Popular');
 
@@ -41,20 +43,20 @@ export default function TemplatesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="close" size={24} color="#FFF" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Habit</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>New Habit</Text>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="rgba(255,255,255,0.3)" style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
+        <Ionicons name="search" size={20} color={colors.textSecondary + '60'} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search habits..."
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholderTextColor={colors.textSecondary + '60'}
           value={search}
           onChangeText={setSearch}
         />
@@ -66,40 +68,44 @@ export default function TemplatesScreen() {
             <TouchableOpacity 
               key={cat} 
               onPress={() => setActiveCategory(cat)}
-              style={[styles.categoryBtn, activeCategory === cat && styles.activeCategoryBtn]}
+              style={[
+                styles.categoryBtn, 
+                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+                activeCategory === cat && [styles.activeCategoryBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]
+              ]}
             >
-              {cat === 'Popular' && <Ionicons name="star" size={14} color={activeCategory === cat ? "#FFF" : "#FFB84B"} style={{marginRight: 4}} />}
-              <Text style={[styles.categoryText, activeCategory === cat && styles.activeCategoryText]}>{cat}</Text>
+              {cat === 'Popular' && <Ionicons name="star" size={14} color={activeCategory === cat ? colors.primary : "#FFB84B"} style={{marginRight: 4}} />}
+              <Text style={[styles.categoryText, { color: colors.textSecondary }, activeCategory === cat && { color: colors.primary }]}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        <Text style={styles.sectionTitle}>{activeCategory}</Text>
-        <Text style={styles.sectionSub}>Start with proven habits that have helped thousands succeed</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{activeCategory}</Text>
+        <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>Start with proven habits that have helped thousands succeed</Text>
 
         {filteredTemplates.map((item, index) => (
           <TouchableOpacity 
             key={index} 
-            style={styles.templateCard}
+            style={[styles.templateCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
             onPress={() => handleSelect(item)}
           >
             <View style={[styles.iconContainer, { backgroundColor: item.color + '15' }]}>
               <Text style={styles.templateEmoji}>{item.icon}</Text>
             </View>
             <View style={styles.templateInfo}>
-              <Text style={styles.templateTitle}>{item.title}</Text>
-              <Text style={styles.templateSub}>{item.subtext}</Text>
+              <Text style={[styles.templateTitle, { color: colors.text }]}>{item.title}</Text>
+              <Text style={[styles.templateSub, { color: colors.textSecondary }]}>{item.subtext}</Text>
             </View>
           </TouchableOpacity>
         ))}
 
         <TouchableOpacity 
-          style={styles.customBtn}
+          style={[styles.customBtn, { backgroundColor: colors.text, shadowColor: colors.text }]}
           onPress={() => router.push('/(habits)/config')}
         >
-          <Text style={styles.customBtnText}>Create a custom habit</Text>
+          <Text style={[styles.customBtnText, { color: colors.background }]}>Create a custom habit</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -109,7 +115,6 @@ export default function TemplatesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b0b0f',
   },
   header: {
     flexDirection: 'row',
@@ -125,7 +130,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFF',
     flex: 1,
     textAlign: 'center',
     marginRight: 40,
@@ -133,21 +137,18 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     marginHorizontal: 20,
     borderRadius: 18,
     paddingHorizontal: 15,
     height: 54,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   searchIcon: {
     marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    color: '#FFF',
     fontSize: 16,
   },
   categoryScroll: {
@@ -163,22 +164,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     marginHorizontal: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   activeCategoryBtn: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   categoryText: {
-    color: 'rgba(255,255,255,0.4)',
     fontSize: 14,
     fontWeight: '700',
-  },
-  activeCategoryText: {
-    color: '#FFF',
   },
   list: {
     flex: 1,
@@ -190,12 +183,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFF',
     marginBottom: 6,
   },
   sectionSub: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.4)',
     marginBottom: 25,
     lineHeight: 20,
     fontWeight: '500',
@@ -203,12 +194,10 @@ const styles = StyleSheet.create({
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
     borderRadius: 22,
     padding: 18,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   iconContainer: {
     width: 54,
@@ -227,29 +216,24 @@ const styles = StyleSheet.create({
   templateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
     marginBottom: 3,
   },
   templateSub: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
     fontWeight: '500',
   },
   customBtn: {
-    backgroundColor: '#FFF',
     borderRadius: 18,
     height: 64,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
-    shadowColor: '#FFF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
   },
   customBtnText: {
-    color: '#000',
     fontSize: 17,
     fontWeight: '800',
   }

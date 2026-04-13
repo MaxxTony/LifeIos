@@ -1,14 +1,14 @@
 import { MoodEmoji } from '@/components/MoodEmoji';
 import { MOOD_LEVELS, getMoodConfig, getMoodFromLegacy } from '@/constants/moods';
 import { Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,12 +16,16 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function MoodHistoryScreen() {
   const router = useRouter();
-  const { moodHistory, focusHistory } = useStore();
+  const { moodHistory, focusHistory, focusSession } = useStore();
+  const colors = useThemeColors();
 
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = new Date();
+    d.setDate(1); // Set to 1st to avoid overflow issues
+    return d;
+  });
 
-  // Helper to normalize mood level
   const getMoodLevel = (entry: any): number => {
     return typeof entry.mood === 'number' ? entry.mood : getMoodFromLegacy(entry.mood);
   };
@@ -48,13 +52,14 @@ export default function MoodHistoryScreen() {
 
   const selectedEntry = useMemo(() => {
     const entry = getMoodForDate(selectedDate);
-    const focusSeconds = focusHistory[selectedDate] || 0;
+    const isToday = selectedDate === getTodayLocal();
+    const focusSeconds = isToday ? focusSession.totalSecondsToday : (focusHistory[selectedDate] || 0);
+    
     if (!entry) return { entry: null, focusSeconds };
     const level = getMoodLevel(entry);
     return { entry: { ...entry, level }, focusSeconds };
-  }, [selectedDate, moodHistory, focusHistory]);
+  }, [selectedDate, moodHistory, focusHistory, focusSession.totalSecondsToday]);
 
-  // Monthly stats
   const monthStats = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -63,7 +68,7 @@ export default function MoodHistoryScreen() {
       return d.getFullYear() === year && d.getMonth() === month;
     });
 
-    const counts = [0, 0, 0, 0, 0]; // levels 1-5
+    const counts = [0, 0, 0, 0, 0];
     monthEntries.forEach(e => {
       const level = getMoodLevel(e);
       if (level >= 1 && level <= 5) counts[level - 1]++;
@@ -77,7 +82,6 @@ export default function MoodHistoryScreen() {
     }));
   }, [currentMonth, moodHistory]);
 
-  // Mood flow data for mini graph
   const moodFlowData = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -101,52 +105,53 @@ export default function MoodHistoryScreen() {
 
   const handleDayPress = (dateStr: string) => {
     const today = getTodayLocal();
-    if (dateStr > today) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        "Invalid Date",
-        "You cannot log your mood for the future! Please live in the present. 😊",
-        [{ text: "Okay" }]
-      );
-      return;
-    }
+    if (dateStr > today) return; // Future dates are disabled in UI
     setSelectedDate(dateStr);
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0B0B0F', '#1A1A2E']} style={StyleSheet.absoluteFill} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient
+        colors={colors.isDark ? ['#0B0B0F', colors.background] : ['#F8FAFC', colors.background]}
+        style={StyleSheet.absoluteFill}
+      />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color="#FFF" />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Mood History</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Mood History</Text>
           <TouchableOpacity
             onPress={() => router.push('/mood-themes')}
-            style={styles.logBtn}
+            style={[styles.logBtn, { backgroundColor: colors.primaryTransparent }]}
           >
-            <Ionicons name="settings-outline" size={18} color="#7C5CFF" />
+            <Ionicons name="settings-outline" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* ===== CALENDAR ===== */}
-          <Animated.View entering={FadeInDown.delay(100)} style={styles.card}>
+          <Animated.View
+            entering={FadeInDown.delay(100)}
+            style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
+          >
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => navigateMonth(-1)}>
-                <Ionicons name="chevron-back" size={20} color="#7C5CFF" />
+                <Ionicons name="chevron-back" size={20} color={colors.primary} />
               </TouchableOpacity>
-              <Text style={styles.monthLabel}>{monthName}</Text>
+              <Text style={[styles.monthLabel, { color: colors.text }]}>{monthName}</Text>
               <TouchableOpacity onPress={() => navigateMonth(1)}>
-                <Ionicons name="chevron-forward" size={20} color="#7C5CFF" />
+                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.weekdayRow}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-                <Text key={i} style={styles.weekdayText}>{d}</Text>
+                <Text key={i} style={[styles.weekdayText, { color: colors.textSecondary + '60' }]}>{d}</Text>
               ))}
             </View>
 
@@ -164,25 +169,28 @@ export default function MoodHistoryScreen() {
                 return (
                   <TouchableOpacity
                     key={dateStr}
-                    style={[styles.dayCell, isFuture && { opacity: 0.2 }]}
+                    style={[styles.dayCell, isFuture && { opacity: 0.5 }]}
                     onPress={() => handleDayPress(dateStr)}
                     activeOpacity={isFuture ? 1 : 0.6}
+                    disabled={isFuture}
                   >
                     <View style={[
                       styles.dayCellInner,
+                      { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)' },
                       config && { backgroundColor: config.bgColor },
-                      isSelected && { borderWidth: 2, borderColor: '#7C5CFF' },
-                      isToday && !isSelected && { borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+                      isSelected && { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primaryTransparent },
+                      isToday && !isSelected && { borderWidth: 1, borderColor: colors.primary + '40' },
                     ]}>
                       {moodLevel ? (
                         <MoodEmoji level={moodLevel} size={22} />
                       ) : (
-                        <View style={styles.emptyDayDot} />
+                        <View style={[styles.emptyDayDot, { backgroundColor: colors.textSecondary + '20' }]} />
                       )}
                       <Text style={[
                         styles.dayNum,
-                        isToday && styles.dayNumToday,
-                        isSelected && { color: '#7C5CFF' },
+                        { color: colors.textSecondary + '60' },
+                        isToday && { color: colors.text },
+                        isSelected && { color: colors.primary },
                       ]}>
                         {new Date(dateStr + 'T12:00:00').getDate()}
                       </Text>
@@ -194,10 +202,24 @@ export default function MoodHistoryScreen() {
           </Animated.View>
 
           {/* ===== DAY DETAIL ===== */}
-          <Animated.View entering={FadeInDown.delay(200)} style={styles.card}>
-            <Text style={styles.detailDate}>
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </Text>
+          <Animated.View
+            entering={FadeInDown.delay(200)}
+            style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
+          >
+            <View style={styles.detailHeader}>
+              <Text style={[styles.detailDate, { color: colors.textSecondary + '80' }]}>
+                {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </Text>
+              {selectedEntry.entry && (
+                <TouchableOpacity
+                  style={[styles.smallEditBtn, { backgroundColor: colors.primaryTransparent }]}
+                  onPress={() => router.push({ pathname: '/mood-log', params: { date: selectedDate } })}
+                >
+                  <Ionicons name="create-outline" size={14} color={colors.primary} />
+                  <Text style={[styles.smallEditBtnText, { color: colors.primary }]}>Edit</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {selectedEntry.entry ? (
               <View>
@@ -209,7 +231,7 @@ export default function MoodHistoryScreen() {
                     <Text style={[styles.detailMoodLabel, { color: getMoodConfig(selectedEntry.entry.level).color }]}>
                       {getMoodConfig(selectedEntry.entry.level).label}
                     </Text>
-                    <Text style={styles.detailFocus}>{formatHours(selectedEntry.focusSeconds)}h focus</Text>
+                    <Text style={[styles.detailFocus, { color: colors.textSecondary + '60' }]}>{formatHours(selectedEntry.focusSeconds)}h focus</Text>
                   </View>
                 </View>
 
@@ -217,8 +239,8 @@ export default function MoodHistoryScreen() {
                 {selectedEntry.entry.activities && selectedEntry.entry.activities.length > 0 && (
                   <View style={styles.tagRow}>
                     {selectedEntry.entry.activities.map((a: string) => (
-                      <View key={a} style={styles.tag}>
-                        <Text style={styles.tagText}>{a}</Text>
+                      <View key={a} style={[styles.tag, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                        <Text style={[styles.tagText, { color: colors.textSecondary }]}>{a}</Text>
                       </View>
                     ))}
                   </View>
@@ -228,8 +250,8 @@ export default function MoodHistoryScreen() {
                 {selectedEntry.entry.emotions && selectedEntry.entry.emotions.length > 0 && (
                   <View style={styles.tagRow}>
                     {selectedEntry.entry.emotions.map((e: string) => (
-                      <View key={e} style={[styles.tag, styles.emotionTag]}>
-                        <Text style={[styles.tagText, styles.emotionTagText]}>{e}</Text>
+                      <View key={e} style={[styles.tag, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
+                        <Text style={[styles.tagText, { color: colors.primary }]}>{e}</Text>
                       </View>
                     ))}
                   </View>
@@ -237,40 +259,43 @@ export default function MoodHistoryScreen() {
 
                 {/* Note */}
                 {selectedEntry.entry.note && (
-                  <Text style={styles.noteText}>"{selectedEntry.entry.note}"</Text>
+                  <Text style={[styles.noteText, { color: colors.textSecondary }]}>"{selectedEntry.entry.note}"</Text>
                 )}
               </View>
             ) : (
               <View style={styles.emptyDetail}>
-                <Ionicons name="sparkles-outline" size={32} color="rgba(255,255,255,0.08)" />
-                <Text style={styles.emptyDetailText}>Empty Emotion</Text>
+                <Ionicons name="sparkles-outline" size={32} color={colors.textSecondary + '20'} />
+                <Text style={[styles.emptyDetailText, { color: colors.textSecondary + '40' }]}>Empty Emotion</Text>
                 <TouchableOpacity
-                  style={styles.logNowBtn}
+                  style={[styles.logNowBtn, { backgroundColor: colors.primaryTransparent }]}
                   onPress={() => router.push({ pathname: '/mood-log', params: { date: selectedDate } })}
                 >
-                  <Text style={styles.logNowText}>Register Your Emotion</Text>
+                  <Text style={[styles.logNowText, { color: colors.primary }]}>Register Your Emotion</Text>
                 </TouchableOpacity>
               </View>
             )}
           </Animated.View>
 
           {/* ===== MOOD BAR (Distribution) ===== */}
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.card}>
-            <Text style={styles.cardTitle}>Mood Distribution</Text>
+          <Animated.View
+            entering={FadeInDown.delay(300)}
+            style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.textSecondary + '60' }]}>Mood Distribution</Text>
             <View style={styles.moodBarContainer}>
               {monthStats.map((stat) => (
                 <View key={stat.level} style={styles.moodBarItem}>
                   <View style={[styles.moodBarFace, { backgroundColor: stat.bgColor }]}>
                     <MoodEmoji level={stat.level} size={18} />
                   </View>
-                  <Text style={[styles.moodBarPct, { color: stat.count > 0 ? stat.color : 'rgba(255,255,255,0.2)' }]}>
+                  <Text style={[styles.moodBarPct, { color: stat.count > 0 ? stat.color : colors.textSecondary + '40' }]}>
                     {stat.percentage}%
                   </Text>
                 </View>
               ))}
             </View>
             {/* Stacked bar */}
-            <View style={styles.stackedBar}>
+            <View style={[styles.stackedBar, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
               {monthStats.map((stat) => (
                 stat.percentage > 0 ? (
                   <View
@@ -279,15 +304,15 @@ export default function MoodHistoryScreen() {
                   />
                 ) : null
               ))}
-              {monthStats.every(s => s.percentage === 0) && (
-                <View style={[styles.stackedSegment, { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)' }]} />
-              )}
             </View>
           </Animated.View>
 
           {/* ===== MOOD FLOW GRAPH ===== */}
-          <Animated.View entering={FadeInDown.delay(400)} style={styles.card}>
-            <Text style={styles.cardTitle}>Mood Flow</Text>
+          <Animated.View
+            entering={FadeInDown.delay(400)}
+            style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.textSecondary + '60' }]}>Mood Flow</Text>
             <View style={styles.flowGraph}>
               {/* Y-axis labels */}
               <View style={styles.flowYAxis}>
@@ -303,7 +328,7 @@ export default function MoodHistoryScreen() {
                   const config = d.level ? getMoodConfig(d.level) : null;
                   return (
                     <View key={d.day} style={styles.flowBarCol}>
-                      <View style={styles.flowBarTrack}>
+                      <View style={[styles.flowBarTrack, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
                         <View
                           style={[
                             styles.flowBarFill,
@@ -314,7 +339,7 @@ export default function MoodHistoryScreen() {
                           ]}
                         />
                       </View>
-                      <Text style={styles.flowBarDate}>{d.day}</Text>
+                      <Text style={[styles.flowBarDate, { color: colors.textSecondary + '40' }]}>{d.day}</Text>
                     </View>
                   );
                 })}
@@ -330,7 +355,7 @@ export default function MoodHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -338,28 +363,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     height: 60,
   },
-  headerTitle: { ...Typography.h3, color: '#FFF', fontSize: 18, fontFamily: 'Outfit-Bold' },
+  headerTitle: { fontSize: 18, fontFamily: 'Outfit-Bold' },
   closeBtn: {
     width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 22,
+    borderRadius: 22,
   },
   logBtn: {
     width: 44, height: 44, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(124,92,255,0.1)', borderRadius: 22,
+    borderRadius: 22,
   },
   scrollContent: { padding: Spacing.md, gap: 16 },
 
   // Card
   card: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   cardTitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -373,13 +395,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 18,
   },
-  monthLabel: { ...Typography.h3, color: '#FFF', fontSize: 18 },
+  monthLabel: { ...Typography.h3, fontSize: 18 },
   weekdayRow: { flexDirection: 'row', marginBottom: 8 },
   weekdayText: {
     flexBasis: '14.28%',
     textAlign: 'center',
     fontSize: 10,
-    color: 'rgba(255,255,255,0.25)',
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -391,28 +412,40 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   emptyDayDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   dayNum: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     fontFamily: 'Inter-SemiBold',
     marginTop: 2,
   },
-  dayNumToday: { color: '#FFF' },
 
   // Detail
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   detailDate: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
     fontFamily: 'Inter-SemiBold',
-    marginBottom: 14,
+  },
+  smallEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  smallEditBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   detailTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
   detailMoodFace: {
@@ -421,32 +454,27 @@ const styles = StyleSheet.create({
   },
   detailMoodInfo: { gap: 2 },
   detailMoodLabel: { fontSize: 22, fontFamily: 'Outfit-Bold' },
-  detailFocus: { fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: '600' },
+  detailFocus: { fontSize: 11, fontWeight: '600' },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   tag: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
   },
-  tagText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
-  emotionTag: { backgroundColor: 'rgba(124,92,255,0.08)', borderColor: 'rgba(124,92,255,0.15)' },
-  emotionTagText: { color: '#9B8EC4' },
+  tagText: { fontSize: 11, fontWeight: '600' },
   noteText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     fontStyle: 'italic',
     lineHeight: 20,
     marginTop: 6,
   },
   emptyDetail: { alignItems: 'center', paddingVertical: 20, gap: 8 },
-  emptyDetailText: { fontSize: 12, color: 'rgba(255,255,255,0.2)' },
+  emptyDetailText: { fontSize: 12 },
   logNowBtn: {
     marginTop: 6,
     paddingHorizontal: 20, paddingVertical: 8,
-    backgroundColor: 'rgba(124,92,255,0.12)',
     borderRadius: 12,
   },
-  logNowText: { color: '#7C5CFF', fontSize: 13, fontWeight: '700' },
+  logNowText: { fontSize: 13, fontWeight: '700' },
 
   // Mood Bar Distribution
   moodBarContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 14 },
@@ -478,11 +506,10 @@ const styles = StyleSheet.create({
   flowBarTrack: {
     flex: 1,
     width: 8,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 4,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   flowBarFill: { width: '100%', borderRadius: 4 },
-  flowBarDate: { fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 3 },
+  flowBarDate: { fontSize: 7, marginTop: 3 },
 });

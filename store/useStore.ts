@@ -307,15 +307,18 @@ export const useStore = create<UserState>()(
               ? h.completedDays.filter(d => d !== today)
               : [...h.completedDays, today];
 
-            // FIX H-3: Use formatLocalDate instead of toISOString() to avoid UTC off-by-one
+            // FIX H-3 + grace period: start from today if done, yesterday if not
             let currentStreak = 0;
-            for (let i = 0; i < 365; i++) {
+            const todayForStreak = new Date();
+            const todayStrForStreak = formatLocalDate(todayForStreak);
+            const startOffset = newCompletedDays.includes(todayStrForStreak) ? 0 : 1;
+            for (let i = startOffset; i < 365; i++) {
               const d = new Date();
               d.setDate(d.getDate() - i);
-              const dStr = formatLocalDate(d); // FIX H-3
+              const dStr = formatLocalDate(d);
               if (newCompletedDays.includes(dStr)) {
                 currentStreak++;
-              } else if (i > 0) {
+              } else {
                 break;
               }
             }
@@ -338,18 +341,23 @@ export const useStore = create<UserState>()(
       }),
 
       // FIX H-3: Use formatLocalDate instead of toISOString() to avoid UTC off-by-one
+      // Grace period: if the habit hasn't been done today yet, check from yesterday
+      // so a streak built yesterday doesn't break at 8 AM before the user logs in.
       getStreak: (id) => {
         const habit = get().habits.find(h => h.id === id);
         if (!habit) return 0;
         let streak = 0;
         const today = new Date();
-        for (let i = 0; i < 365; i++) {
+        const todayStr = formatLocalDate(today);
+        const todayDone = habit.completedDays.includes(todayStr);
+
+        for (let i = todayDone ? 0 : 1; i < 365; i++) {
           const checkDate = new Date();
           checkDate.setDate(today.getDate() - i);
-          const dateStr = formatLocalDate(checkDate); // FIX H-3
+          const dateStr = formatLocalDate(checkDate);
           if (habit.completedDays.includes(dateStr)) {
             streak++;
-          } else if (i > 0) {
+          } else {
             break;
           }
         }

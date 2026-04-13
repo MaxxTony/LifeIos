@@ -98,33 +98,15 @@ export const Typography = {
   }
 };
 
-export const TimeThemes = {
-  morning: {
-    bg: ['#0B0B0F', '#1E1B4B'] as const,
+export const DashboardTheme = {
+  dark: {
+    bg: ['#0B0B0F', '#14141A'] as const,
     glow1: '#7C5CFF20',
-    glow2: '#FFB34710',
-    greeting: 'Good morning',
-    icon: 'sunny' as const,
+    glow2: '#5B8CFF10',
   },
-  afternoon: {
-    bg: ['#0B0B0F', '#1A3A5F'] as const,
-    glow1: '#5B8CFF20',
-    glow2: '#00D68F10',
-    greeting: 'Good afternoon',
-    icon: 'partly-sunny' as const,
-  },
-  evening: {
-    bg: ['#0B0B0F', '#451A1A'] as const,
-    glow1: '#FF4B4B15',
-    glow2: '#7C5CFF10',
-    greeting: 'Good evening',
-    icon: 'cloudy-night' as const,
-  },
-  night: {
-    bg: ['#020205', '#0B0B0F'] as const,
+  light: {
+    bg: ['#F5F5F7', '#ECEDF2'] as const,
     glow1: '#7C5CFF15',
-    glow2: '#5B8CFF08',
-    greeting: 'Good night',
-    icon: 'moon' as const,
-  }
+    glow2: '#5B8CFF10',
+  },
 };

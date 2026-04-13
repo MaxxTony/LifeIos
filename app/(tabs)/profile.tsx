@@ -1,15 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
 import { authService } from '@/services/authService';
 import { useRouter } from 'expo-router';
 import { ProfileHeader } from '@/components/ProfileHeader';
 import { ProfileStats } from '@/components/ProfileStats';
 import { 
-  Settings, 
   Bell, 
   Moon, 
   Shield, 
@@ -17,15 +17,14 @@ import {
   Info, 
   LogOut, 
   ChevronRight, 
-  ExternalLink, 
   MessageSquare,
-  Sparkles,
   Edit3
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {
-  const { logout } = useStore();
+  const { logout, themePreference } = useStore();
+  const colors = useThemeColors();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -38,35 +37,40 @@ export default function ProfileScreen() {
     }
   };
 
+  const getAppearanceValue = () => {
+    if (themePreference === 'system') return 'System';
+    return themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Account</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Account</Text>
           <TouchableOpacity 
             style={styles.editButton}
             onPress={() => router.push('/edit-profile')}
           >
             <LinearGradient
-              colors={['#7C5CFF20', '#5B8CFF20']}
-              style={styles.editGradient}
+              colors={[colors.primaryTransparent, colors.secondary + '20']}
+              style={[styles.editGradient, { borderColor: colors.primary + '30' }]}
             >
-              <Edit3 size={18} color={Colors.dark.primary} />
-              <Text style={styles.editText}>Edit Profile</Text>
+              <Edit3 size={18} color={colors.primary} />
+              <Text style={[styles.editText, { color: colors.primary }]}>Edit Profile</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         <ProfileHeader />
         
-        <Text style={styles.sectionTitle}>Overview</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Overview</Text>
         <ProfileStats />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Preferences</Text>
           <GlassCard style={styles.settingsCard}>
             <SettingItem 
               icon={Bell} 
@@ -76,7 +80,7 @@ export default function ProfileScreen() {
             <SettingItem 
               icon={Moon} 
               label="Appearance" 
-              value="System" 
+              value={getAppearanceValue()} 
               onPress={() => router.push('/settings/appearance')} 
             />
             <SettingItem 
@@ -88,7 +92,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Support</Text>
           <GlassCard style={styles.settingsCard}>
             <SettingItem 
               icon={MessageSquare} 
@@ -108,14 +112,17 @@ export default function ProfileScreen() {
           </GlassCard>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <LogOut size={18} color={Colors.dark.danger} style={{ marginRight: 8 }} />
-          <Text style={styles.logoutText}>Log Out Account</Text>
+        <TouchableOpacity 
+          style={[styles.logoutButton, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]} 
+          onPress={handleLogout}
+        >
+          <LogOut size={18} color={colors.danger} style={{ marginRight: 8 }} />
+          <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out Account</Text>
         </TouchableOpacity>
         
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>LifeOS v1.0.0 (Beta)</Text>
-          <Text style={styles.copyrightText}>© 2024 LifeOS Team</Text>
+          <Text style={[styles.versionText, { color: colors.textSecondary }]}>LifeOS v1.0.0 (Beta)</Text>
+          <Text style={[styles.copyrightText, { color: colors.textSecondary }]}>© {new Date().getFullYear()} LifeOS Team</Text>
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -134,17 +141,18 @@ function SettingItem({
   value?: string;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
-    <TouchableOpacity style={styles.settingItem} onPress={onPress}>
+    <TouchableOpacity style={[styles.settingItem, { borderBottomColor: colors.border }]} onPress={onPress}>
       <View style={styles.settingLeft}>
-        <View style={styles.iconBg}>
-          <Icon size={18} color={Colors.dark.text} />
+        <View style={[styles.iconBg, { backgroundColor: colors.isDark ? (colors.background + '60') : 'rgba(0,0,0,0.03)' }]}>
+          <Icon size={18} color={colors.isDark ? colors.text : colors.text} />
         </View>
-        <Text style={styles.settingLabel}>{label}</Text>
+        <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
       </View>
       <View style={styles.settingRight}>
-        {value && <Text style={styles.settingValue}>{value}</Text>}
-        <ChevronRight size={18} color={Colors.dark.tabIconDefault} />
+        {value && <Text style={[styles.settingValue, { color: colors.textSecondary }]}>{value}</Text>}
+        <ChevronRight size={18} color={colors.textSecondary} />
       </View>
     </TouchableOpacity>
   );
@@ -153,7 +161,6 @@ function SettingItem({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   scrollContent: {
     padding: Spacing.md,
@@ -167,7 +174,6 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.h1,
-    color: Colors.dark.text,
   },
   editButton: {
     borderRadius: BorderRadius.full,
@@ -179,13 +185,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.3)',
     borderRadius: BorderRadius.full,
   },
   editText: {
     ...Typography.caption,
     marginLeft: 8,
-    color: Colors.dark.primary,
     fontWeight: '700',
   },
   section: {
@@ -193,7 +197,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.labelSmall,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
   },
@@ -206,7 +209,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -216,14 +218,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
   settingLabel: {
     ...Typography.body,
-    color: Colors.dark.text,
   },
   settingRight: {
     flexDirection: 'row',
@@ -231,7 +231,6 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     marginRight: 8,
   },
   logoutButton: {
@@ -240,14 +239,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 75, 75, 0.08)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 75, 75, 0.2)',
   },
   logoutText: {
     ...Typography.body,
-    color: Colors.dark.danger,
     fontWeight: '700',
   },
   versionContainer: {
@@ -257,12 +253,10 @@ const styles = StyleSheet.create({
   },
   versionText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
   },
   copyrightText: {
     ...Typography.labelSmall,
     fontSize: 8,
     marginTop: 4,
-    color: Colors.dark.textSecondary,
   },
 });

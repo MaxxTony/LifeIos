@@ -47,42 +47,40 @@ export function MoodTrend() {
   const todayConfig = todayMood ? getMoodConfig(todayMood.level) : null;
 
   return (
-    <View style={styles.container}>
-      <BlurView intensity={20} tint="dark" style={styles.blur}>
+    <View style={[styles.container, { borderColor: colors.border }]}>
+      <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Mood</Text>
+          <Text style={[styles.title, { color: colors.textSecondary }]}>Mood</Text>
             <TouchableOpacity
-              style={styles.historyBtn}
+              style={[styles.historyBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/mood-history');
               }}
             >
-              <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.5)" />
+              <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
             </TouchableOpacity>
         </View>
 
         {/* Main Content */}
         {todayMood ? (
-          // Logged state: Show today's mood character
           <TouchableOpacity
             style={styles.loggedState}
             onPress={() => router.push('/mood-history')}
             activeOpacity={0.7}
           >
-            <View style={styles.moodFaceLarge}>
+            <View style={[styles.moodFaceLarge, { shadowColor: todayConfig?.color || colors.primary }]}>
               <MoodEmoji level={todayMood.level} size={48} />
             </View>
             <View style={styles.loggedInfo}>
-              <Text style={[styles.moodLabelLarge, { color: todayConfig?.color }]}>
+              <Text style={[styles.moodLabelLarge, { color: todayConfig?.color || colors.text }]}>
                 {todayConfig?.label}
               </Text>
-              <Text style={styles.loggedSub}>Today's Mood</Text>
+              <Text style={[styles.loggedSub, { color: colors.textSecondary }]}>Today's Mood</Text>
             </View>
           </TouchableOpacity>
         ) : (
-          // Empty state: CTA to log
           <TouchableOpacity
             style={styles.ctaState}
             onPress={() => {
@@ -92,7 +90,7 @@ export function MoodTrend() {
             activeOpacity={0.7}
           >
             <LinearGradient
-              colors={[colors.primaryTransparent, 'rgba(91,140,255,0.08)']}
+              colors={[colors.primaryTransparent, colors.isDark ? colors.primaryVeryTransparent : 'rgba(0,0,0,0.01)']}
               style={styles.ctaGradient}
             >
               <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
@@ -111,12 +109,11 @@ export function MoodTrend() {
                 <View
                   style={[
                     styles.trendDot,
-                    config ? { backgroundColor: config.color } : { backgroundColor: 'rgba(255,255,255,0.06)' },
-                    isToday && styles.trendDotToday,
+                    config ? { backgroundColor: config.color } : { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
+                    isToday && [styles.trendDotToday, { borderColor: colors.textSecondary + '60' }],
                   ]}
                 />
-                <Text style={[styles.trendLabel, isToday && styles.trendLabelToday]}>
-                  {/* FIX M-7: Parse date components manually to avoid UTC off-by-one */}
+                <Text style={[styles.trendLabel, { color: colors.textSecondary + '60' }, isToday && [styles.trendLabelToday, { color: colors.textSecondary }]]}>
                   {(() => {
                     const [y, m, d] = day.date.split('-').map(Number);
                     return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(y, m - 1, d).getDay()];
@@ -136,7 +133,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     height: 200,
   },
   blur: {
@@ -149,13 +145,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   title: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -164,11 +155,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Logged state
   loggedState: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -195,10 +184,8 @@ const styles = StyleSheet.create({
   },
   loggedSub: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.35)',
     fontWeight: '600',
   },
-  // CTA state
   ctaState: {
     borderRadius: 18,
     overflow: 'hidden',
@@ -215,7 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  // Mini trend
   trendRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -235,14 +221,11 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   trendLabel: {
     fontSize: 9,
-    color: 'rgba(255,255,255,0.2)',
     fontWeight: '600',
   },
   trendLabelToday: {
-    color: 'rgba(255,255,255,0.6)',
   },
 });

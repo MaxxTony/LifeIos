@@ -1,26 +1,17 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TextInput, 
-  TouchableOpacity, 
-  Alert,
-  KeyboardAvoidingView,
-  Platform
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useRouter } from 'expo-router';
-import { LucideIcon, ChevronLeft, Camera, User, FileText, Briefcase, MapPin, Globe, Check } from 'lucide-react-native';
+import { ChevronLeft, Camera, User, FileText, Briefcase, MapPin, Globe } from 'lucide-react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { GlassCard } from '@/components/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import React, { useState } from 'react';
 
 export default function EditProfileScreen() {
   const { 
@@ -28,6 +19,7 @@ export default function EditProfileScreen() {
     updateProfile 
   } = useStore();
   const router = useRouter();
+  const colors = useThemeColors();
 
   const [form, setForm] = useState({
     userName: userName || '',
@@ -87,21 +79,21 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ChevronLeft color={Colors.dark.text} size={28} />
+            <ChevronLeft color={colors.text} size={28} />
           </TouchableOpacity>
-          <Text style={styles.title}>Edit Profile</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Edit Profile</Text>
           <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveHeaderButton}>
             {saving ? (
-              <Text style={[styles.saveText, { opacity: 0.5 }]}>...</Text>
+              <Text style={[styles.saveText, { color: colors.primary, opacity: 0.5 }]}>...</Text>
             ) : (
-              <Text style={styles.saveText}>Save</Text>
+              <Text style={[styles.saveText, { color: colors.primary }]}>Save</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -110,22 +102,22 @@ export default function EditProfileScreen() {
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={handlePickImage} style={styles.avatarContainer}>
               <LinearGradient
-                colors={Colors.dark.gradient as any}
+                colors={colors.gradient}
                 style={styles.avatarGradient}
               >
-                <View style={styles.avatarInner}>
+                <View style={[styles.avatarInner, { backgroundColor: colors.background }]}>
                   {form.avatarUrl ? (
                     <Image source={{ uri: form.avatarUrl }} style={styles.avatar} />
                   ) : (
-                    <User size={40} color={Colors.dark.primary} />
+                    <User size={40} color={colors.primary} />
                   )}
                 </View>
-                <View style={styles.cameraIcon}>
+                <View style={[styles.cameraIcon, { backgroundColor: colors.primary, borderColor: colors.background }]}>
                   <Camera size={14} color="white" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
-            <Text style={styles.avatarHint}>Tap to change avatar</Text>
+            <Text style={[styles.avatarHint, { color: colors.primary }]}>Tap to change avatar</Text>
           </View>
 
           <Section title="Basic Info">
@@ -197,7 +189,7 @@ export default function EditProfileScreen() {
             disabled={saving}
           >
             <LinearGradient
-              colors={Colors.dark.gradient as any}
+              colors={[colors.primary, colors.secondary]}
               style={styles.saveGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -213,9 +205,10 @@ export default function EditProfileScreen() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const colors = useThemeColors();
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
       <GlassCard style={styles.sectionCard}>
         {children}
       </GlassCard>
@@ -238,18 +231,19 @@ function InputItem({
   placeholder: string;
   multiline?: boolean;
 }) {
+  const colors = useThemeColors();
   return (
-    <View style={styles.inputItem}>
+    <View style={[styles.inputItem, { borderBottomColor: colors.border }]}>
       <View style={styles.inputHeader}>
-        <Icon size={16} color={Colors.dark.textSecondary} />
-        <Text style={styles.inputLabel}>{label}</Text>
+        <Icon size={16} color={colors.textSecondary} />
+        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{label}</Text>
       </View>
       <TextInput
-        style={[styles.textInput, multiline && styles.textArea]}
+        style={[styles.textInput, { color: colors.text }, multiline && styles.textArea]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.dark.tabIconDefault}
+        placeholderTextColor={colors.textSecondary + '40'}
         multiline={multiline}
         numberOfLines={multiline ? 4 : 1}
       />
@@ -260,7 +254,6 @@ function InputItem({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   header: {
     flexDirection: 'row',
@@ -274,14 +267,12 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.h3,
-    color: Colors.dark.text,
   },
   saveHeaderButton: {
     paddingHorizontal: Spacing.md,
   },
   saveText: {
     ...Typography.bodyLarge,
-    color: Colors.dark.primary,
     fontWeight: '700',
   },
   scrollContent: {
@@ -308,7 +299,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.card,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -321,23 +311,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.dark.primary,
     padding: 6,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.dark.background,
   },
   avatarHint: {
     ...Typography.caption,
     marginTop: Spacing.sm,
-    color: Colors.dark.primary,
   },
   section: {
     marginBottom: Spacing.xl,
   },
   sectionTitle: {
     ...Typography.labelSmall,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.sm,
     marginLeft: Spacing.xs,
   },
@@ -347,7 +333,6 @@ const styles = StyleSheet.create({
   inputItem: {
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   inputHeader: {
     flexDirection: 'row',
@@ -357,11 +342,9 @@ const styles = StyleSheet.create({
   inputLabel: {
     ...Typography.caption,
     marginLeft: Spacing.sm,
-    color: Colors.dark.textSecondary,
   },
   textInput: {
     ...Typography.body,
-    color: Colors.dark.text,
     paddingVertical: Spacing.xs,
   },
   textArea: {

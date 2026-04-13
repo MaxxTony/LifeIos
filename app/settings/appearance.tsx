@@ -4,12 +4,11 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Bell, CheckCircle2, Heart, MessageSquare, Monitor, Moon, Settings, Sun } from 'lucide-react-native';
 import React from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-
-const { width } = Dimensions.get('window');
 
 const THEMES = [
   { id: 'light', label: 'Light', icon: Sun, description: 'Clean and bright' },
@@ -29,11 +28,11 @@ const ACCENTS = [
 
 /**
  * Theme Card Component
- * FIX M-12: All text and colors now use theme-aware values instead of hardcoded dark styles
+ * All text and colors now use theme-aware values
  */
 function ThemeCard({ theme, isActive, onSelect }: any) {
   const colors = useThemeColors();
-  const themeColors = Colors[theme.id as 'light' | 'dark'] || Colors.dark;
+  const themeColors = Colors[theme.id as 'light' | 'dark'] || (colors.isDark ? Colors.dark : Colors.light);
 
   return (
     <TouchableOpacity
@@ -41,8 +40,10 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
       activeOpacity={0.8}
       style={[
         styles.themeCard,
-        { borderColor: isActive ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' },
-        isActive && { borderWidth: 2 }
+        { 
+          borderColor: isActive ? colors.primary : colors.border,
+          borderWidth: isActive ? 2 : 1 
+        }
       ]}
       accessibilityLabel={`Select ${theme.label} theme`}
       accessibilityRole="radio"
@@ -50,26 +51,24 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
     >
       <View style={[styles.themePreview, { backgroundColor: themeColors.background }]}>
         <View style={[styles.previewBar, { backgroundColor: themeColors.card }]}>
-          <View style={[styles.previewDot, { backgroundColor: theme.id === 'light' ? '#E0E0E0' : '#2A2A3A' }]} />
-          <View style={[styles.previewLine, { backgroundColor: theme.id === 'light' ? '#E0E0E0' : '#2A2A3A' }]} />
+          <View style={[styles.previewDot, { backgroundColor: themeColors.border }]} />
+          <View style={[styles.previewLine, { backgroundColor: themeColors.border }]} />
         </View>
         <View style={styles.previewContent}>
-          <View style={[styles.previewCircle, { backgroundColor: colors.primary }]} />
+          <View style={[styles.previewCircle, { backgroundColor: isActive ? colors.primary : themeColors.primary }]} />
           <View style={styles.previewLines}>
             <View style={[styles.previewLineShort, { backgroundColor: themeColors.textSecondary }]} />
             <View style={[styles.previewLineLong, { backgroundColor: themeColors.text }]} />
           </View>
         </View>
       </View>
-      <View style={[styles.themeInfo, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
+      <View style={[styles.themeInfo, { backgroundColor: colors.isDark ? colors.primaryVeryTransparent : 'rgba(0,0,0,0.02)' }]}>
         <View style={styles.themeLabelRow}>
           <theme.icon size={16} color={isActive ? colors.primary : colors.textSecondary} />
-          {/* FIX M-12: Use colors.text instead of hardcoded '#FFF' */}
           <Text style={[styles.themeLabel, { color: isActive ? colors.primary : colors.text }]}>
             {theme.label}
           </Text>
         </View>
-        {/* FIX M-12: Use colors.textSecondary instead of hardcoded 'rgba(255,255,255,0.4)' */}
         <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
           {theme.description}
         </Text>
@@ -86,12 +85,12 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
 export default function AppearanceSettings() {
   const { themePreference, accentColor, setThemePreference, setAccentColor } = useStore();
   const colors = useThemeColors();
+  const headerHeight = useHeaderHeight();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: 'Appearance',
           headerShown: true,
           headerTransparent: true,
           headerBlurEffect: colors.isDark ? 'dark' : 'light',
@@ -100,9 +99,8 @@ export default function AppearanceSettings() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(100).duration(600)}>
-          {/* FIX M-12: Use colors.textSecondary */}
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Theme</Text>
           <View style={styles.themeGrid}>
             {THEMES.map((theme) => (
@@ -118,7 +116,7 @@ export default function AppearanceSettings() {
 
         <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Accent Color</Text>
-          <GlassCard style={styles.accentCard}>
+          <GlassCard style={[styles.accentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.accentGrid}>
               {ACCENTS.map((color) => {
                 const isSelected = accentColor === color;
@@ -155,28 +153,25 @@ export default function AppearanceSettings() {
 
         <Animated.View entering={FadeInDown.delay(500).duration(600)} style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Live Preview</Text>
-          <GlassCard style={styles.previewCard}>
+          <GlassCard style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <LinearGradient
-              colors={[colors.primary + '15', 'transparent']}
+              colors={[colors.primaryTransparent, 'transparent']}
               style={styles.previewGradient}
             >
               <View style={styles.mockInner}>
-                {/* Header */}
                 <View style={styles.mockHeader}>
                   <View style={styles.mockUserInfo}>
                     <View style={[styles.mockAvatar, { backgroundColor: colors.primary }]} />
                     <View>
-                      {/* FIX M-12: Use colors.text for mock labels */}
                       <Text style={[styles.mockTitle, { color: colors.text }]}>Dashboard</Text>
                       <Text style={[styles.mockSub, { color: colors.textSecondary }]}>Good Morning, Maxx</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={[styles.mockIcon, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}>
+                  <TouchableOpacity style={[styles.mockIcon, { backgroundColor: colors.primaryVeryTransparent }]}>
                     <Bell size={18} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
 
-                {/* Stats Row */}
                 <View style={styles.mockStats}>
                   {[1, 2, 3].map(i => (
                     <View key={i} style={[styles.mockStatCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
@@ -185,18 +180,16 @@ export default function AppearanceSettings() {
                   ))}
                 </View>
 
-                {/* Actions */}
                 <View style={styles.mockActions}>
-                  <View style={[styles.mockBtn, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.mockBtnText}>Main Action</Text>
+                  <View style={[styles.mockBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+                    <Text style={[styles.mockBtnText, { color: '#FFF' }]}>Main Action</Text>
                   </View>
                   <View style={[styles.mockBtnOutline, { borderColor: colors.primary }]}>
                     <Text style={[styles.mockBtnTextOutline, { color: colors.primary }]}>Secondary</Text>
                   </View>
                 </View>
 
-                {/* Bottom Nav */}
-                <View style={[styles.mockNav, { borderTopColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                <View style={[styles.mockNav, { borderTopColor: colors.border }]}>
                   {[Monitor, MessageSquare, Heart, Settings].map((Icon, idx) => (
                     <Icon key={idx} size={16} color={idx === 0 ? colors.primary : colors.textSecondary} />
                   ))}
@@ -216,7 +209,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.md,
-    paddingTop: 130,
     paddingBottom: 40,
   },
   section: {
@@ -235,7 +227,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 180,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
     overflow: 'hidden',
   },
   themePreview: {
@@ -275,12 +266,10 @@ const styles = StyleSheet.create({
   themeLabel: {
     ...Typography.caption,
     fontWeight: '700',
-    // FIX M-12: color is now applied inline using colors.text
   },
   themeDescription: {
     fontSize: 10,
     fontWeight: '500',
-    // FIX M-12: color is now applied inline using colors.textSecondary
   },
   themeCheck: {
     position: 'absolute',
@@ -385,7 +374,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -399,7 +387,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mockBtnText: {
-    color: '#FFF',
     fontWeight: '700',
     fontSize: 12,
   },

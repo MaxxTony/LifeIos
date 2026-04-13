@@ -3,43 +3,48 @@ import { DashboardAIButton } from '@/components/DashboardAIButton';
 import { FocusWidget } from '@/components/FocusWidget';
 import { HabitGrid } from '@/components/HabitGrid';
 import { MoodTrend } from '@/components/MoodTrend';
-import { Spacing, Typography, TimeThemes } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
-import { getTimePhase } from '@/utils/dateUtils';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return { text: 'Good morning', icon: 'sunny' };
+  if (hour >= 12 && hour < 17) return { text: 'Good afternoon', icon: 'partly-sunny' };
+  if (hour >= 17 && hour < 21) return { text: 'Good evening', icon: 'cloudy-night' };
+  return { text: 'Good night', icon: 'moon' };
+};
 
 export default function HomeScreen() {
-  const { userName, checkMissedTasks, performDailyReset } = useStore();
-  
-  const timePhase = useMemo(() => getTimePhase(), []);
-  const activeTheme = TimeThemes[timePhase];
+  const { userName, checkMissedTasks } = useStore();
+  const colors = useThemeColors();
+  const { dashboardTheme } = colors;
+  const greeting = getGreeting();
 
   useEffect(() => {
-    // Initial checks and maintenance
+    // Check for missed tasks on mount and every minute
+    // performDailyReset is handled once in _layout.tsx on hydration
     checkMissedTasks();
-    performDailyReset();
-
-    // Check every minute for missed tasks
     const interval = setInterval(checkMissedTasks, 60000);
     return () => clearInterval(interval);
   }, []);
 
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background with a subtle gradient/texture feel */}
       <View style={StyleSheet.absoluteFill}>
         <LinearGradient
-          colors={activeTheme.bg}
+          colors={dashboardTheme.bg}
           style={StyleSheet.absoluteFill}
         />
-        <View style={[styles.glowBackground, { top: -100, right: -100, backgroundColor: activeTheme.glow1 }]} />
-        <View style={[styles.glowBackground, { bottom: -150, left: -150, backgroundColor: activeTheme.glow2 }]} />
+        <View style={[styles.glowBackground, { top: -100, right: -100, backgroundColor: dashboardTheme.glow1 }]} />
+        <View style={[styles.glowBackground, { bottom: -150, left: -150, backgroundColor: dashboardTheme.glow2 }]} />
       </View>
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -51,10 +56,19 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View>
               <View style={styles.greetingRow}>
-                <Ionicons name={activeTheme.icon} size={14} color="rgba(255,255,255,0.7)" style={{ marginRight: 6 }} />
-                <Text style={styles.greeting}>{activeTheme.greeting},</Text>
+                <Ionicons
+                  name={greeting.icon}
+                  size={14}
+                  color={colors.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                  {greeting.text},
+                </Text>
               </View>
-              <Text style={styles.userName}>{userName || 'User'}!</Text>
+              <Text style={[styles.userName, { color: colors.text }]}>
+                {userName || 'User'}!
+              </Text>
             </View>
           </View>
 
@@ -97,7 +111,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   scrollContent: {
     padding: Spacing.md,
@@ -108,8 +121,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    filter: 'blur(80px)',
-    opacity: 0.5,
+    opacity: 0.35,
   },
   header: {
     flexDirection: 'row',
@@ -125,7 +137,6 @@ const styles = StyleSheet.create({
   },
   greeting: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -133,7 +144,6 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...Typography.h1Hero,
-    color: '#FFF',
   },
   stack: {
     gap: Spacing.lg,

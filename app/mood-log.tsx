@@ -1,6 +1,7 @@
 import { Spacing, Typography } from '@/constants/theme';
-import { MOOD_LEVELS, ACTIVITIES, EMOTIONS, getMoodConfig } from '@/constants/moods';
+import { MOOD_LEVELS, ACTIVITIES, EMOTIONS, getMoodConfig, getMoodFromLegacy } from '@/constants/moods';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,16 +11,30 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { MoodEmoji } from '@/components/MoodEmoji';
+import { useEffect } from 'react';
 
 export default function MoodLogScreen() {
   const router = useRouter();
   const { date } = useLocalSearchParams<{ date?: string }>();
-  const { setMood } = useStore();
+  const { moodHistory, setMood } = useStore();
+  const colors = useThemeColors();
 
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
   const [note, setNote] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (date && moodHistory[date]) {
+      const entry = moodHistory[date];
+      setSelectedMood(typeof entry.mood === 'number' ? entry.mood : getMoodFromLegacy?.(entry.mood) || 3);
+      setSelectedActivities(entry.activities || []);
+      setSelectedEmotions(entry.emotions || []);
+      setNote(entry.note || '');
+      setIsEditing(true);
+    }
+  }, [date, moodHistory]);
 
   const toggleActivity = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -49,22 +64,27 @@ export default function MoodLogScreen() {
   const currentConfig = selectedMood ? getMoodConfig(selectedMood) : null;
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0B0B0F', '#1A1A2E']} style={StyleSheet.absoluteFill} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient 
+        colors={colors.isDark ? ['#0B0B0F', colors.background] : ['#FFFFFF', colors.background]} 
+        style={StyleSheet.absoluteFill} 
+      />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color="#FFF" />
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Log Mood</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{isEditing ? 'Edit Mood' : 'Log Mood'}</Text>
           <View style={{ width: 44 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Step 1: How was your day? */}
           <Animated.View entering={FadeInDown.delay(100)}>
-            <Text style={styles.sectionTitle}>How was your day?</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>How was your day?</Text>
             <View style={styles.moodRow}>
               {MOOD_LEVELS.map((m) => {
                 const isSelected = selectedMood === m.level;
@@ -73,6 +93,7 @@ export default function MoodLogScreen() {
                     key={m.level}
                     style={[
                       styles.moodBtn,
+                      { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' },
                       isSelected && { backgroundColor: m.bgColor, borderColor: m.color }
                     ]}
                     onPress={() => {
@@ -80,35 +101,47 @@ export default function MoodLogScreen() {
                       setSelectedMood(m.level);
                     }}
                   >
-                    <View style={[styles.moodFace, { backgroundColor: isSelected ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.08)' }]}>
+                    <View style={[
+                      styles.moodFace, 
+                      { backgroundColor: isSelected ? 'rgba(255,255,255,0.1)' : (colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)') }
+                    ]}>
                       <MoodEmoji level={m.level} size={44} />
                     </View>
-                    <Text style={[styles.moodLabel, isSelected && { color: m.color }]}>{m.label}</Text>
+                    <Text style={[styles.moodLabel, { color: colors.textSecondary }, isSelected && { color: m.color }]}>{m.label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </Animated.View>
 
-          {/* Step 2: Activities */}
           {selectedMood && (
             <Animated.View entering={FadeInDown.delay(200)}>
-              <Text style={styles.sectionTitle}>Activities</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Activities</Text>
               <View style={styles.chipGrid}>
                 {ACTIVITIES.map((a) => {
                   const isSelected = selectedActivities.includes(a.id);
                   return (
                     <TouchableOpacity
                       key={a.id}
-                      style={[styles.chip, isSelected && styles.chipSelected]}
+                      style={[
+                        styles.chip, 
+                        { 
+                          backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                          borderColor: colors.border
+                        },
+                        isSelected && { 
+                          backgroundColor: currentConfig?.color + '15',
+                          borderColor: currentConfig?.color + '40'
+                        }
+                      ]}
                       onPress={() => toggleActivity(a.id)}
                     >
                       <Ionicons
                         name={a.icon}
                         size={20}
-                        color={isSelected ? currentConfig?.color : 'rgba(255,255,255,0.4)'}
+                        color={isSelected ? currentConfig?.color : colors.textSecondary + '60'}
                       />
-                      <Text style={[styles.chipLabel, isSelected && { color: currentConfig?.color }]}>
+                      <Text style={[styles.chipLabel, { color: colors.textSecondary }, isSelected && { color: currentConfig?.color }]}>
                         {a.label}
                       </Text>
                     </TouchableOpacity>
@@ -118,25 +151,34 @@ export default function MoodLogScreen() {
             </Animated.View>
           )}
 
-          {/* Step 3: Emotions */}
           {selectedMood && (
             <Animated.View entering={FadeInDown.delay(300)}>
-              <Text style={styles.sectionTitle}>Emotions</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Emotions</Text>
               <View style={styles.chipGrid}>
                 {EMOTIONS.map((e) => {
                   const isSelected = selectedEmotions.includes(e.id);
                   return (
                     <TouchableOpacity
                       key={e.id}
-                      style={[styles.chip, isSelected && styles.chipSelected]}
+                      style={[
+                        styles.chip, 
+                        { 
+                          backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                          borderColor: colors.border
+                        },
+                        isSelected && { 
+                          backgroundColor: currentConfig?.color + '15',
+                          borderColor: currentConfig?.color + '40'
+                        }
+                      ]}
                       onPress={() => toggleEmotion(e.id)}
                     >
                       <Ionicons
                         name={e.icon}
                         size={20}
-                        color={isSelected ? currentConfig?.color : 'rgba(255,255,255,0.4)'}
+                        color={isSelected ? currentConfig?.color : colors.textSecondary + '60'}
                       />
-                      <Text style={[styles.chipLabel, isSelected && { color: currentConfig?.color }]}>
+                      <Text style={[styles.chipLabel, { color: colors.textSecondary }, isSelected && { color: currentConfig?.color }]}>
                         {e.label}
                       </Text>
                     </TouchableOpacity>
@@ -146,14 +188,20 @@ export default function MoodLogScreen() {
             </Animated.View>
           )}
 
-          {/* Step 4: Quick Note */}
           {selectedMood && (
             <Animated.View entering={FadeInDown.delay(400)}>
-              <Text style={styles.sectionTitle}>Quick Note (Optional)</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Note (Optional)</Text>
               <TextInput
-                style={styles.noteInput}
+                style={[
+                  styles.noteInput, 
+                  { 
+                    backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    borderColor: colors.border,
+                    color: colors.text
+                  }
+                ]}
                 placeholder="What made today special?"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor={colors.textSecondary + '40'}
                 value={note}
                 onChangeText={setNote}
                 multiline
@@ -162,12 +210,11 @@ export default function MoodLogScreen() {
             </Animated.View>
           )}
 
-          {/* Save Button */}
           {selectedMood && (
             <Animated.View entering={FadeIn.delay(500)}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                 <LinearGradient
-                  colors={[currentConfig?.color || '#7C5CFF', '#7C5CFF']}
+                  colors={[currentConfig?.color || colors.primary, currentConfig?.color || colors.secondary]}
                   style={styles.saveBtnGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -188,7 +235,6 @@ export default function MoodLogScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   header: {
     flexDirection: 'row',
@@ -199,7 +245,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.h3,
-    color: '#FFF',
     fontSize: 18,
     fontFamily: 'Outfit-Bold',
   },
@@ -208,7 +253,6 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 22,
   },
   scrollContent: {
@@ -217,7 +261,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    color: '#FFF',
     fontFamily: 'Outfit-Bold',
     marginBottom: 16,
   },
@@ -233,7 +276,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1.5,
     borderColor: 'transparent',
-    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   moodFace: {
     width: 48,
@@ -245,7 +287,6 @@ const styles = StyleSheet.create({
   },
   moodLabel: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -261,27 +302,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  chipSelected: {
-    backgroundColor: 'rgba(124, 92, 255, 0.08)',
-    borderColor: 'rgba(124, 92, 255, 0.25)',
   },
   chipLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     fontWeight: '600',
   },
   noteInput: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
     padding: 16,
     fontSize: 15,
-    color: '#FFF',
     minHeight: 80,
     textAlignVertical: 'top',
   },

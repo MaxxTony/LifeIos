@@ -4,12 +4,14 @@ import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from '@gorhom/
 import * as ImagePicker from 'expo-image-picker';
 import React, { forwardRef, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface Props {
   onSelectImage: (uri: string, base64?: string, mimeType?: string) => void;
 }
 
 export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelectImage }, ref) => {
+  const colors = useThemeColors();
   const snapPoints = useMemo(() => ['25%'], []);
 
   const renderBackdrop = useCallback(
@@ -60,25 +62,25 @@ export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelect
       enableDynamicSizing={false}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
-      backgroundStyle={styles.background}
-      handleIndicatorStyle={styles.indicator}
+      backgroundStyle={[styles.background, { backgroundColor: colors.card }]}
+      handleIndicatorStyle={{ backgroundColor: colors.border }}
     >
       <BottomSheetView style={styles.content}>
-        <Text style={styles.title}>Add to Chat</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Add to Chat</Text>
 
         <View style={styles.grid}>
           <TouchableOpacity style={styles.item} onPress={() => handlePickImage(true)}>
-            <View style={styles.iconCircle}>
-              <IconSymbol name="camera.fill" size={24} color={Colors.dark.text} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+              <IconSymbol name="camera.fill" size={24} color={colors.primary} />
             </View>
-            <Text style={styles.itemLabel}>Camera</Text>
+            <Text style={[styles.itemLabel, { color: colors.textSecondary }]}>Camera</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.item} onPress={() => handlePickImage(false)}>
-            <View style={styles.iconCircle}>
-              <IconSymbol name="photo.fill" size={24} color={Colors.dark.text} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+              <IconSymbol name="photo.fill" size={24} color={colors.primary} />
             </View>
-            <Text style={styles.itemLabel}>Photos</Text>
+            <Text style={[styles.itemLabel, { color: colors.textSecondary }]}>Photos</Text>
           </TouchableOpacity>
         </View>
       </BottomSheetView>
@@ -88,10 +90,7 @@ export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelect
 
 const styles = StyleSheet.create({
   background: {
-    backgroundColor: '#1C1C1E',
-  },
-  indicator: {
-    backgroundColor: '#3A3A3C',
+    borderRadius: 32,
   },
   content: {
     flex: 1,
@@ -99,7 +98,6 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.h3,
-    color: Colors.dark.text,
     marginBottom: Spacing.xl,
     textAlign: 'center',
   },
@@ -116,15 +114,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#2C2C2E',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3A3A3C',
   },
   itemLabel: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
     fontSize: 12,
   },
 });

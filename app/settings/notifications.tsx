@@ -1,9 +1,11 @@
+import { Spacing, Typography, BorderRadius, Colors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { GlassCard } from '@/components/GlassCard';
+import { Bell, Clock, Calendar, MessageSquare, Info } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { GlassCard } from '@/components/GlassCard';
-import { Bell, Clock, Calendar, MessageSquare, Info } from 'lucide-react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 
 export default function NotificationsSettings() {
   const [settings, setSettings] = useState({
@@ -13,30 +15,32 @@ export default function NotificationsSettings() {
     mood: false,
     marketing: false,
   });
+  const colors = useThemeColors();
+  const headerHeight = useHeaderHeight();
 
   const toggle = (key: keyof typeof settings) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
         options={{ 
           title: 'Notifications',
           headerShown: true,
           headerTransparent: true,
-          headerBlurEffect: 'dark',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: '#FFF' },
-          headerTintColor: Colors.dark.primary,
+          headerBlurEffect: colors.isDark ? 'dark' : 'light',
+          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
+          headerTintColor: colors.primary,
         }} 
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.description}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]} showsVerticalScrollIndicator={false}>
+        <Text style={[styles.description, { color: colors.textSecondary }]}>
           Manage how and when you receive alerts from LifeOS to stay on track with your goals.
         </Text>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Main Settings</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Main Settings</Text>
           <GlassCard style={styles.card}>
             <ToggleItem 
               icon={Bell} 
@@ -48,7 +52,7 @@ export default function NotificationsSettings() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reminders</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Reminders</Text>
           <GlassCard style={styles.card}>
             <ToggleItem 
               icon={Calendar} 
@@ -72,7 +76,7 @@ export default function NotificationsSettings() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>General</Text>
           <GlassCard style={styles.card}>
             <ToggleItem 
               icon={Info} 
@@ -83,9 +87,9 @@ export default function NotificationsSettings() {
           </GlassCard>
         </View>
 
-        <View style={styles.infoBox}>
-          <Info size={16} color={Colors.dark.textSecondary} />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoBox, { backgroundColor: colors.isDark ? colors.primary + '10' : colors.primary + '05', borderColor: colors.primary + '20', borderWidth: 1 }]}>
+          <Info size={16} color={colors.primary} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Priority alerts for habits will override silent mode if configured in your device settings.
           </Text>
         </View>
@@ -95,19 +99,21 @@ export default function NotificationsSettings() {
 }
 
 function ToggleItem({ icon: Icon, label, value, onToggle }: any) {
+  const colors = useThemeColors();
   return (
-    <View style={styles.item}>
+    <View style={[styles.item, { borderBottomColor: colors.border }]}>
       <View style={styles.itemLeft}>
-        <View style={styles.iconBg}>
-          <Icon size={18} color={Colors.dark.text} />
+        <View style={[styles.iconBg, { backgroundColor: colors.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
+          <Icon size={18} color={colors.text} />
         </View>
-        <Text style={styles.itemLabel}>{label}</Text>
+        <Text style={[styles.itemLabel, { color: colors.text }]}>{label}</Text>
       </View>
       <Switch 
         value={value} 
         onValueChange={onToggle}
-        trackColor={{ false: '#3A3A3C', true: Colors.dark.primary }}
+        trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
         thumbColor="#FFF"
+        ios_backgroundColor={colors.isDark ? '#3A3A3C' : '#E5E5EA'}
       />
     </View>
   );
@@ -116,15 +122,13 @@ function ToggleItem({ icon: Icon, label, value, onToggle }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   content: {
     padding: Spacing.md,
-    paddingTop: 120, // Space for header
+    paddingBottom: 40,
   },
   description: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.xs,
   },
@@ -133,7 +137,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.labelSmall,
-    color: Colors.dark.textSecondary,
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
   },
@@ -147,7 +150,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   itemLeft: {
     flexDirection: 'row',
@@ -157,18 +159,15 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
   itemLabel: {
     ...Typography.body,
-    color: Colors.dark.text,
   },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: 12,
@@ -177,7 +176,6 @@ const styles = StyleSheet.create({
   infoText: {
     ...Typography.caption,
     flex: 1,
-    color: Colors.dark.textSecondary,
     lineHeight: 18,
   },
 });

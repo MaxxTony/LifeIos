@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Colors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface CircularProgressProps {
   size: number;
@@ -16,6 +17,7 @@ export function CircularProgress({
   progress, 
   children 
 }: CircularProgressProps) {
+  const colors = useThemeColors();
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
@@ -25,9 +27,8 @@ export function CircularProgress({
       <Svg width={size} height={size} style={styles.svg}>
         <Defs>
           <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor={Colors.dark.primary} />
-            <Stop offset="50%" stopColor="#4DFFC9" />
-            <Stop offset="100%" stopColor={Colors.dark.secondary} />
+            <Stop offset="0%" stopColor={colors.primary} />
+            <Stop offset="100%" stopColor={colors.secondary} />
           </LinearGradient>
         </Defs>
 
@@ -36,7 +37,7 @@ export function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="rgba(255,255,255,0.03)"
+          stroke={colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'}
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -72,7 +73,13 @@ export function CircularProgress({
       </Svg>
 
       {/* Decorative inner light ring */}
-      <View style={[styles.innerRing, { width: size - strokeWidth * 3, height: size - strokeWidth * 3, borderRadius: size }]} />
+      <View style={[styles.innerRing, { 
+        width: size - strokeWidth * 3, 
+        height: size - strokeWidth * 3, 
+        borderRadius: size,
+        borderColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+        backgroundColor: colors.isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)'
+      }]} />
 
       <View style={StyleSheet.absoluteFill}>
         <View style={styles.content}>
@@ -90,8 +97,6 @@ const styles = StyleSheet.create({
   innerRing: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    backgroundColor: 'rgba(255,255,255,0.01)',
   },
   content: {
     flex: 1,

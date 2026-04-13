@@ -1,4 +1,4 @@
-import { Colors, Typography } from '@/constants/theme';
+import { Colors, Typography, Spacing } from '@/constants/theme';
 import { ChatConversation, chatService } from '@/services/chatService';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +7,6 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +14,9 @@ import {
   View,
   Modal
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from './ui/icon-symbol';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;
@@ -53,6 +54,8 @@ export function ChatHistorySidebar({
   onNewChat,
   currentConversationId
 }: ChatHistorySidebarProps) {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [shouldRender, setShouldRender] = useState(isVisible);
@@ -149,24 +152,24 @@ export function ChatHistorySidebar({
         </TouchableOpacity>
 
         {/* Sidebar */}
-        <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }] }]}>
-          <View style={styles.content}>
+        <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }], backgroundColor: colors.background, borderLeftColor: colors.border }]}>
+          <View style={[styles.content, { backgroundColor: colors.background, paddingTop: insets.top + 16 }]}>
             <View style={styles.header}>
-              <Text style={styles.title}>History</Text>
+              <Text style={[styles.title, { color: colors.text }]}>History</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <IconSymbol name="plus" size={24} color={Colors.dark.textSecondary} style={{ transform: [{ rotate: '45deg' }] }} />
+                <IconSymbol name="plus" size={24} color={colors.textSecondary} style={{ transform: [{ rotate: '45deg' }] }} />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.newChatButton} onPress={() => { onNewChat(); onClose(); }}>
               <LinearGradient
-                colors={['#7C5CFF', '#5B8CFF']}
+                colors={colors.gradient}
                 style={styles.newChatGradient}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 1, y: 0 }}
               >
                 <IconSymbol name="plus" size={18} color="#FFF" />
-                <Text style={styles.newChatText}>New Chat</Text>
+                <Text style={[styles.newChatText, { color: '#FFF' }]}>New Chat</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -174,22 +177,23 @@ export function ChatHistorySidebar({
               {Object.keys(groups).map((groupName) => (
                 groups[groupName].length > 0 && (
                   <View key={groupName} style={styles.group}>
-                    <Text style={styles.groupTitle}>{groupName}</Text>
+                    <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{groupName}</Text>
                     {groups[groupName].map((conv) => (
                       <TouchableOpacity
                         key={conv.id}
                         style={[
                           styles.chatItem,
-                          currentConversationId === conv.id && styles.chatItemActive
+                          { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
+                          currentConversationId === conv.id && { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }
                         ]}
                         onPress={() => { onSelectChat(conv.id); onClose(); }}
                       >
                         <View style={styles.chatInfo}>
-                          <Text style={styles.chatTitle} numberOfLines={1}>{conv.title || 'Untitled Chat'}</Text>
-                          <Text style={styles.chatLastMsg} numberOfLines={1}>{conv.lastMessage || 'No messages'}</Text>
+                          <Text style={[styles.chatTitle, { color: colors.text }]} numberOfLines={1}>{conv.title || 'Untitled Chat'}</Text>
+                          <Text style={[styles.chatLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>{conv.lastMessage || 'No messages'}</Text>
                         </View>
                         <TouchableOpacity onPress={() => handleDelete(conv.id, conv.title || '')} style={styles.deleteButton}>
-                          <IconSymbol name="trash.fill" size={16} color={Colors.dark.textSecondary} />
+                          <IconSymbol name="trash.fill" size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
                       </TouchableOpacity>
                     ))}
@@ -198,8 +202,8 @@ export function ChatHistorySidebar({
               ))}
               {conversations.length === 0 && !loading && (
                 <View style={styles.emptyContainer}>
-                  <IconSymbol name="sparkles" size={40} color="rgba(255,255,255,0.1)" />
-                  <Text style={styles.emptyText}>No chat history yet</Text>
+                  <IconSymbol name="sparkles" size={40} color={colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No chat history yet</Text>
                 </View>
               )}
             </ScrollView>
@@ -224,15 +228,11 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: '#0A0A0A',
     borderLeftWidth: 1,
-    borderLeftColor: 'rgba(255,255,255,0.1)',
     zIndex: 99
   },
   content: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
   },
   header: {
     flexDirection: 'row',
@@ -243,8 +243,8 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.h2,
-    color: '#FFF',
     fontSize: 24,
+    fontFamily: 'Outfit-Bold',
   },
   closeBtn: {
     padding: 4,
@@ -264,9 +264,9 @@ const styles = StyleSheet.create({
   },
   newChatText: {
     ...Typography.body,
-    fontWeight: '700',
-    color: '#FFF',
+    fontWeight: '800',
     fontSize: 16,
+    fontFamily: 'Outfit-Bold',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -277,27 +277,20 @@ const styles = StyleSheet.create({
   },
   groupTitle: {
     ...Typography.caption,
-    color: 'rgba(255,255,255,0.3)',
     marginBottom: 12,
     marginLeft: 4,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 14,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  chatItemActive: {
-    borderColor: 'rgba(124, 92, 255, 0.5)',
-    backgroundColor: 'rgba(124, 92, 255, 0.1)',
   },
   chatInfo: {
     flex: 1,
@@ -306,13 +299,12 @@ const styles = StyleSheet.create({
   chatTitle: {
     ...Typography.body,
     fontWeight: '600',
-    color: '#E0E0E0',
     fontSize: 15,
     marginBottom: 2,
+    fontFamily: 'Outfit-SemiBold',
   },
   chatLastMsg: {
     ...Typography.caption,
-    color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
   },
   deleteButton: {
@@ -326,7 +318,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.2)',
     textAlign: 'center',
   },
 });

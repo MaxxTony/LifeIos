@@ -1,11 +1,11 @@
 import { useStore } from '@/store/useStore';
 import React from 'react';
-import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Image, StyleSheet, Text, View, ViewStyle, StyleProp } from 'react-native';
 
 interface MoodEmojiProps {
   level: number;
   size?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   themeOverride?: 'classic' | 'panda' | 'cat';
 }
 

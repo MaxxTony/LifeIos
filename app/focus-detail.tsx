@@ -1,21 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { getFocusQuote } from '@/services/ai';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import Animated, { FadeIn, FadeInDown, SlideInUp } from 'react-native-reanimated';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
-import { getFocusQuote } from '@/services/ai';
-import { ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FocusDetailScreen() {
   useKeepAwake();
   const router = useRouter();
   const { focusSession, focusGoalHours, toggleFocusSession, updateFocusTime } = useStore();
+  const colors = useThemeColors();
   
   const [mounted, setMounted] = useState(false);
   const [aiQuote, setAiQuote] = useState<string | null>(null);
@@ -33,15 +34,7 @@ export default function FocusDetailScreen() {
     };
 
     fetchQuote();
-
-    let interval: any;
-    if (focusSession.isActive) {
-      interval = setInterval(() => {
-        updateFocusTime();
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [focusSession.isActive]);
+  }, []);
 
   const formatTimeParts = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -75,65 +68,78 @@ export default function FocusDetailScreen() {
   const displayQuote = aiQuote || fallbackQuote;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={['#0B0B0F', '#1A1A2E']}
+        colors={colors.isDark ? ['#0B0B0F', '#1A1A2E'] : ['#F8FAFC', '#F1F5F9']}
         style={StyleSheet.absoluteFill}
       />
       
       {/* Background Glows */}
-      <View style={[styles.glow, { top: '20%', left: '-10%', backgroundColor: Colors.dark.primary + '15' }]} />
-      <View style={[styles.glow, { bottom: '10%', right: '-10%', backgroundColor: Colors.dark.secondary + '10' }]} />
+      <View style={[styles.glow, { top: '20%', left: '-10%', backgroundColor: colors.primary + '15' }]} />
+      <View style={[styles.glow, { bottom: '10%', right: '-10%', backgroundColor: colors.secondary + '10' }]} />
 
       <SafeAreaViewHeader onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Animated.View entering={FadeInDown.delay(200)} style={styles.heroSection}>
-          <Text style={styles.sessionStatus}>
+        <Animated.View 
+          entering={FadeInDown.delay(200)} 
+          style={[
+            styles.heroSection, 
+            { backgroundColor: colors.isDark ? (colors.background + '40') : 'rgba(255, 255, 255, 0.7)', borderColor: colors.border }
+          ]}
+        >
+          <Text style={[styles.sessionStatus, { color: colors.primary }]}>
             {focusSession.isActive ? 'DEEP WORK IN PROGRESS' : 'SESSION PAUSED'}
           </Text>
           
           <View style={styles.timerContainer}>
             <View style={styles.timeBlock}>
-              <Text style={styles.timeDigit}>{timeParts.h}</Text>
-              <Text style={styles.timeLabel}>HRS</Text>
+              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.h}</Text>
+              <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>HRS</Text>
             </View>
-            <Text style={styles.separator}>:</Text>
+            <Text style={[styles.separator, { color: colors.textSecondary + '20' }]}>:</Text>
             <View style={styles.timeBlock}>
-              <Text style={styles.timeDigit}>{timeParts.m}</Text>
-              <Text style={styles.timeLabel}>MINS</Text>
+              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.m}</Text>
+              <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>MINS</Text>
             </View>
-            <Text style={styles.separator}>:</Text>
+            <Text style={[styles.separator, { color: colors.textSecondary + '20' }]}>:</Text>
             <View style={styles.timeBlock}>
-              <Text style={styles.timeDigit}>{timeParts.s}</Text>
-              <Text style={styles.timeLabel}>SECS</Text>
+              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.s}</Text>
+              <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>SECS</Text>
             </View>
           </View>
 
           <View style={styles.progressContainer}>
-            <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
               <Animated.View 
-                style={[styles.progressBarFill, { width: `${progress * 100}%` }]} 
+                style={[styles.progressBarFill, { width: `${progress * 100}%`, backgroundColor: colors.primary }]} 
               />
             </View>
             <View style={styles.progressTextRow}>
-              <Text style={styles.progressLabel}>Daily Goal: {focusGoalHours}h</Text>
-              <Text style={styles.progressValue}>{Math.floor(progress * 100)}%</Text>
+              <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>Daily Goal: {focusGoalHours}h</Text>
+              <Text style={[styles.progressValue, { color: colors.text }]}>{Math.floor(progress * 100)}%</Text>
             </View>
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(400)} style={styles.quoteSection}>
+        <Animated.View 
+          entering={FadeInDown.delay(400)} 
+          style={[styles.quoteSection, { backgroundColor: colors.primaryTransparent }]}
+        >
           <View style={styles.quoteIconRow}>
-            <Ionicons name="chatbubble-ellipses-outline" size={24} color={Colors.dark.primary} />
-            {isLoadingQuote && <ActivityIndicator size="small" color={Colors.dark.primary} style={{ marginLeft: 10 }} />}
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.primary} />
+            {isLoadingQuote && <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 10 }} />}
           </View>
-          <Text style={styles.quoteText}>{displayQuote}</Text>
+          <Text style={[styles.quoteText, { color: colors.textSecondary }]}>{displayQuote}</Text>
         </Animated.View>
 
         <Animated.View entering={SlideInUp.delay(600)} style={styles.actionSection}>
           <TouchableOpacity 
-            style={[styles.mainButton, focusSession.isActive && styles.stopButton]} 
+            style={[
+              styles.mainButton, 
+              { backgroundColor: colors.primary, shadowColor: colors.primary },
+              focusSession.isActive && [styles.stopButton, { backgroundColor: colors.danger, shadowColor: colors.danger }]
+            ]} 
             onPress={handleToggle}
             activeOpacity={0.8}
           >
@@ -153,12 +159,14 @@ export default function FocusDetailScreen() {
 }
 
 function SafeAreaViewHeader({ onBack }: { onBack: () => void }) {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-        <Ionicons name="chevron-down" size={30} color="#FFF" />
+    <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <TouchableOpacity onPress={onBack} style={[styles.backBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+        <Ionicons name="chevron-down" size={30} color={colors.text} />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>Focus Dashboard</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Focus Dashboard</Text>
       <View style={{ width: 44 }} />
     </View>
   );
@@ -179,7 +187,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -187,13 +194,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     ...Typography.h3,
-    color: '#FFF',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -204,15 +209,12 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 32,
     padding: 30,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   sessionStatus: {
     ...Typography.labelSmall,
-    color: Colors.dark.primary,
     letterSpacing: 2,
     marginBottom: 20,
   },
@@ -228,19 +230,16 @@ const styles = StyleSheet.create({
   timeDigit: {
     ...Typography.h1Hero,
     fontSize: 48,
-    color: '#FFF',
     lineHeight: 54,
   },
   timeLabel: {
     ...Typography.labelSmall,
     fontSize: 8,
-    color: 'rgba(255,255,255,0.4)',
     marginTop: 4,
   },
   separator: {
     ...Typography.h1Hero,
     fontSize: 40,
-    color: 'rgba(255,255,255,0.2)',
     paddingBottom: 15,
   },
   progressContainer: {
@@ -248,14 +247,12 @@ const styles = StyleSheet.create({
   },
   progressBarBg: {
     height: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 10,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Colors.dark.primary,
     borderRadius: 4,
   },
   progressTextRow: {
@@ -269,13 +266,11 @@ const styles = StyleSheet.create({
   progressValue: {
     ...Typography.caption,
     fontSize: 12,
-    color: '#FFF',
     fontWeight: '700',
   },
   quoteSection: {
     marginTop: 30,
     padding: 24,
-    backgroundColor: 'rgba(124, 92, 255, 0.05)',
     borderRadius: 24,
     alignItems: 'center',
     width: '100%',
@@ -291,7 +286,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontStyle: 'italic',
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.7)',
     lineHeight: 24,
   },
   actionSection: {
@@ -299,14 +293,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   mainButton: {
-    backgroundColor: Colors.dark.primary,
     flexDirection: 'row',
     height: 64,
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    shadowColor: Colors.dark.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,

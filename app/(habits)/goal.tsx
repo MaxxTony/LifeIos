@@ -6,6 +6,8 @@ import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { notificationService } from '@/services/notificationService';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 const GOALS = [
   { days: 7, label: 'Good', icon: '⭐' },
@@ -17,7 +19,8 @@ const GOALS = [
 export default function GoalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { addHabit, habits } = useStore();
+  const colors = useThemeColors();
+  const { addHabit } = useStore();
 
   const [selectedGoal, setSelectedGoal] = useState(7);
 
@@ -28,11 +31,11 @@ export default function GoalScreen() {
     const tempId = Math.random().toString(36).substring(7);
     
     const habitData = {
-      id: tempId, // Pass the ID directly
+      id: tempId,
       title: params.title as string,
       icon: params.icon as string || '✨',
       category: params.category as string || 'General',
-      color: params.color as string || '#7C5CFF',
+      color: params.color as string || colors.primary,
       frequency: params.frequency as 'daily' | 'weekly' | 'monthly',
       targetDays: JSON.parse(params.selectedDays as string),
       reminderTime: params.reminderEnabled === 'true' ? params.reminderTime as string : null,
@@ -61,18 +64,18 @@ export default function GoalScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <Text style={styles.icon}>{params.icon || '✨'}</Text>
-          <Text style={styles.title}>Set your first streak goal for {params.title}</Text>
-          <Text style={styles.sub}>Choose your starting goal and make it happen</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Set your first streak goal for {params.title}</Text>
+          <Text style={[styles.sub, { color: colors.textSecondary }]}>Choose your starting goal and make it happen</Text>
 
           <View style={styles.goalsList}>
             {GOALS.map((goal) => (
@@ -84,19 +87,20 @@ export default function GoalScreen() {
                 }}
                 style={[
                   styles.goalCard,
-                  selectedGoal === goal.days && styles.goalCardActive
+                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border },
+                  selectedGoal === goal.days && [styles.goalCardActive, { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }]
                 ]}
                 activeOpacity={0.7}
               >
                 <View style={styles.goalInfo}>
-                  <View style={[styles.miniIconBg, selectedGoal === goal.days && styles.miniIconBgActive]}>
+                  <View style={[styles.miniIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }, selectedGoal === goal.days && [styles.miniIconBgActive, { backgroundColor: colors.primary + '20' }]]}>
                     <Text style={styles.goalIcon}>{goal.icon}</Text>
                   </View>
-                  <Text style={[styles.goalDays, selectedGoal === goal.days && styles.goalDaysActive]}>
+                  <Text style={[styles.goalDays, { color: colors.textSecondary }, selectedGoal === goal.days && [styles.goalDaysActive, { color: colors.primary }]]}>
                     {goal.days} days
                   </Text>
                 </View>
-                <Text style={[styles.goalLabel, selectedGoal === goal.days && styles.goalLabelActive]}>
+                <Text style={[styles.goalLabel, { color: colors.textSecondary + '80' }, selectedGoal === goal.days && [styles.goalLabelActive, { color: colors.primary + 'A0' }]]}>
                   {goal.label}
                 </Text>
               </TouchableOpacity>
@@ -106,8 +110,8 @@ export default function GoalScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-          <Text style={styles.confirmBtnText}>I confirm my goal</Text>
+        <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleConfirm}>
+          <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>I confirm my goal</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -117,7 +121,6 @@ export default function GoalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b0b0f',
   },
   header: {
     paddingHorizontal: 20,
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 150,
   },
   content: {
     alignItems: 'center',
@@ -143,14 +146,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFF',
     textAlign: 'center',
     marginBottom: 10,
     lineHeight: 32,
   },
   sub: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.4)',
     textAlign: 'center',
     marginBottom: 35,
     fontWeight: '500',
@@ -163,16 +164,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     height: 72,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   goalCardActive: {
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   goalInfo: {
     flexDirection: 'row',
@@ -183,12 +180,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   miniIconBgActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   goalIcon: {
     fontSize: 20,
@@ -196,18 +191,14 @@ const styles = StyleSheet.create({
   goalDays: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.8)',
   },
   goalDaysActive: {
-    color: '#FFF',
   },
   goalLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.3)',
     fontWeight: '600',
   },
   goalLabelActive: {
-    color: 'rgba(255,255,255,0.5)',
   },
   footer: {
     position: 'absolute',
@@ -216,19 +207,16 @@ const styles = StyleSheet.create({
     right: 20,
   },
   confirmBtn: {
-    backgroundColor: '#FFF',
     height: 64,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
   confirmBtnText: {
-    color: '#000',
     fontSize: 17,
     fontWeight: '800',
   }

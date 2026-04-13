@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.lifeos.app",
-      "googleServicesFile": "./android/app/google-services.json",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0B0B0F"
@@ -49,7 +49,7 @@
       [
         "@react-native-google-signin/google-signin",
         {
-          "iosUrlScheme": "com.googleusercontent.apps.191144362794-8k90o6dbsd0vghai83k7fj12opanvfms"
+          "iosUrlScheme": "com.googleusercontent.apps.191144362794-1b4frlkh9l96dpcc86gf6ssj491g4tjm"
         }
       ],
       "expo-notifications"

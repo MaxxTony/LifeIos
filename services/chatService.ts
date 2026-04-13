@@ -12,7 +12,8 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase/config';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { auth, db, storage } from '../firebase/config';
 
 export interface ChatConversation {
   id: string;
@@ -27,16 +28,35 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
-  createdAt: any;
+  createdAt?: number | any;
 }
 
+// The "XHR Trick" is the most robust way to get a native-backed Blob in React Native.
+// This bypasses the broken JavaScript Blob constructor and works perfectly with Firebase.
+const uriToBlob = (uri: string): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.onload = function () {
+      resolve(xhr.response);
+    };
+    xhr.onerror = function (e) {
+      console.error('uriToBlob Error:', e);
+      reject(new Error('Failed to convert URI to Blob.'));
+    };
+    xhr.responseType = 'blob';
+    xhr.open('GET', uri, true);
+    xhr.send(null);
+  });
+};
+
 export const chatService = {
-  // Get all conversations for a user
+  // Get most recent conversations for a user (capped at 50)
   getConversations: async (userId: string): Promise<ChatConversation[]> => {
     try {
       const q = query(
         collection(db, 'users', userId, 'conversations'),
-        orderBy('updatedAt', 'desc')
+        orderBy('updatedAt', 'desc'),
+        limit(50)
       );
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
@@ -110,26 +130,47 @@ export const chatService = {
       });
     } catch (error) {
       console.error('Error adding message:', error);
+      throw error; // Propagate so callers can surface failures to the user
     }
   },
 
-  // FIX C-5: Use Firebase Storage instead of base64 in Firestore
-  // Firestore has a 1MB document limit — base64 images easily exceed this
-  uploadImage: async (userId: string, uri: string, base64?: string, mimeType?: string): Promise<string> => {
+  // Upload image to Firebase Storage via XHR blob conversion (required for React Native).
+  // Uses explicit gs:// URI to handle new .firebasestorage.app bucket discovery.
+  uploadImage: async (userId: string, uri: string): Promise<string> => {
     try {
-      const fileName = `chat-images/${userId}/${Date.now()}.jpg`;
-      const storageRef = ref(storage, fileName);
+      // Verify auth state before attempting upload
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('Not authenticated with Firebase');
+      }
 
-      // Fetch the local URI and convert to blob for upload
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // Compress and standardize to JPEG
+      const manipResult = await ImageManipulator.manipulateAsync(
+        uri,
+        [],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
 
-      await uploadBytes(storageRef, blob, { contentType: mimeType || 'image/jpeg' });
+      // Convert URI to native Blob via XHR (JavaScript Blob constructor is broken in RN)
+      const blob = await uriToBlob(manipResult.uri);
+
+      // Build explicit gs:// reference to avoid SDK bucket discovery issues
+      const bucket = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
+      const objectPath = `chat-images/${userId}/${Date.now()}.jpg`;
+      const storageRef = ref(storage, `gs://${bucket}/${objectPath}`);
+
+      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const downloadURL = await getDownloadURL(storageRef);
+
+      // Release native blob memory
+      if ((blob as any).close) {
+        (blob as any).close();
+      }
+
       return downloadURL;
-    } catch (error) {
-      console.error('Image upload to Firebase Storage failed:', error);
-      throw new Error('Failed to upload image. Please try again.');
+    } catch (error: any) {
+      console.error('Image upload failed:', error);
+      throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
     }
   },
 

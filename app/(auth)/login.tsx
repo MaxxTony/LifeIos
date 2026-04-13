@@ -1,4 +1,5 @@
 import { Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { useStore } from '@/store/useStore';
@@ -11,10 +12,11 @@ import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoiding
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 // ─── Login Hero Visual ───────────────────────────────────────────────────────
 function LoginHero() {
+  const colors = useThemeColors();
   const glow = useSharedValue(0.6);
   const iconS = useSharedValue(0);
   const rir1 = useSharedValue(1); const rio1 = useSharedValue(0);
@@ -43,9 +45,9 @@ function LoginHero() {
 
   return (
     <View style={heroStyles.container}>
-      <Animated.View style={[heroStyles.ring, r2Style]} />
-      <Animated.View style={[heroStyles.ring, r1Style]} />
-      <Animated.View style={[heroStyles.glow, glowStyle]} />
+      <Animated.View style={[heroStyles.ring, { borderColor: colors.primary + '88' }, r2Style]} />
+      <Animated.View style={[heroStyles.ring, { borderColor: colors.primary + '88' }, r1Style]} />
+      <Animated.View style={[heroStyles.glow, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
       <Animated.View style={[heroStyles.iconWrap, iconStyle]}>
         <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} />
       </Animated.View>
@@ -59,30 +61,46 @@ const heroStyles = StyleSheet.create({
   icon: { width: 90, height: 90 },
   glow: {
     position: 'absolute', width: 110, height: 110, borderRadius: 55,
-    backgroundColor: '#7C5CFF', shadowColor: '#7C5CFF', shadowOffset: { width: 0, height: 0 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8, shadowRadius: 20, elevation: 10,
   },
-  ring: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 1.5, borderColor: '#7C5CFF88' },
+  ring: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 1.5 },
+});
+
+// Configure Google Sign-In once at module scope (not inside the component)
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID!,
+  offlineAccess: true,
 });
 
 type LoadingType = 'email' | 'google' | null;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState<LoadingType>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
 
   const router = useRouter();
+  const colors = useThemeColors();
   const { setAuth, onboardingData } = useStore();
 
-
-  GoogleSignin.configure({
-    webClientId: '191144362794-llbrvs0nlnsvfvumadefl58teuufpv8c.apps.googleusercontent.com',
-    iosClientId: '191144362794-8k90o6dbsd0vghai83k7fj12opanvfms.apps.googleusercontent.com',
-    offlineAccess: true,
-  });
-
+  const handleForgotPassword = async () => {
+    if (!EMAIL_REGEX.test(email)) {
+      Toast.show({ type: 'error', text1: 'Enter Email First', text2: 'Please enter your email address above.' });
+      return;
+    }
+    const { error } = await authService.resetPassword(email);
+    if (error) {
+      Toast.show({ type: 'error', text1: 'Reset Failed', text2: error });
+    } else {
+      Toast.show({ type: 'success', text1: 'Email Sent', text2: 'Check your inbox for a password reset link.' });
+    }
+  };
 
   const onGoogleButtonPress = async () => {
     setLoading('google');
@@ -92,12 +110,12 @@ export default function LoginScreen() {
       const idToken = userInfo.data?.idToken;
 
       if (idToken) {
-        handleGoogleLogin(idToken);
+        await handleGoogleLogin(idToken);
       } else {
         throw new Error('No ID Token received');
       }
     } catch (error: any) {
-      console.log(error, "google login error ")
+      console.error('Google sign-in error:', error);
       setLoading(null);
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         // user cancelled the login flow
@@ -112,7 +130,6 @@ export default function LoginScreen() {
   };
 
   const handleGoogleLogin = async (idToken: string) => {
-    setLoading('google');
     const { user, error } = await authService.loginWithGoogle(idToken);
     if (user) {
       // Check if profile already exists
@@ -132,10 +149,9 @@ export default function LoginScreen() {
       // Ensure local store also knows onboarding is done
       useStore.getState().completeOnboarding();
 
+      // setAuth triggers subscribeToCloud() which handles real-time data sync.
+      // No need for a separate hydrateFromCloud() call — that would race with the listener.
       setAuth(user.uid, user.displayName || existingProfile?.userName || 'User');
-
-      // Immediately restore cloud data to the store
-      await useStore.getState().hydrateFromCloud();
 
       Toast.show({
         type: 'success',
@@ -158,11 +174,19 @@ export default function LoginScreen() {
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
-      Toast.show({
-        type: 'error',
-        text1: 'Missing Details',
-        text2: 'Please enter both email and password.',
-      });
+      Toast.show({ type: 'error', text1: 'Missing Details', text2: 'Please enter both email and password.' });
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      Toast.show({ type: 'error', text1: 'Invalid Email', text2: 'Please enter a valid email address.' });
+      return;
+    }
+    if (isSignUp && password.length < 8) {
+      Toast.show({ type: 'error', text1: 'Weak Password', text2: 'Password must be at least 8 characters.' });
+      return;
+    }
+    if (isSignUp && password !== confirmPassword) {
+      Toast.show({ type: 'error', text1: 'Password Mismatch', text2: 'Passwords do not match.' });
       return;
     }
 
@@ -187,10 +211,8 @@ export default function LoginScreen() {
       // Ensure local store also knows onboarding is done
       useStore.getState().completeOnboarding();
 
+      // setAuth triggers subscribeToCloud() — no separate hydrateFromCloud() needed
       setAuth(user.uid, user.email?.split('@')[0] || existingProfile?.userName || 'User');
-
-      // Immediately restore cloud data to the store
-      await useStore.getState().hydrateFromCloud();
 
       Toast.show({
         type: 'success',
@@ -212,11 +234,11 @@ export default function LoginScreen() {
   return (
     <ImageBackground
       source={require('../../assets/images/login-bg.png')}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       resizeMode="cover"
     >
       <LinearGradient
-        colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)']}
+        colors={[colors.isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)', colors.isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)']}
         style={StyleSheet.absoluteFill}
       />
 
@@ -232,20 +254,20 @@ export default function LoginScreen() {
           {/* Header Area */}
           <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.header}>
             <LoginHero />
-            <Text style={styles.logo}>LifeOS</Text>
-            <Text style={styles.tagline}>Level up your daily reality ✨</Text>
+            <Text style={[styles.logo, { color: colors.text }]}>LifeOS</Text>
+            <Text style={[styles.tagline, { color: colors.textSecondary }]}>Level up your daily reality ✨</Text>
           </Animated.View>
 
           {/* Login Card */}
-          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.cardWrap}>
-            <BlurView intensity={35} tint="dark" style={styles.card}>
+          <Animated.View entering={FadeInDown.delay(300).springify()} style={[styles.cardWrap, { borderColor: colors.border }]}>
+            <BlurView intensity={35} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email Address</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border, color: colors.text }]}
                     placeholder="name@example.com"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor={colors.textSecondary + '60'}
                     value={email}
                     onChangeText={setEmail}
                     autoCapitalize="none"
@@ -254,16 +276,30 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Password</Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Password</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border, color: colors.text }]}
                     placeholder="••••••••"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor={colors.textSecondary + '60'}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
                   />
                 </View>
+
+                {isSignUp && (
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Confirm Password</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: confirmPassword && confirmPassword !== password ? colors.danger : colors.border, color: colors.text }]}
+                      placeholder="••••••••"
+                      placeholderTextColor={colors.textSecondary + '60'}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry
+                    />
+                  </View>
+                )}
 
                 <TouchableOpacity
                   activeOpacity={0.8}
@@ -271,7 +307,7 @@ export default function LoginScreen() {
                   disabled={loading !== null}
                 >
                   <LinearGradient
-                    colors={['#7C5CFF', '#5B8CFF']}
+                    colors={colors.gradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.primaryButton}
@@ -286,13 +322,19 @@ export default function LoginScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
 
+                {!isSignUp && (
+                  <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotBtn}>
+                    <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
-                  onPress={() => setIsSignUp(!isSignUp)}
+                  onPress={() => { setIsSignUp(!isSignUp); setConfirmPassword(''); }}
                   style={styles.toggleBtn}
                 >
-                  <Text style={styles.toggleText}>
+                  <Text style={[styles.toggleText, { color: colors.textSecondary }]}>
                     {isSignUp ? 'Already joined? ' : 'New to LifeOS? '}
-                    <Text style={styles.toggleTextBold}>
+                    <Text style={[styles.toggleTextBold, { color: colors.primary }]}>
                       {isSignUp ? 'Sign In' : 'Sign Up'}
                     </Text>
                   </Text>
@@ -304,14 +346,14 @@ export default function LoginScreen() {
           {/* Footer Social Area */}
           <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.footer}>
             <View style={styles.divider}>
-              <View style={styles.line} />
-              <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
-              <View style={styles.line} />
+              <View style={[styles.line, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.textSecondary + '80' }]}>OR CONTINUE WITH</Text>
+              <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
 
             <View style={styles.socialRow}>
               <TouchableOpacity
-                style={styles.googleButton}
+                style={[styles.googleButton, { backgroundColor: colors.isDark ? '#FFFFFF' : '#F3F4F6' }]}
                 onPress={onGoogleButtonPress}
                 disabled={loading !== null}
               >
@@ -328,7 +370,7 @@ export default function LoginScreen() {
 
             </View>
 
-            <Text style={styles.terms}>
+            <Text style={[styles.terms, { color: colors.textSecondary + '60' }]}>
               By signing in, you agree to our Terms & Privacy Policy.
             </Text>
           </Animated.View>
@@ -341,7 +383,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -355,13 +396,11 @@ const styles = StyleSheet.create({
   logo: {
     ...Typography.h1,
     fontSize: 42,
-    color: '#FFF',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Inter-SemiBold',
     letterSpacing: -1,
   },
   tagline: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 4,
     fontSize: 15,
   },
@@ -370,12 +409,10 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     marginBottom: 24,
   },
   card: {
     padding: 24,
-    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   form: {
     width: '100%',
@@ -385,7 +422,6 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...Typography.caption,
-    color: 'rgba(255,255,255,0.5)',
     marginBottom: 8,
     marginLeft: 4,
     textTransform: 'uppercase',
@@ -393,14 +429,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
     height: 58,
     borderRadius: 16,
     paddingHorizontal: 16,
-    color: '#FFF',
     fontSize: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   primaryButton: {
     height: 58,
@@ -424,11 +457,18 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.5)',
     fontSize: 14,
   },
   toggleTextBold: {
-    color: '#A78BFF',
+    fontFamily: 'Inter-SemiBold',
+  },
+  forgotBtn: {
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  forgotText: {
+    ...Typography.caption,
+    fontSize: 13,
     fontFamily: 'Inter-SemiBold',
   },
   divider: {
@@ -440,12 +480,10 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   dividerText: {
     ...Typography.caption,
     marginHorizontal: 16,
-    color: 'rgba(255,255,255,0.4)',
     fontSize: 11,
     letterSpacing: 1,
   },
@@ -460,7 +498,6 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
     height: 56,
     borderRadius: 16,
     flexDirection: 'row',
@@ -478,11 +515,9 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 15,
   },
-
   terms: {
     ...Typography.caption,
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.3)',
     fontSize: 12,
     lineHeight: 18,
   }

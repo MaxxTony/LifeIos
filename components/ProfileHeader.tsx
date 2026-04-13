@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassCard } from './GlassCard';
@@ -9,21 +10,22 @@ import { MapPin, Briefcase } from 'lucide-react-native';
 
 export function ProfileHeader() {
   const { userName, avatarUrl, bio, location, occupation } = useStore();
+  const colors = useThemeColors();
 
   return (
     <GlassCard style={styles.container}>
       <View style={styles.headerRow}>
-        <View style={styles.avatarBorder}>
+        <View style={[styles.avatarBorder, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', shadowColor: colors.primaryTransparent }]}>
           <LinearGradient
-            colors={Colors.dark.gradient as any}
+            colors={colors.gradient}
             style={styles.avatarGradient}
           >
-            <View style={styles.avatarInner}>
+            <View style={[styles.avatarInner, { backgroundColor: colors.background }]}>
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" transition={300} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarInitial}>{userName?.[0]?.toUpperCase() || 'U'}</Text>
+                  <Text style={[styles.avatarInitial, { color: colors.primary }]}>{userName?.[0]?.toUpperCase() || 'U'}</Text>
                 </View>
               )}
             </View>
@@ -31,31 +33,31 @@ export function ProfileHeader() {
         </View>
 
         <View style={styles.infoContainer}>
-          <Text style={styles.userName}>{userName || 'User'}</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{userName || 'User'}</Text>
           {occupation ? (
             <View style={styles.metaRow}>
-              <Briefcase size={14} color={Colors.dark.textSecondary} />
-              <Text style={styles.metaText}>{occupation}</Text>
+              <Briefcase size={14} color={colors.textSecondary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>{occupation}</Text>
             </View>
           ) : null}
           {location ? (
             <View style={styles.metaRow}>
-              <MapPin size={14} color={Colors.dark.textSecondary} />
-              <Text style={styles.metaText}>{location}</Text>
+              <MapPin size={14} color={colors.textSecondary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>{location}</Text>
             </View>
           ) : null}
         </View>
       </View>
 
-      {bio ? (
-        <View style={styles.bioContainer}>
-          <Text style={styles.bioText} numberOfLines={3}>{bio}</Text>
-        </View>
-      ) : (
-        <View style={styles.bioContainer}>
-           <Text style={[styles.bioText, { opacity: 0.5 }]}>No bio added yet. Tell us about yourself!</Text>
-        </View>
-      )}
+      <View style={[styles.bioContainer, { borderTopColor: colors.border }]}>
+        {bio ? (
+          <Text style={[styles.bioText, { color: colors.textSecondary }]} numberOfLines={3}>{bio}</Text>
+        ) : (
+          <Text style={[styles.bioText, { color: colors.textSecondary, opacity: 0.5 }]}>
+            No bio added yet. Tell us about yourself!
+          </Text>
+        )}
+      </View>
     </GlassCard>
   );
 }
@@ -74,8 +76,6 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: BorderRadius.full,
     padding: 2,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    shadowColor: Colors.dark.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -90,20 +90,9 @@ const styles = StyleSheet.create({
   avatarInner: {
     flex: 1,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.background,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  avatarIcon: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: Colors.dark.background,
-    borderRadius: 10,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: Colors.dark.primary,
   },
   avatar: {
     width: '100%',
@@ -117,7 +106,6 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     ...Typography.h1,
-    color: Colors.dark.primary,
     fontSize: 42,
     fontWeight: '800',
   },
@@ -127,7 +115,6 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...Typography.h2,
-    color: Colors.dark.text,
     fontSize: 26,
     marginBottom: 4,
   },
@@ -139,17 +126,14 @@ const styles = StyleSheet.create({
   metaText: {
     ...Typography.caption,
     marginLeft: 6,
-    color: Colors.dark.textSecondary,
   },
   bioContainer: {
     marginTop: Spacing.lg,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
   },
   bioText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
     fontSize: 15,
     lineHeight: 22,
   },

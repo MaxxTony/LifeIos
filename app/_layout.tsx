@@ -12,6 +12,7 @@ import Toast from 'react-native-toast-message';
 import * as Notifications from 'expo-notifications';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useColorScheme } from 'react-native';
+import { useFocusTimer } from '@/hooks/useFocusTimer';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -19,6 +20,9 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset } = useStore();
   const systemColorScheme = useColorScheme();
+  
+  // Start the global focus timer
+  useFocusTimer();
 
   const themeMode = themePreference === 'system' 
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -129,7 +133,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
         <ThemeProvider value={navTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ 
+            headerShown: false,
+            headerBackTitle: '',
+            headerTintColor: accentColor,
+          }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />

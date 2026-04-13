@@ -1,5 +1,6 @@
-import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Space, Spacing, Typography } from '@/constants/theme';
 import { CheckCircle2, Clock, Trophy, Zap } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,6 +9,7 @@ import { GlassCard } from './GlassCard';
 
 export function ProfileStats() {
   const { tasks, habits, focusSession, getStreak } = useStore();
+  const colors = useThemeColors();
 
   const completedTasksToday = tasks.filter(t => t.completed).length;
   const totalTasksToday = tasks.length;
@@ -18,7 +20,6 @@ export function ProfileStats() {
   const totalFocusMinutes = Math.floor(focusSession.totalSecondsToday / 60);
   const focusHours = (totalFocusMinutes / 60).toFixed(1);
 
-  // Calculate overall best streak
   const streaks = habits.map(h => getStreak(h.id));
   const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
 
@@ -26,35 +27,34 @@ export function ProfileStats() {
     <View style={styles.container}>
       <View style={styles.grid}>
         <StatCard
-          icon={<Trophy size={20} color="#FFD700" />}
+          icon={<Trophy size={20} color={colors.isDark ? '#FFD700' : '#B8860B'} />}
           label="Best Streak"
           value={`${maxStreak} Days`}
-          color="#FFD700"
+          color={colors.isDark ? '#FFD700' : '#B8860B'}
         />
 
-        {/* Special circular card for progress */}
         <GlassCard style={styles.card}>
           <View style={styles.circularContainer}>
             <CircularProgress size={60} strokeWidth={6} progress={taskCompletionRate}>
-              <CheckCircle2 size={18} color={Colors.dark.success} />
+              <CheckCircle2 size={18} color={colors.success} />
             </CircularProgress>
           </View>
-          <Text style={[styles.cardValue, { color: Colors.dark.success }]}>{taskCompletionRate}%</Text>
-          <Text style={styles.cardLabel}>Tasks Today</Text>
+          <Text style={[styles.cardValue, { color: colors.success }]}>{taskCompletionRate}%</Text>
+          <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Tasks Today</Text>
         </GlassCard>
 
         <StatCard
-          icon={<Clock size={20} color={Colors.dark.primary} />}
+          icon={<Clock size={20} color={colors.primary} />}
           label="Focus Time"
           value={`${focusHours}h`}
-          color={Colors.dark.primary}
+          color={colors.primary}
         />
 
         <StatCard
-          icon={<Zap size={20} color={Colors.dark.secondary} />}
+          icon={<Zap size={20} color={colors.secondary} />}
           label="Active Habits"
           value={`${habits.length}`}
-          color={Colors.dark.secondary}
+          color={colors.secondary}
         />
       </View>
     </View>
@@ -62,6 +62,7 @@ export function ProfileStats() {
 }
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+  const colors = useThemeColors();
   return (
     <GlassCard style={styles.card}>
       <View style={styles.iconWrapper}>
@@ -69,7 +70,7 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
         <View style={[styles.glow, { backgroundColor: color }]} />
       </View>
       <Text style={[styles.cardValue, { color }]}>{value}</Text>
-      <Text style={styles.cardLabel}>{label}</Text>
+      <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{label}</Text>
     </GlassCard>
   );
 }
@@ -104,7 +105,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     opacity: 0.2,
-    filter: 'blur(8px)', // Note: standard hex/rgba might be safer, but some RN versions support filter
   },
   cardValue: {
     ...Typography.h2,
@@ -116,7 +116,6 @@ const styles = StyleSheet.create({
   cardLabel: {
     ...Typography.labelSmall,
     fontSize: 10,
-    color: Colors.dark.textSecondary,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
