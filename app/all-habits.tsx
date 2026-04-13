@@ -163,7 +163,7 @@ export default function AllHabitsScreen() {
               return (
                 <Swipeable
                   key={habit.id}
-                  ref={ref => swipeableRefs.current.set(habit.id, ref)}
+                  ref={ref => { swipeableRefs.current.set(habit.id, ref); }}
                   renderRightActions={() => renderRightActions(habit.id, habit.title)}
                   overshootRight={false}
                   friction={2}
@@ -193,25 +193,13 @@ export default function AllHabitsScreen() {
                       </View>
                     </TouchableOpacity>
 
-                    {/* Visual-only week dots — non-interactive */}
-                    <View style={styles.dotsWrapper} pointerEvents="none">
-                      {renderDots(habit.completedDays)}
-                    </View>
-
-                    {/* Dedicated toggle button — separate tap target */}
                     <TouchableOpacity
-                      style={[
-                        styles.toggleBtn,
-                        { borderColor: isCompletedToday ? colors.success : colors.border },
-                        isCompletedToday && { backgroundColor: colors.success }
-                      ]}
+                      style={styles.dotsWrapper}
                       onPress={() => handleToggle(habit.id)}
                       activeOpacity={0.7}
-                      accessibilityLabel={isCompletedToday ? `${habit.title} completed — tap to undo` : `Complete ${habit.title}`}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: isCompletedToday }}
+                      accessibilityLabel="Toggle habit completion for today"
                     >
-                      {isCompletedToday && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                      {renderDots(habit.completedDays)}
                     </TouchableOpacity>
                   </View>
                 </Swipeable>
@@ -282,7 +270,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 6,
-    paddingRight: 16, // Adjusted for cleaner alignment
+    paddingRight: 16, // Matches card internal padding
     marginBottom: 8,
   },
   dayLabelText: {
@@ -310,8 +298,8 @@ const styles = StyleSheet.create({
   habitTitle: { fontSize: 16, fontWeight: '700' },
   streakInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   habitStreak: { fontSize: 11, fontWeight: '700', opacity: 0.8 },
-  dotsWrapper: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
-  dotsRow: { flexDirection: 'row', gap: 5 },
+  dotsWrapper: { flexDirection: 'row', alignItems: 'center' },
+  dotsRow: { flexDirection: 'row', gap: 6 },
   toggleBtn: {
     width: 28,
     height: 28,
@@ -333,7 +321,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  dot: { width: 10, height: 10, borderRadius: 3.5, justifyContent: 'center', alignItems: 'center' },
+  dot: { width: 12, height: 12, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   dotCompleted: { shadowOpacity: 0.2, shadowRadius: 2, elevation: 1 },
   dotToday: { borderWidth: 1 },
   emptyState: { alignItems: 'center', paddingTop: 80, gap: 12 },

@@ -158,8 +158,8 @@ export default function ProgressScreen() {
                   
                   {/* Breakdown Icons */}
                   <View style={styles.breakdownRow}>
-                    <BreakdownIcon icon={<Target size={10} color={colors.secondary} />} label={`${Math.round(taskCompletionPerc)}%`} />
-                    <BreakdownIcon icon={<Zap size={10} color={colors.danger} />} label={`${Math.round(habitCompletionPerc)}%`} />
+                    <BreakdownIcon icon={<Target size={10} color={colors.secondary} />} label={`${Math.round(taskCompletionPerc || 0)}%`} />
+                    <BreakdownIcon icon={<Zap size={10} color={colors.danger} />} label={`${Math.round(habitCompletionPerc || 0)}%`} />
                     <BreakdownIcon icon={<Brain size={10} color={colors.success} />} label={`${Math.round(focusCompletionPerc)}%`} />
                   </View>
                 </View>
