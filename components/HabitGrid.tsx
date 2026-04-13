@@ -10,7 +10,10 @@ import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { useRouter } from 'expo-router';
 
 export function HabitGrid() {
-  const { habits, toggleHabit, getStreak } = useStore();
+  // Selectors: only re-render when habits, toggleHabit, or getStreak changes.
+  const habits = useStore(s => s.habits);
+  const toggleHabit = useStore(s => s.toggleHabit);
+  const getStreak = useStore(s => s.getStreak);
   const colors = useThemeColors();
   const router = useRouter();
 

@@ -1,7 +1,7 @@
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
-import { getTodayLocal } from '@/utils/dateUtils';
+import { formatLocalDate } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
@@ -53,7 +53,8 @@ export default function CreateTaskScreen() {
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(new Date(Date.now() + 3600 * 1000));
 
-  const [pickerMode, setPickerMode] = useState<'start' | 'end' | null>(null);
+  // 'start' | 'end' | 'date' | null
+  const [pickerMode, setPickerMode] = useState<'start' | 'end' | 'date' | null>(null);
 
   const formatTime = (d: Date) => {
     if (!d || isNaN(d.getTime())) return 'Not set';
@@ -65,7 +66,7 @@ export default function CreateTaskScreen() {
   };
 
   const formatDate = (d: Date) => {
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const handleSave = () => {
@@ -77,7 +78,7 @@ export default function CreateTaskScreen() {
       formatTime(startTime),
       formatTime(endTime),
       priority,
-      getTodayLocal()
+      formatLocalDate(date)   // M-1 FIX: use user-selected date, not always today
     );
     router.back();
   };
@@ -129,13 +130,19 @@ export default function CreateTaskScreen() {
               </View>
             </View>
 
-            <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
+            <TouchableOpacity
+              style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+              onPress={() => setPickerMode('date')}
+            >
               <View style={styles.selectLeft}>
                 <Calendar size={20} color={colors.primary} />
-                <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Today)</Text>
+                <View>
+                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Task Date</Text>
+                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
+                </View>
               </View>
-              <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
-            </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
 
             <View style={styles.timeRow}>
               <TouchableOpacity
@@ -166,7 +173,7 @@ export default function CreateTaskScreen() {
             </View>
 
 
-            {/* Date Picker Modal/Dialog */}
+            {/* Picker Modal — handles date, start time, and end time */}
             {Platform.OS === 'ios' ? (
               <Modal
                 visible={!!pickerMode}
@@ -197,27 +204,27 @@ export default function CreateTaskScreen() {
                   </View>
 
                   <View style={styles.pickerWrapper}>
-                    <DateTimePicker
-                      value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                      mode="time"
-                      is24Hour={false}
-                      display="spinner"
-                      onChange={(e, d) => {
-                        if (d) {
-                          const now = new Date();
+                    {pickerMode === 'date' ? (
+                      <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display="spinner"
+                        minimumDate={new Date()}
+                        onChange={(e, d) => { if (d) setDate(d); }}
+                        textColor={colors.text}
+                        themeVariant={colors.isDark ? "dark" : "light"}
+                      />
+                    ) : (
+                      <DateTimePicker
+                        value={pickerMode === 'start' ? startTime : endTime}
+                        mode="time"
+                        is24Hour={false}
+                        display="spinner"
+                        onChange={(e, d) => {
+                          if (!d) return;
                           if (pickerMode === 'start') {
-                            if (d < now) {
-                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                              setStartTime(now);
-                              if (endTime <= now) {
-                                setEndTime(new Date(now.getTime() + 30 * 60000));
-                              }
-                            } else {
-                              setStartTime(d);
-                              if (d >= endTime) {
-                                setEndTime(new Date(d.getTime() + 30 * 60000));
-                              }
-                            }
+                            setStartTime(d);
+                            if (d >= endTime) setEndTime(new Date(d.getTime() + 30 * 60000));
                           } else {
                             if (d <= startTime) {
                               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -226,45 +233,37 @@ export default function CreateTaskScreen() {
                               setEndTime(d);
                             }
                           }
-                        }
-                      }}
-                      textColor={colors.text}
-                      themeVariant={colors.isDark ? "dark" : "light"}
-                    />
+                        }}
+                        textColor={colors.text}
+                        themeVariant={colors.isDark ? "dark" : "light"}
+                      />
+                    )}
                   </View>
                 </View>
               </Modal>
             ) : (
               !!pickerMode && (
                 <DateTimePicker
-                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                  mode="time"
+                  value={pickerMode === 'date' ? date : pickerMode === 'start' ? startTime : endTime}
+                  mode={pickerMode === 'date' ? 'date' : 'time'}
                   is24Hour={false}
                   display="default"
+                  minimumDate={pickerMode === 'date' ? new Date() : undefined}
                   onChange={(e, d) => {
+                    const mode = pickerMode;
                     setPickerMode(null);
-                    if (d) {
-                      const now = new Date();
-                      if (pickerMode === 'start') {
-                        if (d < now) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setStartTime(now);
-                          if (endTime <= now) {
-                            setEndTime(new Date(now.getTime() + 30 * 60000));
-                          }
-                        } else {
-                          setStartTime(d);
-                          if (d >= endTime) {
-                            setEndTime(new Date(d.getTime() + 30 * 60000));
-                          }
-                        }
+                    if (!d) return;
+                    if (mode === 'date') {
+                      setDate(d);
+                    } else if (mode === 'start') {
+                      setStartTime(d);
+                      if (d >= endTime) setEndTime(new Date(d.getTime() + 30 * 60000));
+                    } else {
+                      if (d <= startTime) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                        setEndTime(new Date(startTime.getTime() + 30 * 60000));
                       } else {
-                        if (d <= startTime) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
-                        } else {
-                          setEndTime(d);
-                        }
+                        setEndTime(d);
                       }
                     }
                   }}

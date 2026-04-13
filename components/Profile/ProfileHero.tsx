@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { LevelCarousel } from './LevelCarousel';
 
 export function ProfileHero() {
@@ -53,7 +53,7 @@ export function ProfileHero() {
 
         {/* Level Section - New Premium Carousel */}
         <Animated.View 
-          entering={SlideInDown.delay(300).duration(800)} 
+          entering={FadeIn.delay(300).duration(800)} 
           style={styles.carouselWrapper}
         >
           <LevelCarousel />

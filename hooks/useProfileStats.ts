@@ -2,12 +2,18 @@ import { useStore } from '@/store/useStore';
 import { useMemo } from 'react';
 
 export const useProfileStats = () => {
-  const { habits, focusHistory, getStreak, moodHistory, focusSession } = useStore();
+  // Selector pattern: subscribe to each field individually.
+  // focusSecondsToday is a primitive so it doesn't re-render on tick until value changes.
+  const habits = useStore(s => s.habits);
+  const focusHistory = useStore(s => s.focusHistory);
+  const getStreak = useStore(s => s.getStreak);
+  const moodHistory = useStore(s => s.moodHistory);
+  const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
 
   const stats = useMemo(() => {
     // 1. Lifetime Totals
     const historicalFocusSeconds = Object.values(focusHistory || {}).reduce((acc, sec) => acc + (typeof sec === 'number' ? sec : 0), 0);
-    const todayFocusSeconds = focusSession?.totalSecondsToday || 0;
+    const todayFocusSeconds = focusSecondsToday || 0;
     const totalFocusSeconds = historicalFocusSeconds + todayFocusSeconds;
     const totalFocusHours = parseFloat((totalFocusSeconds / 3600).toFixed(1));
     const totalHabitCompletions = (habits || []).reduce((acc, h) => acc + (h.completedDays?.length || 0), 0);
@@ -76,7 +82,7 @@ export const useProfileStats = () => {
       moodColor,
       avgMood
     };
-  }, [habits, focusHistory, moodHistory, getStreak]);
+  }, [habits, focusHistory, moodHistory, getStreak, focusSecondsToday]);
 
   return stats;
 };

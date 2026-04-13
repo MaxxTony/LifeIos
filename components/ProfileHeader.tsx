@@ -9,7 +9,11 @@ import { GlassCard } from './GlassCard';
 import { MapPin, Briefcase } from 'lucide-react-native';
 
 export function ProfileHeader() {
-  const { userName, avatarUrl, bio, location, occupation } = useStore();
+  const userName = useStore(s => s.userName);
+  const avatarUrl = useStore(s => s.avatarUrl);
+  const bio = useStore(s => s.bio);
+  const location = useStore(s => s.location);
+  const occupation = useStore(s => s.occupation);
   const colors = useThemeColors();
 
   return (

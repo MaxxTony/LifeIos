@@ -55,7 +55,8 @@ export default function HabitDetailScreen() {
   const totalCompletions = habit.completedDays.length;
   
   const daysSinceCreation = Math.max(1, Math.ceil((Date.now() - habit.createdAt) / (1000 * 60 * 60 * 24)));
-  const completionRate = Math.round((totalCompletions / daysSinceCreation) * 100);
+  // P-6 FIX: clamp to 100 — old habits or over-logged data could push this above 100%
+  const completionRate = Math.min(100, Math.round((totalCompletions / daysSinceCreation) * 100));
 
   const handleDelete = () => {
     Alert.alert(
@@ -205,24 +206,23 @@ export default function HabitDetailScreen() {
             </PremiumCard>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.toggleBtn, 
-              isCompletedToday ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' } : { borderColor: 'transparent' }
+              styles.toggleBtn,
+              isCompletedToday
+                ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' }
+                : { borderColor: 'transparent' }
             ]}
             onPress={() => {
-              if (!isCompletedToday) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                toggleHabit(habit.id);
-              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              toggleHabit(habit.id);
             }}
-            disabled={isCompletedToday}
-            activeOpacity={isCompletedToday ? 1 : 0.8}
+            activeOpacity={0.8}
           >
             {isCompletedToday ? (
               <View style={styles.completedContent}>
                 <Ionicons name="checkmark-circle" size={24} color={colors.success} />
-                <Text style={[styles.toggleBtnText, { color: colors.success }]}>Completed for Today</Text>
+                <Text style={[styles.toggleBtnText, { color: colors.success }]}>Completed ✓ — Tap to undo</Text>
               </View>
             ) : (
               <LinearGradient colors={[colors.primary, colors.secondary]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.btnGradient}>

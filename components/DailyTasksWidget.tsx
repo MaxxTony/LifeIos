@@ -6,25 +6,27 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 export function DailyTasksWidget() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { tasks, toggleTask } = useStore();
+  // Selectors: only re-render when tasks or toggleTask changes, not on focus ticks.
+  const tasks = useStore(s => s.tasks);
+  const toggleTask = useStore(s => s.toggleTask);
 
   const today = getTodayLocal();
 
   const priorityWeight = { high: 1, medium: 2, low: 3 };
 
-  const todayTasks = tasks
+  const todayTasks = useMemo(() => tasks
     .filter(t => t.date === today)
     .sort((a, b) => {
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
       }
       return (a.dueTime || 0) - (b.dueTime || 0);
-    });
+    }), [tasks, today]);
 
   const priorityColors = {
     high: colors.danger,

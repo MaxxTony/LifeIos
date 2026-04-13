@@ -3,6 +3,21 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { aiActionHandler } from './aiActionHandler';
 import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 
+// ⚠️  SECURITY WARNING — M-9
+// EXPO_PUBLIC_ variables are embedded in the JS bundle at build time.
+// Anyone who decompiles the APK/IPA can extract this key and run AI queries on your bill.
+//
+// PRODUCTION FIX: Route all AI calls through a Firebase Cloud Function (or your own
+// backend). The Cloud Function holds the key server-side and the client calls it via
+// HTTPS. Example:
+//   https.onCall(async (data, ctx) => {
+//     if (!ctx.auth) throw new functions.https.HttpsError('unauthenticated', '...');
+//     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+//     ...
+//   });
+//
+// Until that backend proxy is in place, rotate this key frequently in Google Cloud Console
+// and restrict it by Android package / iOS bundle ID in the API credentials settings.
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
 // Initialize Gemini

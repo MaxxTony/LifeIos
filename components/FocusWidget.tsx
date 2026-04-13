@@ -11,7 +11,12 @@ import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, w
 export function FocusWidget() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { focusSession, focusGoalHours, setFocusGoal, toggleFocusSession } = useStore();
+  // Selectors: FocusWidget legitimately re-renders every second when active,
+  // but we scope to only focus-related fields to avoid other store changes causing renders.
+  const focusSession = useStore(s => s.focusSession);
+  const focusGoalHours = useStore(s => s.focusGoalHours);
+  const setFocusGoal = useStore(s => s.setFocusGoal);
+  const toggleFocusSession = useStore(s => s.toggleFocusSession);
   const pulse = useSharedValue(1);
 
   useEffect(() => {

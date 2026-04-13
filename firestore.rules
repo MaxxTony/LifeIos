@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User root document + all sub-collections ──────────────────────────────
+    // A user can only read/write their own data.
+    // No other authenticated user can access another user's documents.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Sub-collections: tasks, habits, moodHistory, focusHistory, conversations
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+
+        // Nested sub-collections: conversations/{convId}/messages/{msgId}
+        match /{nested}/{nestedId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+    }
+
+    // Deny everything else by default (no public collections)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

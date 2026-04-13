@@ -16,7 +16,7 @@ import { History, Pencil, Plus, PlusCircle } from 'lucide-react-native';
 export function MoodTrend() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { moodHistory } = useStore();
+  const moodHistory = useStore(s => s.moodHistory);
 
   const todayStr = getTodayLocal();
   const [selectedDate, setSelectedDate] = useState(todayStr);

@@ -35,8 +35,8 @@ const { width } = Dimensions.get('window');
 const ACTION_CHIPS = [
   { label: 'Plan my day', icon: 'sparkles' },
   { label: 'Add a habit', icon: 'plus' },
-  { label: 'Analyze mood', icon: 'waveform' },
-  { label: 'Look something up', icon: 'paperplane.fill' },
+  { label: 'Analyze my mood', icon: 'waveform' },
+  { label: 'Give me advice', icon: 'paperplane.fill' },   // M-10 FIX: was "Look something up" — AI doesn't browse the web
 ];
 
 export default function AIChatScreen() {
@@ -129,7 +129,14 @@ export default function AIChatScreen() {
         setUploading(false);
       }
 
-      const aiInputMessages = newMessages.map(m => {
+      // M-4 FIX: Cap history at last 20 messages to control token cost/latency.
+      // Always keep the most recent user message (last item) in the window.
+      const MAX_HISTORY = 20;
+      const windowedMessages = newMessages.length > MAX_HISTORY
+        ? newMessages.slice(-MAX_HISTORY)
+        : newMessages;
+
+      const aiInputMessages = windowedMessages.map(m => {
         if (m.id === userMsg.id && currentAttachedImage) {
           return {
             role: m.role as 'user' | 'assistant' | 'system',
@@ -145,8 +152,6 @@ export default function AIChatScreen() {
           content: m.content
         };
       });
-      console.log("Ai Input Message", aiInputMessages)
-
       const response = await getAIResponse(aiInputMessages);
 
       const aiMsg: ChatMessage = {

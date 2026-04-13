@@ -8,7 +8,7 @@ import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,18 +21,11 @@ const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy
 };
 
 export default function HomeScreen() {
-  const { userName, checkMissedTasks } = useStore();
+  const userName = useStore(s => s.userName);
   const colors = useThemeColors();
   const { dashboardTheme } = colors;
   const greeting = getGreeting();
-
-  useEffect(() => {
-    // Check for missed tasks on mount and every minute
-    // performDailyReset is handled once in _layout.tsx on hydration
-    checkMissedTasks();
-    const interval = setInterval(checkMissedTasks, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // checkMissedTasks is now handled globally in _layout.tsx
 
 
   return (

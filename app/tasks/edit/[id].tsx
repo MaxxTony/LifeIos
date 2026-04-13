@@ -3,7 +3,7 @@ import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
+import { formatLocalDate } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -73,7 +73,7 @@ export default function EditTaskScreen() {
     updateTask(task.id, {
       text: text.trim(),
       priority,
-      date: getTodayLocal(),
+      date: task.date,   // M-2 FIX: preserve the task's original date, never reset to today
       startTime: formatTime(startTime),
       endTime: formatTime(endTime),
     });

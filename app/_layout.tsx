@@ -9,8 +9,8 @@ import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
@@ -19,20 +19,29 @@ import Toast from 'react-native-toast-message';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset, focusSession } = useStore();
+  // Granular selectors: each field re-renders the layout only when it changes.
+  // focusSession.isActive is selected as a primitive to avoid re-renders every tick.
+  const setAuth = useStore(s => s.setAuth);
+  const themePreference = useStore(s => s.themePreference);
+  const accentColor = useStore(s => s.accentColor);
+  const _hasHydrated = useStore(s => s._hasHydrated);
+  const performDailyReset = useStore(s => s.performDailyReset);
+  const focusIsActive = useStore(s => s.focusSession.isActive);
+  const checkMissedTasks = useStore(s => s.checkMissedTasks);
   const systemColorScheme = useColorScheme();
+  const appState = useRef(AppState.currentState);
 
   // Start the global focus timer
   useFocusTimer();
 
   // Keep screen awake while a focus session is active (must be in root layout, not a modal)
   useEffect(() => {
-    if (focusSession.isActive) {
+    if (focusIsActive) {
       activateKeepAwakeAsync().catch(() => {});
     } else {
       deactivateKeepAwake();
     }
-  }, [focusSession.isActive]);
+  }, [focusIsActive]);
 
   const themeMode = themePreference === 'system'
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -74,6 +83,25 @@ export default function RootLayout() {
     }
   }, [_hasHydrated]);
 
+  // Global missed-task checker: runs at root level so it fires on all screens
+  useEffect(() => {
+    checkMissedTasks();
+    const missedInterval = setInterval(checkMissedTasks, 60_000);
+
+    // Also re-check when app returns to foreground
+    const sub = AppState.addEventListener('change', (next) => {
+      if (appState.current.match(/inactive|background/) && next === 'active') {
+        checkMissedTasks();
+      }
+      appState.current = next;
+    });
+
+    return () => {
+      clearInterval(missedInterval);
+      sub.remove();
+    };
+  }, []);
+
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
@@ -87,14 +115,10 @@ export default function RootLayout() {
           return;
         }
 
+        // setAuth already calls subscribeToCloud() which sets up real-time listeners
+        // for tasks, habits, mood, focus and the root profile — no separate
+        // hydrateFromCloud() call needed (would race with the real-time listeners).
         setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
-
-        // Fetch tasks and other data from Firestore
-        try {
-          await useStore.getState().hydrateFromCloud();
-        } catch (err) {
-          console.error('Hydration error:', err);
-        }
       } else {
         setAuth(null, null);
       }

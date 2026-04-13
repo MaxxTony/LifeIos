@@ -282,13 +282,20 @@ export const useStore = create<UserState>()(
       toggleTask: (id) => {
         set((state) => {
           const task = state.tasks.find(t => t.id === id);
-          if (!task || task.completed) return state;
+          if (!task) return state;
 
-          const updatedTask: Task = { ...task, completed: true, status: 'completed' };
+          // Allow toggling: completed → pending, pending → completed
+          // Missed tasks cannot be re-opened (they are past their end time)
+          if (task.status === 'missed') return state;
+
+          const nowCompleted = !task.completed;
+          const updatedTask: Task = { ...task, completed: nowCompleted, status: nowCompleted ? 'completed' : 'pending' };
+          // When undoing completion, remove the systemComment (auto-set by checkMissedTasks)
+          if (!nowCompleted) delete updatedTask.systemComment;
           const newTasks: Task[] = state.tasks.map((t) =>
             t.id === id ? updatedTask : t
           );
-          
+
           if (state.userId) {
             fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleTask');
           }
@@ -344,6 +351,8 @@ export const useStore = create<UserState>()(
             for (let i = startOffset; i < 365; i++) {
               const d = new Date();
               d.setDate(d.getDate() - i);
+              // Respect targetDays for weekly habits — don't break streak on unscheduled days
+              if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
               const dStr = formatLocalDate(d);
               if (newCompletedDays.includes(dStr)) {
                 currentStreak++;
@@ -381,14 +390,27 @@ export const useStore = create<UserState>()(
       getStreak: (id) => {
         const habit = get().habits.find(h => h.id === id);
         if (!habit) return 0;
+
+        // For habits with specific target days, only count scheduled days in the streak.
+        // A streak breaks only if the habit was SCHEDULED for that day but not completed.
+        const isScheduledDay = (date: Date): boolean => {
+          if (habit.frequency !== 'weekly') return true; // daily/monthly: every day counts
+          return habit.targetDays.includes(date.getDay());
+        };
+
         let streak = 0;
         const today = new Date();
         const todayStr = formatLocalDate(today);
         const todayDone = habit.completedDays.includes(todayStr);
+        const startOffset = todayDone ? 0 : 1;
 
-        for (let i = todayDone ? 0 : 1; i < 365; i++) {
+        for (let i = startOffset; i < 365; i++) {
           const checkDate = new Date();
           checkDate.setDate(today.getDate() - i);
+
+          // Skip days the habit isn't scheduled for — don't break the streak
+          if (!isScheduledDay(checkDate)) continue;
+
           const dateStr = formatLocalDate(checkDate);
           if (habit.completedDays.includes(dateStr)) {
             streak++;
@@ -504,11 +526,12 @@ export const useStore = create<UserState>()(
       updateFocusTime: () => set((state) => {
         if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
         const now = Date.now();
-        const elapsed = (now - state.focusSession.lastStartTime) / 1000;
+        const rawElapsed = now - state.focusSession.lastStartTime;
+        // Cap a single tick to 24h to guard against runaway accumulation
+        const MAX_TICK_MS = 24 * 60 * 60 * 1000;
+        const elapsed = Math.min(rawElapsed, MAX_TICK_MS) / 1000;
         const totalSeconds = state.focusSession.totalSecondsToday + elapsed;
-        
-        // Frequent updates to Firestore for the timer are avoided; 
-        // Sync happens on stop or app background (see hooks/useFocusTimer.ts)
+
         return {
           focusSession: {
             ...state.focusSession,
@@ -520,7 +543,7 @@ export const useStore = create<UserState>()(
 
       setMood: (mood, extras, date) => {
         const dateKey = date || getTodayLocal();
-        
+
         // Strip undefined fields for Firestore compatibility
         const cleanEntry: any = { mood, timestamp: Date.now() };
         if (extras?.reason) cleanEntry.reason = extras.reason;
@@ -538,8 +561,11 @@ export const useStore = create<UserState>()(
             fireSync(() => dbService.saveMood(state.userId!, cleanEntry, dateKey), 'saveMood');
           }
 
+          // M-5 FIX: Derive the current mood from moodHistory[today] instead of a
+          // separate root field that can drift on multi-device or date-boundary scenarios.
+          const today = getTodayLocal();
           return {
-            mood: dateKey === getTodayLocal() ? mood : state.mood,
+            mood: newHistory[today]?.mood ?? null,
             moodHistory: newHistory
           };
         });
@@ -649,7 +675,9 @@ export const useStore = create<UserState>()(
         const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs) => {
           const map: Record<string, MoodEntry> = {};
           docs.forEach(doc => { map[doc.id] = doc as any; });
-          set({ moodHistory: map });
+          // M-5 FIX: always derive mood from today's moodHistory entry
+          const today = getTodayLocal();
+          set({ moodHistory: map, mood: map[today]?.mood ?? null });
         });
 
         // 5. Focus History Listener

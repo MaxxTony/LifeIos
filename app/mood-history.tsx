@@ -16,7 +16,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function MoodHistoryScreen() {
   const router = useRouter();
-  const { moodHistory, focusHistory, focusSession } = useStore();
+  const moodHistory = useStore(s => s.moodHistory);
+  const focusHistory = useStore(s => s.focusHistory);
+  const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
   const colors = useThemeColors();
 
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
@@ -53,12 +55,12 @@ export default function MoodHistoryScreen() {
   const selectedEntry = useMemo(() => {
     const entry = getMoodForDate(selectedDate);
     const isToday = selectedDate === getTodayLocal();
-    const focusSeconds = isToday ? focusSession.totalSecondsToday : (focusHistory[selectedDate] || 0);
-    
+    const focusSeconds = isToday ? focusSecondsToday : (focusHistory[selectedDate] || 0);
+
     if (!entry) return { entry: null, focusSeconds };
     const level = getMoodLevel(entry);
     return { entry: { ...entry, level }, focusSeconds };
-  }, [selectedDate, moodHistory, focusHistory, focusSession.totalSecondsToday]);
+  }, [selectedDate, moodHistory, focusHistory, focusSecondsToday]);
 
   const monthStats = useMemo(() => {
     const year = currentMonth.getFullYear();

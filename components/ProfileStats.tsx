@@ -1,6 +1,6 @@
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Space, Spacing, Typography } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { CheckCircle2, Clock, Trophy, Zap } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,7 +8,11 @@ import { CircularProgress } from './CircularProgress';
 import { GlassCard } from './GlassCard';
 
 export function ProfileStats() {
-  const { tasks, habits, focusSession, getStreak } = useStore();
+  // Selector pattern: focusSecondsToday as primitive avoids re-render on every tick.
+  const tasks = useStore(s => s.tasks);
+  const habits = useStore(s => s.habits);
+  const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
+  const getStreak = useStore(s => s.getStreak);
   const colors = useThemeColors();
 
   const completedTasksToday = tasks.filter(t => t.completed).length;
@@ -17,7 +21,7 @@ export function ProfileStats() {
     ? Math.round((completedTasksToday / totalTasksToday) * 100)
     : 0;
 
-  const totalFocusMinutes = Math.floor(focusSession.totalSecondsToday / 60);
+  const totalFocusMinutes = Math.floor(focusSecondsToday / 60);
   const focusHours = (totalFocusMinutes / 60).toFixed(1);
 
   const streaks = habits.map(h => getStreak(h.id));

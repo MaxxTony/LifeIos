@@ -27,7 +27,8 @@ function adjustBrightness(hex: string, amt: number) {
 
 export function useThemeColors() {
   const systemColorScheme = useColorScheme();
-  const { themePreference, accentColor: storeAccentColor } = useStore();
+  const themePreference = useStore(s => s.themePreference);
+  const storeAccentColor = useStore(s => s.accentColor);
 
   const theme = themePreference === 'system'
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')

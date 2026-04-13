@@ -31,7 +31,15 @@ const PremiumCard = ({ children, style }: { children: React.ReactNode, style?: a
 };
 
 export default function ProgressScreen() {
-  const { tasks, habits, focusHistory, focusSession, focusGoalHours, moodHistory } = useStore();
+  // Selectors: each field re-renders this screen only when it changes.
+  // focusSession is selected whole here since the progress screen genuinely
+  // displays live focus data (totalSecondsToday).
+  const tasks = useStore(s => s.tasks);
+  const habits = useStore(s => s.habits);
+  const focusHistory = useStore(s => s.focusHistory);
+  const focusSession = useStore(s => s.focusSession);
+  const focusGoalHours = useStore(s => s.focusGoalHours);
+  const moodHistory = useStore(s => s.moodHistory);
   const colors = useThemeColors();
   const [selectedHabitIndex, setSelectedHabitIndex] = useState(0);
 
@@ -67,7 +75,7 @@ export default function ProgressScreen() {
   // Formatting Data...
   const focusChartData = useMemo(() => {
     const data = [];
-    const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
     
     // Find the most recent Monday
     const today = new Date();
@@ -89,7 +97,7 @@ export default function ProgressScreen() {
 
   const moodChartData = useMemo(() => {
     const data = [];
-    const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
     
     // Find the most recent Monday
     const today = new Date();

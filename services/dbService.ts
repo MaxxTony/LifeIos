@@ -24,7 +24,12 @@ export const dbService = {
 
   // Atomic Task Operations
   saveTask: async (userId: string, task: any) => {
-    await setDoc(doc(db, 'users', userId, 'tasks', task.id), task);
+    // Firestore rejects undefined values. Replace undefined fields with deleteField()
+    // so clearing optional fields (e.g. systemComment) removes them from the document.
+    const sanitized = Object.fromEntries(
+      Object.entries(task).map(([k, v]) => [k, v === undefined ? deleteField() : v])
+    );
+    await setDoc(doc(db, 'users', userId, 'tasks', task.id), sanitized);
   },
 
   deleteTask: async (userId: string, taskId: string) => {

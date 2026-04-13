@@ -7,7 +7,6 @@ const DEFAULT_CHANNEL_ID = 'default';
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true, // Legacy support
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,

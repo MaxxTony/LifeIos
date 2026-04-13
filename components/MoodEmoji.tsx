@@ -28,7 +28,7 @@ const THEME_ASSETS: Record<string, Record<number, any>> = {
 };
 
 export function MoodEmoji({ level, size = 40, style, themeOverride }: MoodEmojiProps) {
-  const { moodTheme: storeTheme } = useStore();
+  const storeTheme = useStore(s => s.moodTheme);
   const moodTheme = themeOverride || (storeTheme as any);
 
   // Index: level 1 is 0, level 5 is 4 for classic, but 1-5 for images

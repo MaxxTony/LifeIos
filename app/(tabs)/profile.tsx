@@ -19,10 +19,11 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
-  const { logout, themePreference } = useStore();
+  const logout = useStore(s => s.logout);
+  const themePreference = useStore(s => s.themePreference);
   const colors = useThemeColors();
   const router = useRouter();
 
@@ -52,13 +53,13 @@ export default function ProfileScreen() {
 
         <View style={styles.mainContent}>
           {/* Stats Section */}
-          <Animated.View entering={FadeInDown.delay(400).duration(600)}>
+          <Animated.View entering={FadeIn.delay(400).duration(600)}>
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>YOUR PROGRESS</Text>
             <StatsBentoGrid />
           </Animated.View>
 
           {/* Preferences Section */}
-          <Animated.View entering={FadeInDown.delay(500).duration(600)} style={styles.section}>
+          <Animated.View entering={FadeIn.delay(500).duration(600)} style={styles.section}>
             <View style={styles.sectionTitleRow}>
               <Settings2 size={16} color={colors.textSecondary} />
               <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>PREFERENCES</Text>
@@ -90,7 +91,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* Support Section */}
-          <Animated.View entering={FadeInDown.delay(600).duration(600)} style={styles.section}>
+          <Animated.View entering={FadeIn.delay(600).duration(600)} style={styles.section}>
              <View style={styles.sectionTitleRow}>
               <HelpCircle size={16} color={colors.textSecondary} />
               <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>SUPPORT</Text>
@@ -116,7 +117,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* Account Actions */}
-          <Animated.View entering={FadeInDown.delay(700).duration(600)} style={styles.section}>
+          <Animated.View entering={FadeIn.delay(700).duration(600)} style={styles.section}>
             <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <ProfileMenuItem 
                 icon={LogOut} 

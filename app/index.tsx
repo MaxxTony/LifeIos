@@ -5,7 +5,9 @@ import { ActivityIndicator, View } from 'react-native';
 import React from 'react';
 
 export default function Index() {
-  const { _hasHydrated, hasCompletedOnboarding, isAuthenticated } = useStore();
+  const _hasHydrated = useStore(s => s._hasHydrated);
+  const hasCompletedOnboarding = useStore(s => s.hasCompletedOnboarding);
+  const isAuthenticated = useStore(s => s.isAuthenticated);
   const colors = useThemeColors();
 
   // Wait for AsyncStorage to hydrate the store before deciding where to navigate

@@ -23,8 +23,16 @@ export default function ConfigScreen() {
   const colors = useThemeColors();
   
   const [title, setTitle] = useState(params.title?.toString() || '');
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const [selectedDays, setSelectedDays] = useState<number[]>(params.title ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4, 5, 6]);
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>(
+    (params.frequency as 'daily' | 'weekly' | 'monthly') || 'daily'
+  );
+  // Pre-populate targetDays when editing an existing habit; default to all days for new habits
+  const [selectedDays, setSelectedDays] = useState<number[]>(() => {
+    if (params.selectedDays) {
+      try { return JSON.parse(params.selectedDays as string); } catch { /* fall through */ }
+    }
+    return [0, 1, 2, 3, 4, 5, 6];
+  });
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -193,7 +201,6 @@ export default function ConfigScreen() {
                     display="spinner"
                     onChange={onTimeChange}
                     textColor={colors.text}
-                    minimumDate={new Date()}
                   />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -206,7 +213,6 @@ export default function ConfigScreen() {
                 is24Hour={false}
                 display="default"
                 onChange={onTimeChange}
-                minimumDate={new Date()}
               />
             )
           )}

@@ -4,13 +4,14 @@ import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { useStore } from '@/store/useStore';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { AntDesign } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import { Eye, EyeOff, Mail, CheckCircle2, AlertCircle } from 'lucide-react-native';
+import { Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
@@ -151,44 +152,47 @@ export default function LoginScreen() {
   };
 
   const handleGoogleLogin = async (idToken: string) => {
-    const { user, error } = await authService.loginWithGoogle(idToken);
-    if (user) {
-      // Check if profile already exists
-      const { data: existingProfile } = await dbService.getUserProfile(user.uid);
+    try {
+      const { user, error } = await authService.loginWithGoogle(idToken);
+      if (user) {
+        const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
-      if (!existingProfile) {
-        // Only save onboarding data for brand new users
-        await dbService.saveUserProfile(user.uid, {
-          email: user.email,
-          userName: user.displayName || 'User',
-          ...onboardingData,
-          hasCompletedOnboarding: true, // Mark as complete in Cloud
-          createdAt: Date.now()
+        if (!existingProfile) {
+          await dbService.saveUserProfile(user.uid, {
+            email: user.email,
+            userName: user.displayName || 'User',
+            ...onboardingData,
+            hasCompletedOnboarding: true,
+            createdAt: Date.now()
+          });
+        }
+
+        useStore.getState().completeOnboarding();
+        setAuth(user.uid, user.displayName || existingProfile?.userName || 'User');
+
+        Toast.show({
+          type: 'success',
+          text1: 'Welcome back!',
+          text2: `Logged in as ${user.displayName || 'User'}`,
+        });
+
+        router.replace('/(tabs)');
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Login Failed',
+          text2: error || 'Failed to login with Google',
         });
       }
-
-      // Ensure local store also knows onboarding is done
-      useStore.getState().completeOnboarding();
-
-      // setAuth triggers subscribeToCloud() which handles real-time data sync.
-      // No need for a separate hydrateFromCloud() call — that would race with the listener.
-      setAuth(user.uid, user.displayName || existingProfile?.userName || 'User');
-
-      Toast.show({
-        type: 'success',
-        text1: 'Welcome back!',
-        text2: `Logged in as ${user.displayName || 'User'}`,
-      });
-
-      router.replace('/(tabs)');
-    } else {
+    } catch (err: any) {
       Toast.show({
         type: 'error',
-        text1: 'Login Failed',
-        text2: error || 'Failed to login with Google',
+        text1: 'Unexpected Error',
+        text2: err?.message || 'Something went wrong. Please try again.',
       });
+    } finally {
+      setLoading(null);
     }
-    setLoading(null);
   };
 
 
@@ -222,44 +226,50 @@ export default function LoginScreen() {
     }
 
     setLoading('email');
-    const { user, error } = isSignUp
-      ? await authService.signUp(email, password)
-      : await authService.login(email, password);
+    try {
+      const { user, error } = isSignUp
+        ? await authService.signUp(email, password)
+        : await authService.login(email, password);
 
-    if (user) {
-      const { data: existingProfile } = await dbService.getUserProfile(user.uid);
+      if (user) {
+        const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
-      if (isSignUp || !existingProfile) {
-        await dbService.saveUserProfile(user.uid, {
-          email: user.email,
-          userName: email.split('@')[0],
-          ...onboardingData,
-          hasCompletedOnboarding: true, // Mark as complete in Cloud
-          createdAt: Date.now()
+        if (isSignUp || !existingProfile) {
+          await dbService.saveUserProfile(user.uid, {
+            email: user.email,
+            userName: email.split('@')[0],
+            ...onboardingData,
+            hasCompletedOnboarding: true,
+            createdAt: Date.now()
+          });
+        }
+
+        useStore.getState().completeOnboarding();
+        setAuth(user.uid, user.email?.split('@')[0] || existingProfile?.userName || 'User');
+
+        Toast.show({
+          type: 'success',
+          text1: isSignUp ? 'Account Created' : 'Welcome back!',
+          text2: isSignUp ? 'Your journey starts now.' : 'Successfully signed in.',
+        });
+
+        router.replace('/(tabs)');
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: isSignUp ? 'Registration Error' : 'Login Error',
+          text2: error || 'Authentication failed',
         });
       }
-
-      // Ensure local store also knows onboarding is done
-      useStore.getState().completeOnboarding();
-
-      // setAuth triggers subscribeToCloud() — no separate hydrateFromCloud() needed
-      setAuth(user.uid, user.email?.split('@')[0] || existingProfile?.userName || 'User');
-
-      Toast.show({
-        type: 'success',
-        text1: isSignUp ? 'Account Created' : 'Welcome back!',
-        text2: isSignUp ? 'Your journey starts now.' : 'Successfully signed in.',
-      });
-
-      router.replace('/(tabs)');
-    } else {
+    } catch (err: any) {
       Toast.show({
         type: 'error',
-        text1: isSignUp ? 'Registration Error' : 'Login Error',
-        text2: error || 'Authentication failed',
+        text1: 'Unexpected Error',
+        text2: err?.message || 'Something went wrong. Please try again.',
       });
+    } finally {
+      setLoading(null);
     }
-    setLoading(null);
   };
 
   return (
@@ -419,7 +429,7 @@ export default function LoginScreen() {
                   <ActivityIndicator color="#000" />
                 ) : (
                   <>
-                    <Text style={styles.socialIcon}>G</Text>
+                    <AntDesign name="google" size={20} color="#DB4437" />
                     <Text style={styles.googleButtonText}>Google</Text>
                   </>
                 )}
@@ -589,11 +599,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-  },
-  socialIcon: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
   },
   googleButtonText: {
     ...Typography.h3,

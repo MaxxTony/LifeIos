@@ -56,45 +56,41 @@ export default function EditProfileScreen() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Phone formatting logic
-  const formatPhoneNumber = (text: string) => {
-    const cleaned = ('' + text).replace(/\D/g, '');
-    const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
-    if (match) {
-      return '(' + match[1] + ') ' + match[2] + '-' + match[3];
-    }
-    return text;
-  };
-
+  // M-7 FIX: Accept any phone format (international-friendly).
+  // Strip non-digit/non-plus characters so the stored value is clean,
+  // but don't force a US (xxx) xxx-xxxx pattern.
   const handlePhoneChange = (text: string) => {
-    // Only allow numbers for the raw state if we want, or store formatted
-    const formatted = formatPhoneNumber(text);
-    setForm({ ...form, phoneNumber: formatted });
+    // Allow digits, spaces, dashes, parentheses, plus (for country codes)
+    const cleaned = text.replace(/[^\d\s\-()+]/g, '');
+    setForm({ ...form, phoneNumber: cleaned });
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    // On Android, we need to hide the picker after selection (or dismissal)
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
-    
     if (selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
-      setForm({ ...form, birthday: dateString });
+      // P-5 FIX: Use local date components to avoid UTC midnight off-by-one.
+      // new Date("YYYY-MM-DD").toISOString() shifts the date in negative-offset timezones.
+      const y = selectedDate.getFullYear();
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      setForm({ ...form, birthday: `${y}-${m}-${d}` });
     }
   };
 
   const profileCompleteness = useMemo(() => {
     const fields = [
-      form.userName, form.bio, form.avatarUrl, form.location, 
+      form.userName, form.bio, form.avatarUrl, form.location,
       form.occupation, form.phoneNumber, form.birthday, form.pronouns
     ];
     const filled = fields.filter(f => !!f).length;
-    const socialFilled = Object.values(form.socialLinks).filter(f => !!f).length;
-    
-    // Weighted calculation
+    const socialValues = Object.values(form.socialLinks).filter(f => !!f);
+    const totalSocials = Object.keys(form.socialLinks).length; // 7
+
+    // M-8 FIX: social score is proportional (each link adds ~2.86%), not binary
     const baseScore = (filled / fields.length) * 80;
-    const socialScore = socialFilled > 0 ? 20 : 0;
+    const socialScore = (socialValues.length / totalSocials) * 20;
     return Math.round(baseScore + socialScore);
   }, [form]);
 
@@ -417,8 +413,12 @@ export default function EditProfileScreen() {
                     <DateTimePicker
                       value={(() => {
                         if (form.birthday) {
-                          const d = new Date(form.birthday);
-                          return isNaN(d.getTime()) ? new Date() : d;
+                          // P-5 FIX: parse YYYY-MM-DD as local time, not UTC
+                          const parts = form.birthday.split('-').map(Number);
+                          if (parts.length === 3) {
+                            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+                            if (!isNaN(d.getTime())) return d;
+                          }
                         }
                         return new Date();
                       })()}

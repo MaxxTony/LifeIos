@@ -8,7 +8,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Clock } from 'lucide-react-native';
 
 export function UpcomingTasks() {
-  const { tasks } = useStore();
+  const tasks = useStore(s => s.tasks);
   const colors = useThemeColors();
   
   const now = Date.now();
