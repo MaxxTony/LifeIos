@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { GlassCard } from '@/components/GlassCard';
+import { Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useHeaderHeight } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { GlassCard } from '@/components/GlassCard';
-import { Shield, Fingerprint, Lock, Download, Trash2, ChevronRight, EyeOff } from 'lucide-react-native';
+import { ChevronRight, Download, EyeOff, Fingerprint, Lock, Shield, Trash2 } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 export default function PrivacySettings() {
   const colors = useThemeColors();
@@ -24,17 +23,8 @@ export default function PrivacySettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Privacy & Security',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
-          headerTintColor: colors.primary,
-        }} 
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 20 }]}>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Security</Text>
           <GlassCard style={styles.card}>
@@ -48,8 +38,8 @@ export default function PrivacySettings() {
                   <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Require biometric to open LifeOS</Text>
                 </View>
               </View>
-              <Switch 
-                value={settings.faceId} 
+              <Switch
+                value={settings.faceId}
                 onValueChange={() => toggle('faceId')}
                 trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
                 thumbColor={colors.isDark ? '#FFF' : '#FFF'}
@@ -80,8 +70,8 @@ export default function PrivacySettings() {
                   <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Allow others to see your stats</Text>
                 </View>
               </View>
-              <Switch 
-                value={settings.publicProfile} 
+              <Switch
+                value={settings.publicProfile}
                 onValueChange={() => toggle('publicProfile')}
                 trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
                 thumbColor="#FFF"
@@ -97,8 +87,8 @@ export default function PrivacySettings() {
                   <Text style={[styles.itemSublabel, { color: colors.textSecondary }]}>Help us improve anonymously</Text>
                 </View>
               </View>
-              <Switch 
-                value={settings.shareData} 
+              <Switch
+                value={settings.shareData}
                 onValueChange={() => toggle('shareData')}
                 trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
                 thumbColor="#FFF"

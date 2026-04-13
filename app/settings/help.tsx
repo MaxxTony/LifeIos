@@ -1,11 +1,10 @@
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
-import { HelpCircle, ChevronDown, ChevronUp, Mail, MessageSquare, BookOpen } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { Stack } from 'expo-router';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { BookOpen, ChevronDown, ChevronUp, Mail, MessageSquare } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { LayoutAnimation, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, UIManager, View } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -42,17 +41,8 @@ export default function HelpCenter() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Help Center',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
-          headerTintColor: colors.primary,
-        }} 
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 20 }]}>
         <View style={styles.supportCards}>
           <TouchableOpacity style={styles.supportCard}>
             <GlassCard style={styles.glassCard}>
@@ -74,16 +64,16 @@ export default function HelpCenter() {
             {FAQS.map((faq, i) => {
               const isExpanded = expandedIndex === i;
               return (
-                <TouchableOpacity 
-                  key={i} 
+                <TouchableOpacity
+                  key={i}
                   style={[
-                    styles.faqItem, 
-                    { 
+                    styles.faqItem,
+                    {
                       backgroundColor: colors.isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)',
                       borderColor: isExpanded ? colors.primary + '30' : colors.border
                     },
                     isExpanded && { backgroundColor: colors.isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.02)' }
-                  ]} 
+                  ]}
                   onPress={() => toggle(i)}
                   activeOpacity={0.7}
                 >

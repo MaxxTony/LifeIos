@@ -1,18 +1,17 @@
 import {
-  collection,
   addDoc,
+  collection,
+  deleteDoc,
   doc,
   getDocs,
-  query,
-  orderBy,
-  serverTimestamp,
-  deleteDoc,
-  updateDoc,
   limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
   writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
 
 export interface ChatConversation {
@@ -144,30 +143,21 @@ export const chatService = {
         throw new Error('Not authenticated with Firebase');
       }
 
-      // Compress and standardize to JPEG
-      const manipResult = await ImageManipulator.manipulateAsync(
-        uri,
-        [],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      // 1. Fetch the image to convert it into a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
 
-      // Convert URI to native Blob via XHR (JavaScript Blob constructor is broken in RN)
-      const blob = await uriToBlob(manipResult.uri);
+      // 2. Create a reference to 'profiles/userId/avatar_timestamp.jpg'
+      const timestamp = new Date().getTime();
+      const storageRef = ref(storage, `profiles/${userId}/chats_${timestamp}.jpg`);
 
-      // Build explicit gs:// reference to avoid SDK bucket discovery issues
-      const bucket = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
-      const objectPath = `chat-images/${userId}/${Date.now()}.jpg`;
-      const storageRef = ref(storage, `gs://${bucket}/${objectPath}`);
+      // 3. Upload the blob
+      await uploadBytes(storageRef, blob);
+      // 4. Get and return the download URL
+      const downloadUrl = await getDownloadURL(storageRef);
+      return downloadUrl;
 
-      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-      const downloadURL = await getDownloadURL(storageRef);
 
-      // Release native blob memory
-      if ((blob as any).close) {
-        (blob as any).close();
-      }
-
-      return downloadURL;
     } catch (error: any) {
       console.error('Image upload failed:', error);
       throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);

@@ -7,12 +7,12 @@ import { getAIResponse } from '@/services/ai';
 import { ChatMessage, chatService } from '@/services/chatService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { useHeaderHeight } from '@react-navigation/elements';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -145,6 +145,7 @@ export default function AIChatScreen() {
           content: m.content
         };
       });
+      console.log("Ai Input Message", aiInputMessages)
 
       const response = await getAIResponse(aiInputMessages);
 
@@ -207,7 +208,7 @@ export default function AIChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -15 : 0}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
@@ -230,7 +231,7 @@ export default function AIChatScreen() {
                   </View>
                 )}
                 <View style={[
-                  styles.messageBubble, 
+                  styles.messageBubble,
                   m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
                 ]}>
                   {m.imageUrl && (
@@ -263,9 +264,9 @@ export default function AIChatScreen() {
           </ScrollView>
         )}
 
-        <BlurView 
-          intensity={80} 
-          tint={colors.isDark ? 'dark' : 'light'} 
+        <BlurView
+          intensity={80}
+          tint={colors.isDark ? 'dark' : 'light'}
           style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md), backgroundColor: colors.isDark ? 'rgba(11, 11, 15, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderTopColor: colors.border }]}
         >
           {attachedImage && (

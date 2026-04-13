@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Platform, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Platform, TextInput, ScrollView, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +43,12 @@ export default function ConfigScreen() {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    return `${hours}:${minutes} ${ampm}`;
   };
 
   const handleNext = () => {
@@ -54,6 +59,7 @@ export default function ConfigScreen() {
       params: {
         ...params,
         title: title.trim(),
+        icon: params.icon || '✨',
         frequency,
         selectedDays: JSON.stringify(selectedDays),
         reminderEnabled: reminderEnabled ? 'true' : 'false',
@@ -130,7 +136,10 @@ export default function ConfigScreen() {
               <Text style={[styles.reminderLabel, { color: colors.text }]}>Reminder</Text>
               <Switch
                 value={reminderEnabled}
-                onValueChange={setReminderEnabled}
+                onValueChange={(val) => {
+                  setReminderEnabled(val);
+                  // Don't auto-show picker anymore
+                }}
                 trackColor={{ false: colors.isDark ? '#222' : '#E5E7EB', true: colors.success }}
                 thumbColor={'#FFF'}
                 ios_backgroundColor={colors.isDark ? '#222' : '#E5E7EB'}
@@ -153,18 +162,37 @@ export default function ConfigScreen() {
             )}
           </View>
 
-          {(showTimePicker || Platform.OS === 'ios') && reminderEnabled && (
-            <View style={[styles.pickerWrapper, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
-              <DateTimePicker
-                value={reminderTime}
-                mode="time"
-                is24Hour={false}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onValueChange={onTimeChange}
-                textColor={colors.text}
-              />
-            </View>
-          )}
+          {/* Time Picker Modal */}
+          <Modal
+            visible={showTimePicker}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowTimePicker(false)}
+          >
+            <TouchableOpacity 
+              activeOpacity={1} 
+              onPress={() => setShowTimePicker(false)}
+              style={styles.modalOverlay}
+            >
+              <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time</Text>
+                  <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                    <Text style={[styles.doneBtn, { color: colors.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={reminderTime}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onTimeChange}
+                  textColor={colors.text}
+                  minimumDate={new Date()} // Prevent past time selection if possible by UI
+                />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
         </View>
       </ScrollView>
 
@@ -328,6 +356,40 @@ const styles = StyleSheet.create({
   pickerWrapper: {
     marginTop: 10,
     borderRadius: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    width: '100%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  doneBtn: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   footer: {
     position: 'absolute',

@@ -1,10 +1,10 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { dbService } from '@/services/dbService';
 import { authService } from '@/services/authService';
-import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
+import { dbService } from '@/services/dbService';
+import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto'; // FIX C-3: proper UUID generation
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 interface Task {
   id: string;
@@ -66,20 +66,27 @@ interface UserState {
   focusHistory: Record<string, number>; // Date -> totalSeconds
   moodHistory: Record<string, MoodEntry>; // Date -> MoodEntry
   mood: string | null;
-  moodTheme: 'classic' | 'panda' | 'cat';
+  moodTheme: 'classic' | 'panda' | 'cat' | null;
   lastResetDate: string | null;
   bio: string | null;
   location: string | null;
   occupation: string | null;
   avatarUrl: string | null;
+  phoneNumber: string | null;
+  birthday: string | null;
+  pronouns: string | null;
+  skills: string | null;
   socialLinks: {
     twitter?: string;
     github?: string;
     linkedin?: string;
     website?: string;
+    instagram?: string;
+    threads?: string;
+    discord?: string;
   };
   themePreference: 'light' | 'dark' | 'system';
-  accentColor: string;
+  accentColor: string | null;
 
   // Actions
   setHasHydrated: (state: boolean) => void;
@@ -106,13 +113,18 @@ interface UserState {
   updateFocusTime: () => void;
 
   setMood: (mood: number, extras?: { activities?: string[]; emotions?: string[]; note?: string; reason?: string }, date?: string) => void;
-  setMoodTheme: (theme: 'classic' | 'panda' | 'cat') => void;
+  setMoodTheme: (theme: 'classic' | 'panda' | 'cat' | null) => void;
   updateProfile: (updates: Partial<{
     userName: string;
+    email: string;
     bio: string;
     location: string;
     occupation: string;
-    avatarUrl: string;
+    avatarUrl: string | null;
+    phoneNumber: string;
+    birthday: string;
+    pronouns: string;
+    skills: string;
     socialLinks: UserState['socialLinks'];
   }>) => Promise<void>;
   logout: () => void;
@@ -188,15 +200,19 @@ export const useStore = create<UserState>()(
       focusHistory: {},
       moodHistory: {},
       mood: null,
-      moodTheme: 'classic',
+      moodTheme: null,
       lastResetDate: null,
       bio: null,
       location: null,
       occupation: null,
       avatarUrl: null,
+      phoneNumber: null,
+      birthday: null,
+      pronouns: null,
+      skills: null,
       socialLinks: {},
-      themePreference: 'dark',
-      accentColor: '#7C5CFF',
+      themePreference: 'system',
+      accentColor: null,
       _syncUnsubscribe: null,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -415,6 +431,10 @@ export const useStore = create<UserState>()(
           [yesterdayStr]: state.focusSession.totalSecondsToday
         };
 
+        if (state.userId) {
+          fireSync(() => dbService.syncFocusHistory(state.userId!, newFocusHistory), 'dailyResetFocusSync');
+        }
+
         // FIX C-4: Keep future-dated tasks instead of wiping everything
         const newTasks = state.tasks.filter(t => t.date > today);
 
@@ -540,7 +560,12 @@ export const useStore = create<UserState>()(
                 location: data.location || null,
                 occupation: data.occupation || null,
                 avatarUrl: data.avatarUrl || null,
-                socialLinks: data.socialLinks || {}
+                phoneNumber: data.phoneNumber || null,
+                birthday: data.birthday || null,
+                pronouns: data.pronouns || null,
+                skills: data.skills || null,
+                socialLinks: data.socialLinks || {},
+                accentColor: data.accentColor || get().accentColor
               });
             }
           } catch (err: any) {
@@ -565,18 +590,43 @@ export const useStore = create<UserState>()(
           if (!data) return;
 
           const migratedTasks = migrateTasks(data.tasks || []);
+
+          // MOOD RECONCILIATION: Merge local and cloud to prevent data loss
+          const cloudMoods = data.moodHistory ? migrateMoodHistory(data.moodHistory) : {};
+          const localMoods = get().moodHistory;
+          const mergedMoods = { ...localMoods, ...cloudMoods };
+          
+          if (Object.keys(mergedMoods).length > Object.keys(cloudMoods).length) {
+            fireSync(() => dbService.syncMoodHistory(userId, mergedMoods), 'reconcileMoods');
+          }
+
+          // FOCUS RECONCILIATION: Merge local and cloud
+          const cloudFocus = data.focusHistory || {};
+          const localFocus = get().focusHistory;
+          const mergedFocus = { ...localFocus, ...cloudFocus };
+
+          if (Object.keys(mergedFocus).length > Object.keys(cloudFocus).length) {
+            fireSync(() => dbService.syncFocusHistory(userId, mergedFocus), 'reconcileFocus');
+          }
+
           set({
             tasks: migratedTasks,
             mood: data.currentMood || get().mood,
-            moodHistory: data.moodHistory ? migrateMoodHistory(data.moodHistory) : get().moodHistory,
+            moodHistory: mergedMoods,
             moodTheme: data.moodTheme || get().moodTheme,
             habits: data.habits || get().habits,
+            focusHistory: mergedFocus,
             focusGoalHours: data.focusGoalHours || get().focusGoalHours,
             bio: data.bio !== undefined ? data.bio : get().bio,
             location: data.location !== undefined ? data.location : get().location,
             occupation: data.occupation !== undefined ? data.occupation : get().occupation,
             avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : get().avatarUrl,
-            socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks
+            phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : get().phoneNumber,
+            birthday: data.birthday !== undefined ? data.birthday : get().birthday,
+            pronouns: data.pronouns !== undefined ? data.pronouns : get().pronouns,
+            skills: data.skills !== undefined ? data.skills : get().skills,
+            socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
+            accentColor: data.accentColor || get().accentColor
           });
         });
 
@@ -584,7 +634,10 @@ export const useStore = create<UserState>()(
       },
 
       setThemePreference: (theme) => set({ themePreference: theme }),
-      setAccentColor: (color) => set({ accentColor: color }),
+      setAccentColor: (color) => set((state) => {
+        if (state.userId) fireSync(() => dbService.saveAccentColor(state.userId!, color), 'saveAccentColor'); // FIX H-6
+        return { accentColor: color };
+      }),
     }),
 
     {

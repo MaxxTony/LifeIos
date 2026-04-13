@@ -1,12 +1,12 @@
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
-import { Send, MessageSquare, Bug, Sparkles, AlertCircle } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { AlertCircle, Bug, MessageSquare, Send, Sparkles } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 const CATEGORIES = [
@@ -38,21 +38,12 @@ export default function FeedbackSettings() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Stack.Screen 
-        options={{ 
-          title: 'Send Feedback',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
-          headerTintColor: colors.primary,
-        }} 
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 20 }]}>
         <Text style={[styles.description, { color: colors.textSecondary }]}>
           Your feedback helps us build the best version of LifeOS. We read every message!
         </Text>
@@ -64,11 +55,11 @@ export default function FeedbackSettings() {
               const isActive = category === cat.id;
               const Icon = cat.icon;
               return (
-                <TouchableOpacity 
-                  key={cat.id} 
+                <TouchableOpacity
+                  key={cat.id}
                   style={[
-                    styles.categoryItem, 
-                    { 
+                    styles.categoryItem,
+                    {
                       backgroundColor: colors.isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.01)',
                       borderColor: isActive ? colors.primary + '30' : 'transparent'
                     },
@@ -100,8 +91,8 @@ export default function FeedbackSettings() {
           </GlassCard>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.submitButton, (!feedback.trim() || submitting) && styles.submitButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.submitButton, (!feedback.trim() || submitting) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={!feedback.trim() || submitting}
         >

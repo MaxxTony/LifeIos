@@ -51,6 +51,25 @@ export const dbService = {
     }
   },
 
+  syncMoodHistory: async (userId: string, moodHistory: any) => {
+    try {
+      await setDoc(doc(db, 'users', userId), { moodHistory }, { merge: true });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+
+  // Focus History Sync
+  syncFocusHistory: async (userId: string, focusHistory: any) => {
+    try {
+      await setDoc(doc(db, 'users', userId), { focusHistory }, { merge: true });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+
   // Habit Sync
   syncHabits: async (userId: string, habits: any[]) => {
     try {
@@ -62,9 +81,18 @@ export const dbService = {
   },
 
   // Mood Theme
-  saveMoodTheme: async (userId: string, theme: string) => {
+  saveMoodTheme: async (userId: string, theme: string | null) => {
     try {
       await setDoc(doc(db, 'users', userId), { moodTheme: theme }, { merge: true });
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+
+  saveAccentColor: async (userId: string, color: string | null) => {
+    try {
+      await setDoc(doc(db, 'users', userId), { accentColor: color }, { merge: true });
       return { error: null };
     } catch (error: any) {
       return { error: error.message };

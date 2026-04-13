@@ -1,14 +1,32 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { HabitHeatmap } from '@/components/HabitHeatmap';
+import { HabitCalendar } from '@/components/HabitCalendar';
 import { formatLocalDate } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
+
+const PremiumCard = ({ children, style }: { children: React.ReactNode, style?: any }) => {
+  const colors = useThemeColors();
+  return (
+    <View style={[
+      styles.premiumCard,
+      { backgroundColor: colors.card, borderColor: colors.border },
+      style
+    ]}>
+      {children}
+    </View>
+  );
+};
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -22,7 +40,12 @@ export default function HabitDetailScreen() {
   if (!habit) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Habit not found</Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.liquidBtn}>
+            <ChevronLeft size={22} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Not Found</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -44,6 +67,7 @@ export default function HabitDetailScreen() {
           text: 'Delete', 
           style: 'destructive',
           onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             removeHabit(habit.id);
             router.back();
           }
@@ -53,191 +77,224 @@ export default function HabitDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
-          style={[styles.backBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
-        <TouchableOpacity 
-          onPress={handleDelete} 
-          style={[styles.moreBtn, { backgroundColor: colors.danger + '15' }]}
-        >
-          <Ionicons name="trash-outline" size={22} color={colors.danger} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Background Glows */}
+      <View style={[styles.glow, { top: -100, right: -100, backgroundColor: colors.primary + '15' }]} />
+      <View style={[styles.glow, { bottom: -150, left: -150, backgroundColor: colors.secondary + '10' }]} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.streakRow}>
-          <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[styles.streakCard, { borderColor: colors.border }]}>
-             <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Current Streak</Text>
-             <View style={styles.streakValueContainer}>
-                <Text style={[styles.streakValue, { color: colors.text }]}>{currentStreak}</Text>
-                <Ionicons name="flame" size={24} color={colors.primary} />
-             </View>
-          </BlurView>
-          
-          <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[styles.streakCard, { borderColor: colors.border }]}>
-             <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Best Streak</Text>
-             <View style={styles.streakValueContainer}>
-                <Text style={[styles.streakValue, { color: colors.text }]}>{bestStreak}</Text>
-                <Ionicons name="flame" size={24} color={colors.primary} />
-             </View>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {/* Liquid Glass Header */}
+        <View style={styles.headerContainer}>
+          <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                onPress={() => router.back()}
+                style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft size={22} color={colors.text} />
+              </TouchableOpacity>
+              
+              <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
+              
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={[styles.liquidBtn, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}
+                activeOpacity={0.7}
+              >
+                <Trash2 size={20} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
           </BlurView>
         </View>
 
-        <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={[styles.statsCard, { borderColor: colors.border }]}>
-           <Text style={[styles.sectionTitle, { color: colors.text }]}>Total Completions</Text>
-           <Text style={[styles.sinceText, { color: colors.textSecondary }]}>Since {new Date(habit.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</Text>
-           <Text style={[styles.totalValue, { color: colors.text }]}>{totalCompletions}</Text>
-           
-           <View style={[styles.heatmapWrapper, { borderTopColor: colors.border }]}>
-             <HabitHeatmap completedDays={habit.completedDays} createdAt={habit.createdAt} />
-           </View>
-        </BlurView>
-
-        <View style={styles.infoGrid}>
-          <View style={[styles.infoCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
-             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Completion Rate</Text>
-             <Text style={[styles.infoValue, { color: colors.text }]}>{completionRate}%</Text>
-             <View style={[styles.progressTrack, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                <View style={[styles.progressBar, { width: `${completionRate}%`, backgroundColor: colors.success }]} />
-             </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Streak Row */}
+          <View style={styles.streakRow}>
+            <PremiumCard style={styles.streakCard}>
+               <View style={styles.cardHeader}>
+                 <Flame size={16} color={colors.primary} fill={currentStreak > 0 ? colors.primary : 'transparent'} />
+                 <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Current Streak</Text>
+               </View>
+               <Text style={[styles.streakValue, { color: colors.text }]}>{currentStreak} <Text style={styles.unitText}>days</Text></Text>
+            </PremiumCard>
+            
+            <PremiumCard style={styles.streakCard}>
+               <View style={styles.cardHeader}>
+                 <Trophy size={16} color={colors.secondary} fill={bestStreak > 0 ? colors.secondary : 'transparent'} />
+                 <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Best Streak</Text>
+               </View>
+               <Text style={[styles.streakValue, { color: colors.text }]}>{bestStreak} <Text style={styles.unitText}>days</Text></Text>
+            </PremiumCard>
           </View>
 
-          <View style={[styles.infoCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
-             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Frequency</Text>
-             <Text style={[styles.infoValue, { color: colors.text }]}>{habit.frequency.charAt(0).toUpperCase() + habit.frequency.slice(1)}</Text>
+          {/* Habit Calendar Section */}
+          <PremiumCard style={styles.calendarContainer}>
+            <View style={styles.sectionHeader}>
+              <Calendar size={18} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Activity Tracking</Text>
+            </View>
+            <HabitCalendar completedDays={habit.completedDays} createdAt={habit.createdAt} />
+            <Text style={[styles.footerInfo, { color: colors.textSecondary }]}>
+              Joined on {new Date(habit.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </Text>
+          </PremiumCard>
+
+          {/* Stats Grid */}
+          <View style={styles.infoGrid}>
+            <PremiumCard style={styles.infoCard}>
+               <View style={styles.infoHead}>
+                 <Target size={14} color={colors.success} />
+                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Consistency</Text>
+               </View>
+               <Text style={[styles.infoValue, { color: colors.text }]}>{completionRate}%</Text>
+               <View style={[styles.progressTrack, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                  <LinearGradient colors={[colors.success, colors.primary]} start={{x:0,y:0}} end={{x:1,y:0}} style={[styles.progressBar, { width: `${completionRate}%` }]} />
+               </View>
+            </PremiumCard>
+
+            <PremiumCard style={styles.infoCard}>
+               <View style={styles.infoHead}>
+                 <Bell size={14} color={colors.secondary} />
+                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Reminder</Text>
+               </View>
+               <Text style={[styles.infoValue, { color: colors.text }]}>{habit.reminderTime || 'None set'}</Text>
+            </PremiumCard>
+
+            <PremiumCard style={styles.longInfoCard}>
+               <View style={styles.infoHead}>
+                 <Info size={14} color={colors.primary} />
+                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Total Completions</Text>
+               </View>
+               <Text style={[styles.infoValue, { color: colors.text }]}>{totalCompletions} successful sessions</Text>
+            </PremiumCard>
           </View>
 
-          <View style={[styles.infoCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
-             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Reminder</Text>
-             <Text style={[styles.infoValue, { color: colors.text }]}>{habit.reminderTime || 'Off'}</Text>
-          </View>
-
-          <View style={[styles.infoCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
-             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Habit created on</Text>
-             <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(habit.createdAt).toLocaleDateString()}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity 
-          style={[
-            styles.toggleBtn, 
-            { 
-              backgroundColor: isCompletedToday ? (colors.isDark ? '#1a332a' : '#f0fdf4') : colors.primary,
-              borderColor: isCompletedToday ? colors.success + '40' : colors.primary
-            },
-            isCompletedToday && { shadowOpacity: 0 }
-          ]}
-          onPress={() => {
-            if (!isCompletedToday) {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              toggleHabit(habit.id);
-            }
-          }}
-          disabled={isCompletedToday}
-          activeOpacity={isCompletedToday ? 1 : 0.8}
-        >
-          <Text style={[
-            styles.toggleBtnText, 
-            { color: isCompletedToday ? colors.success : '#FFF' }
-          ]}>
-            {isCompletedToday ? 'Completed for Today ✅' : 'Mark as Done'}
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+          <TouchableOpacity 
+            style={[
+              styles.toggleBtn, 
+              isCompletedToday ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' } : { borderColor: 'transparent' }
+            ]}
+            onPress={() => {
+              if (!isCompletedToday) {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                toggleHabit(habit.id);
+              }
+            }}
+            disabled={isCompletedToday}
+            activeOpacity={isCompletedToday ? 1 : 0.8}
+          >
+            {isCompletedToday ? (
+              <View style={styles.completedContent}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <Text style={[styles.toggleBtnText, { color: colors.success }]}>Completed for Today</Text>
+              </View>
+            ) : (
+              <LinearGradient colors={[colors.primary, colors.secondary]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.btnGradient}>
+                <Text style={[styles.toggleBtnText, { color: '#FFF' }]}>Spark My Habit ✨</Text>
+              </LinearGradient>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  glow: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.25, zIndex: -1 },
+  headerContainer: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+      android: { elevation: 4 }
+    })
+  },
+  headerBlur: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.md },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 18,
+    textAlign: 'center',
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  liquidBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  moreBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
   },
   scrollContent: {
+    padding: Spacing.md,
+    paddingBottom: 60,
+  },
+  premiumCard: {
+    borderRadius: 28,
+    borderWidth: 1,
     padding: 20,
-    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   streakRow: {
     flexDirection: 'row',
-    gap: 15,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 16,
   },
   streakCard: {
     flex: 1,
-    padding: 18,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
+    padding: 16,
   },
-  streakLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  streakValueContainer: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    marginBottom: 12,
+  },
+  streakLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   streakValue: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '900',
   },
-  statsCard: {
-    padding: 20,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
+  unitText: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.5,
+  },
+  calendarContainer: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  sinceText: {
-    fontSize: 12,
-    marginBottom: 15,
-  },
-  totalValue: {
-    fontSize: 42,
+    fontSize: 17,
     fontWeight: '800',
-    marginBottom: 25,
   },
-  heatmapWrapper: {
-    marginTop: 10,
-    paddingTop: 20,
-    borderTopWidth: 1,
+  footerInfo: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 20,
+    opacity: 0.5,
+    fontStyle: 'italic',
   },
   infoGrid: {
     flexDirection: 'row',
@@ -246,42 +303,64 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   infoCard: {
-    width: '48%',
+    width: (width - Spacing.md * 2 - 12) / 2,
     padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
+  },
+  longInfoCard: {
+    width: '100%',
+    padding: 16,
+  },
+  infoHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
   infoLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 6,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   infoValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
   progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    marginTop: 8,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 10,
+    overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   toggleBtn: {
-    height: 60,
-    borderRadius: 20,
+    height: 64,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
+  },
+  btnGradient: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   toggleBtnText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
+  },
+  completedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   }
 });

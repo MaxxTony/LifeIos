@@ -35,13 +35,13 @@ export default function RootLayout() {
     ...DarkTheme,
     colors: {
       ...DarkTheme.colors,
-      primary: accentColor,
+      primary: accentColor || '#7C5CFF',
     }
   } : {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      primary: accentColor,
+      primary: accentColor || '#7C5CFF',
     }
   };
 
@@ -134,14 +134,19 @@ export default function RootLayout() {
       <BottomSheetModalProvider>
         <ThemeProvider value={navTheme}>
           <Stack screenOptions={{
-            headerShown: false,
-            headerBackTitle: '',
-            headerTintColor: accentColor,
+
+            headerTintColor: accentColor || '#7C5CFF',
+            headerShown: false
+
+
           }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+            <Stack.Screen name="(habits)" options={{ presentation: 'modal', headerShown: false }} />
+
 
             <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
@@ -152,12 +157,12 @@ export default function RootLayout() {
             <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="all-habits" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="all-tasks" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications' }} />
-            <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance' }} />
-            <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security' }} />
-            <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback' }} />
-            <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center' }} />
-            <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS' }} />
+            <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center', headerBackButtonDisplayMode: "generic" }} />
+            <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style={isDark ? "light" : "dark"} />

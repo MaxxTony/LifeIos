@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Clock } from 'lucide-react-native';
 
 export function UpcomingTasks() {
   const { tasks } = useStore();
+  const colors = useThemeColors();
   
   const now = Date.now();
   const next24h = now + 24 * 60 * 60 * 1000;
@@ -23,28 +25,28 @@ export function UpcomingTasks() {
   };
 
   return (
-    <View style={styles.container}>
-      <BlurView intensity={30} tint="dark" style={styles.blur}>
+    <View style={[styles.container, { borderColor: colors.border }]}>
+      <BlurView intensity={30} tint={colors.isDark ? 'dark' : 'light'} style={styles.blur}>
         <View style={styles.header}>
-          <Text style={styles.title}>Upcoming Tasks</Text>
-          <Clock size={12} stroke="rgba(255,255,255,0.4)" />
+          <Text style={[styles.title, { color: colors.textSecondary }]}>Upcoming Tasks</Text>
+          <Clock size={12} color={colors.textSecondary} />
         </View>
         
         <View style={styles.list}>
           {upcoming.length > 0 ? upcoming.map((task) => (
-            <View key={task.id} style={styles.item}>
-              <View style={styles.iconContainer}>
-                 <IconSymbol name="sparkles" size={12} color="#7C5CFF" />
+            <View key={task.id} style={[styles.item, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.primaryTransparent }]}>
+                 <IconSymbol name="sparkles" size={12} color={colors.primary} />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.taskText} numberOfLines={1}>{task.text}</Text>
-                <Text style={styles.timeText}>{formatDueTime(task.dueTime!)}</Text>
+                <Text style={[styles.taskText, { color: colors.text }]} numberOfLines={1}>{task.text}</Text>
+                <Text style={[styles.timeText, { color: colors.textSecondary }]}>{formatDueTime(task.dueTime!)}</Text>
               </View>
             </View>
           )) : (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>All caught up! ✨</Text>
-              <Text style={styles.emptySubText}>Tasks with times appear here</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>All caught up! ✨</Text>
+              <Text style={[styles.emptySubText, { color: colors.textSecondary, opacity: 0.5 }]}>Tasks with times appear here</Text>
             </View>
           )}
         </View>
@@ -59,7 +61,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
     height: 180,
   },
   blur: {
@@ -73,10 +74,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
   list: {
@@ -85,18 +85,15 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 10,
     borderRadius: 12,
     gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.02)',
   },
   iconContainer: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: 'rgba(124, 92, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -105,13 +102,12 @@ const styles = StyleSheet.create({
   },
   taskText: {
     fontSize: 13,
-    color: '#FFF',
     fontWeight: '600',
     marginBottom: 1,
+    fontFamily: 'Outfit-SemiBold',
   },
   timeText: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '500',
   },
   emptyContainer: {
@@ -121,13 +117,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
     fontWeight: '600',
     marginBottom: 4,
   },
   emptySubText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.2)',
     fontWeight: '400',
   }
 });

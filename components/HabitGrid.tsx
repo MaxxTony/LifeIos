@@ -60,7 +60,7 @@ export function HabitGrid() {
   };
 
   const getDayLabels = () => ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
+  const streakColor = colors.secondary;
 
   return (
     <View style={[styles.container, { borderColor: colors.border }]}>

@@ -1,11 +1,10 @@
-import { Spacing, Typography, BorderRadius, Colors } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
-import { Bell, Clock, Calendar, MessageSquare, Info } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { Bell, Calendar, Clock, Info, MessageSquare } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 export default function NotificationsSettings() {
   const [settings, setSettings] = useState({
@@ -24,17 +23,8 @@ export default function NotificationsSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Notifications',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
-          headerTintColor: colors.primary,
-        }} 
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]} showsVerticalScrollIndicator={false}>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 20 }]} showsVerticalScrollIndicator={false}>
         <Text style={[styles.description, { color: colors.textSecondary }]}>
           Manage how and when you receive alerts from LifeOS to stay on track with your goals.
         </Text>
@@ -42,11 +32,11 @@ export default function NotificationsSettings() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Main Settings</Text>
           <GlassCard style={styles.card}>
-            <ToggleItem 
-              icon={Bell} 
-              label="Push Notifications" 
-              value={settings.push} 
-              onToggle={() => toggle('push')} 
+            <ToggleItem
+              icon={Bell}
+              label="Push Notifications"
+              value={settings.push}
+              onToggle={() => toggle('push')}
             />
           </GlassCard>
         </View>
@@ -54,23 +44,23 @@ export default function NotificationsSettings() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Reminders</Text>
           <GlassCard style={styles.card}>
-            <ToggleItem 
-              icon={Calendar} 
-              label="Habit Reminders" 
-              value={settings.habits} 
-              onToggle={() => toggle('habits')} 
+            <ToggleItem
+              icon={Calendar}
+              label="Habit Reminders"
+              value={settings.habits}
+              onToggle={() => toggle('habits')}
             />
-            <ToggleItem 
-              icon={Clock} 
-              label="Task Alerts" 
-              value={settings.tasks} 
-              onToggle={() => toggle('tasks')} 
+            <ToggleItem
+              icon={Clock}
+              label="Task Alerts"
+              value={settings.tasks}
+              onToggle={() => toggle('tasks')}
             />
-            <ToggleItem 
-              icon={MessageSquare} 
-              label="Mood Check-ins" 
-              value={settings.mood} 
-              onToggle={() => toggle('mood')} 
+            <ToggleItem
+              icon={MessageSquare}
+              label="Mood Check-ins"
+              value={settings.mood}
+              onToggle={() => toggle('mood')}
             />
           </GlassCard>
         </View>
@@ -78,11 +68,11 @@ export default function NotificationsSettings() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>General</Text>
           <GlassCard style={styles.card}>
-            <ToggleItem 
-              icon={Info} 
-              label="Product Updates" 
-              value={settings.marketing} 
-              onToggle={() => toggle('marketing')} 
+            <ToggleItem
+              icon={Info}
+              label="Product Updates"
+              value={settings.marketing}
+              onToggle={() => toggle('marketing')}
             />
           </GlassCard>
         </View>
@@ -108,8 +98,8 @@ function ToggleItem({ icon: Icon, label, value, onToggle }: any) {
         </View>
         <Text style={[styles.itemLabel, { color: colors.text }]}>{label}</Text>
       </View>
-      <Switch 
-        value={value} 
+      <Switch
+        value={value}
         onValueChange={onToggle}
         trackColor={{ false: colors.isDark ? '#3A3A3C' : '#E5E5EA', true: colors.primary }}
         thumbColor="#FFF"

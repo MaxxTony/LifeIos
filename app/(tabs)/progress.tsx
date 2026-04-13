@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Brain, Target, Zap, TrendingUp, Award, Info, Sparkles } from 'lucide-react-native';
+import { useProfileStats } from '@/hooks/useProfileStats';
 
 const { width } = Dimensions.get('window');
 
@@ -56,42 +57,60 @@ export default function ProgressScreen() {
     (taskCompletionPerc + habitCompletionPerc + focusCompletionPerc) / 3
   );
 
-  // Level / XP System
-  const totalCompletions = habits.reduce((acc, h) => acc + h.completedDays.length, 0)
-    + tasks.filter(t => t.completed).length;
-  const userLevel = Math.max(1, Math.floor(totalCompletions / 10) + 1);
-  const xpInCurrentLevel = totalCompletions % 10;
-  const xpProgress = xpInCurrentLevel / 10;
-  const xpNeeded = 10 - xpInCurrentLevel;
+  const { 
+    level: userLevel, 
+    xpInCurrentLevel, 
+    xpProgress, 
+    xpNeeded 
+  } = useProfileStats();
 
   // Formatting Data...
   const focusChartData = useMemo(() => {
     const data = [];
-    const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+    const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    
+    // Find the most recent Monday
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
       const dStr = formatLocalDate(d);
       let seconds = focusHistory?.[dStr] || 0;
-      if (i === 0) seconds = focusSecondsToday;
-      data.push({ day: DAYS[d.getDay()], hours: parseFloat((seconds / 3600).toFixed(1)) });
+      if (dStr === formatLocalDate(new Date())) seconds = focusSecondsToday;
+      data.push({ day: DAYS[i], hours: parseFloat((seconds / 3600).toFixed(1)), date: dStr });
     }
     return data;
   }, [focusHistory, focusSecondsToday]);
 
   const moodChartData = useMemo(() => {
     const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const entry = moodHistory[formatLocalDate(d)];
-      data.push(entry ? entry.mood : 0);
+    const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    
+    // Find the most recent Monday
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dStr = formatLocalDate(d);
+      const entry = moodHistory[dStr];
+      data.push({ day: DAYS[i], mood: entry ? entry.mood : 0, date: dStr });
     }
     return data;
   }, [moodHistory]);
 
   const avgMood = useMemo(() => {
-    const moods = moodChartData.filter(m => m > 0);
-    return moods.length === 0 ? "0" : (moods.reduce((a, b) => a + b, 0) / moods.length).toFixed(1);
+    const moods = moodChartData.filter(m => m.mood > 0);
+    return moods.length === 0 ? "0" : (moods.reduce((acc, item) => acc + item.mood, 0) / moods.length).toFixed(1);
   }, [moodChartData]);
 
   return (
@@ -174,12 +193,24 @@ export default function ProgressScreen() {
               </View>
               <PremiumCard style={styles.moodCard}>
                 <View style={styles.moodChartContainer}>
-                  {moodChartData.map((m, i) => (
-                    <View key={i} style={styles.moodBarContainer}>
-                      <View style={[styles.moodBar, { height: m * 14, backgroundColor: m > 0 ? (m > 3 ? colors.success : colors.primary) : colors.border, opacity: m > 0 ? 0.8 : 0.2 } ]} />
-                      <Text style={[styles.moodBarLabel, { color: colors.textSecondary }]}>{['S','M','T','W','T','F','S'][(new Date().getDay() - (6-i) + 7) % 7]}</Text>
-                    </View>
-                  ))}
+                  {moodChartData.map((item, i) => {
+                    const m = item.mood;
+                    const hasData = m > 0;
+                    const h = hasData ? m * 14 : 4;
+                    const isToday = item.date === getTodayLocal();
+                    
+                    return (
+                      <View key={i} style={styles.moodBarContainer}>
+                        <View style={[styles.moodBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
+                          <LinearGradient
+                            colors={hasData ? (m > 3 ? [colors.success, colors.success + '40'] : [colors.primary, colors.primary + '40']) : ['transparent', 'transparent']}
+                            style={[styles.moodBarFill, { height: h }]}
+                          />
+                        </View>
+                        <Text style={[styles.moodBarLabel, { color: isToday ? colors.primary : colors.textSecondary, fontWeight: isToday ? '800' : '700' }]}>{item.day}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
                 <Text style={[styles.moodInsight, { color: colors.textSecondary }]}>{parseFloat(avgMood) >= 4 ? "Your mood is powering your momentum! 🚀" : "Consistency is key. Keep pushing forward! ✨"}</Text>
               </PremiumCard>
@@ -288,10 +319,11 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   pillText: { fontSize: 10, fontWeight: '700' },
   moodCard: { padding: Spacing.md },
-  moodChartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 80, paddingBottom: 16 },
+  moodChartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 110, paddingVertical: 10 },
   moodBarContainer: { alignItems: 'center', flex: 1 },
-  moodBar: { width: 12, borderRadius: 6, marginBottom: 8 },
-  moodBarLabel: { fontSize: 9, fontWeight: '700' },
+  moodBarBg: { width: 14, height: 70, borderRadius: 7, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
+  moodBarFill: { width: '100%', borderRadius: 7 },
+  moodBarLabel: { fontSize: 10, fontWeight: '700' },
   moodInsight: { textAlign: 'center', fontSize: 12, fontStyle: 'italic', marginTop: Spacing.sm },
   chartCard: { padding: Spacing.md, paddingBottom: Spacing.xl },
   heatmapCard: { padding: Spacing.md },

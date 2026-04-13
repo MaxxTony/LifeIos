@@ -1,13 +1,12 @@
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { GlassCard } from '@/components/GlassCard';
-import { ChevronRight, ExternalLink, Globe, Heart } from 'lucide-react-native';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Stack } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ChevronRight, ExternalLink, Globe, Heart } from 'lucide-react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function AboutLifeOS() {
   const colors = useThemeColors();
@@ -15,17 +14,8 @@ export default function AboutLifeOS() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen 
-        options={{ 
-          title: 'About LifeOS',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerTitleStyle: { fontFamily: 'Outfit-Bold', color: colors.text },
-          headerTintColor: colors.primary,
-        }} 
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 8 }]}>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 20 }]}>
         <View style={styles.brandSection}>
           <LinearGradient
             colors={[colors.primaryTransparent, 'transparent']}
