@@ -66,7 +66,8 @@ export function FocusWidget() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const goals = [4, 6, 8, 10, 12];
     const currentIndex = goals.indexOf(focusGoalHours);
-    const nextGoal = goals[(currentIndex + 1) % goals.length];
+    // If current goal isn't in the preset array (custom value), snap to the first preset
+    const nextGoal = goals[(currentIndex === -1 ? 0 : (currentIndex + 1) % goals.length)];
     setFocusGoal(nextGoal);
   };
 

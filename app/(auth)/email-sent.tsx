@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ImageBackground, Dimensions, Linking } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ImageBackground, Dimensions, Linking, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -7,6 +7,8 @@ import { Mail, Check, Inbox } from 'lucide-react-native';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Typography } from '@/constants/theme';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import { authService } from '@/services/authService';
+import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
 
@@ -14,10 +16,22 @@ export default function EmailSentScreen() {
   const router = useRouter();
   const { email } = useLocalSearchParams();
   const colors = useThemeColors();
+  const [resending, setResending] = useState(false);
 
   const handleOpenEmail = () => {
-    // Attempt to open general mail app
     Linking.openURL('mailto:');
+  };
+
+  const handleResend = async () => {
+    if (!email || resending) return;
+    setResending(true);
+    const { error } = await authService.resetPassword(email as string);
+    setResending(false);
+    if (error) {
+      Toast.show({ type: 'error', text1: 'Failed to resend', text2: error });
+    } else {
+      Toast.show({ type: 'success', text1: 'Email resent', text2: `Check your inbox at ${email}` });
+    }
   };
 
   return (
@@ -72,14 +86,18 @@ export default function EmailSentScreen() {
 
         <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Didn't receive the email? Check your spam folder or{" "}
-            <Text 
-              style={{ color: colors.primary, fontWeight: '600' }}
-              onPress={() => router.back()}
-            >
-              try again
-            </Text>
+            Didn't receive it? Check your spam folder or
           </Text>
+          <TouchableOpacity
+            onPress={handleResend}
+            disabled={resending}
+            style={[styles.resendBtn, { borderColor: colors.border, opacity: resending ? 0.6 : 1 }]}
+          >
+            {resending
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Text style={[styles.resendBtnText, { color: colors.primary }]}>Resend Email</Text>
+            }
+          </TouchableOpacity>
         </Animated.View>
       </View>
     </ImageBackground>
@@ -107,6 +125,8 @@ const styles = StyleSheet.create({
   primaryButtonText: { ...Typography.h3, color: '#FFFFFF', fontSize: 17, fontFamily: 'Inter-SemiBold' },
   secondaryButton: { height: 58, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   secondaryButtonText: { ...Typography.h3, fontSize: 16, fontFamily: 'Inter-Medium' },
-  footer: { position: 'absolute', bottom: 60, paddingHorizontal: 40 },
+  footer: { position: 'absolute', bottom: 40, paddingHorizontal: 40, alignItems: 'center', gap: 12 },
   footerText: { ...Typography.caption, textAlign: 'center', fontSize: 13, lineHeight: 20 },
+  resendBtn: { height: 44, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  resendBtnText: { fontSize: 14, fontWeight: '700' },
 });

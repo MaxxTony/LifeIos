@@ -11,7 +11,7 @@ interface HabitCalendarProps {
   createdAt: number;
 }
 
-const DAYS_OF_WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DAYS_OF_WEEK = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export function HabitCalendar({ completedDays, createdAt }: HabitCalendarProps) {

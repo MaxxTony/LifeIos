@@ -47,11 +47,8 @@ export const dbService = {
 
   // Mood History (Atomic per date)
   saveMood: async (userId: string, moodData: any, dateKey: string) => {
-    // Save entry to sub-collection
+    // moodHistory sub-collection is the single source of truth — no currentMood cache on root doc
     await setDoc(doc(db, 'users', userId, 'moodHistory', dateKey), moodData);
-    
-    // Update current mood in root doc
-    await setDoc(doc(db, 'users', userId), { currentMood: moodData.mood }, { merge: true });
   },
 
   // Focus History (Atomic per date)

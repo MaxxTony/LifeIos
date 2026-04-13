@@ -7,10 +7,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { HabitCalendar } from '@/components/HabitCalendar';
-import { formatLocalDate } from '@/utils/dateUtils';
+import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info } from 'lucide-react-native';
+import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info, Pencil } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -35,7 +35,7 @@ export default function HabitDetailScreen() {
   const { habits, removeHabit, getStreak, toggleHabit } = useStore();
   
   const habit = habits.find(h => h.id === id);
-  const isCompletedToday = habit?.completedDays.includes(formatLocalDate(new Date()));
+  const isCompletedToday = habit?.completedDays.includes(getTodayLocal());
   
   if (!habit) {
     return (
@@ -89,56 +89,63 @@ export default function HabitDetailScreen() {
           {Platform.OS === 'ios' ? (
             <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
               <View style={styles.headerContent}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => router.back()}
                   style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                   activeOpacity={0.7}
                 >
                   <ChevronLeft size={22} color={colors.text} />
                 </TouchableOpacity>
-                
+
                 <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
-                
-                <TouchableOpacity
-                  onPress={handleDelete}
-                  style={[styles.liquidBtn, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}
-                  activeOpacity={0.7}
-                >
-                  <Trash2 size={20} color={colors.danger} />
-                </TouchableOpacity>
+
+                <View style={styles.headerActions}>
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays) } })}
+                    style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                    activeOpacity={0.7}
+                  >
+                    <Pencil size={18} color={colors.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleDelete}
+                    style={[styles.liquidBtn, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </BlurView>
           ) : (
-            <View style={[
-              styles.headerBlur, 
-              { 
-                backgroundColor: colors.card,
-              }
-            ]}>
+            <View style={[styles.headerBlur, { backgroundColor: colors.card }]}>
               <View style={styles.headerContent}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => router.back()}
-                  style={[
-                    styles.liquidBtn, 
-                    { 
-                      backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', 
-                      borderColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' 
-                    }
-                  ]}
+                  style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}
                   activeOpacity={0.7}
                 >
                   <ChevronLeft size={22} color={colors.text} />
                 </TouchableOpacity>
-                
+
                 <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
-                
-                <TouchableOpacity
-                  onPress={handleDelete}
-                  style={[styles.liquidBtn, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '30' }]}
-                  activeOpacity={0.7}
-                >
-                  <Trash2 size={20} color={colors.danger} />
-                </TouchableOpacity>
+
+                <View style={styles.headerActions}>
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays) } })}
+                    style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}
+                    activeOpacity={0.7}
+                  >
+                    <Pencil size={18} color={colors.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleDelete}
+                    style={[styles.liquidBtn, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '30' }]}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
@@ -266,6 +273,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   scrollContent: {
     padding: Spacing.md,

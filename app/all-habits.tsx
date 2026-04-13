@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -8,7 +9,7 @@ import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Plus, ChevronLeft, Trash2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -17,12 +18,43 @@ const { width } = Dimensions.get('window');
 export default function AllHabitsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { habits, toggleHabit, getStreak } = useStore();
+  const { habits, toggleHabit, getStreak, removeHabit } = useStore();
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   const handleToggle = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id);
   };
+
+  const handleDelete = (id: string, title: string) => {
+    Alert.alert(
+      'Delete Habit',
+      `Delete "${title}" and all its progress?`,
+      [
+        {
+          text: 'Cancel', style: 'cancel',
+          onPress: () => swipeableRefs.current.get(id)?.close()
+        },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            removeHabit(id);
+          }
+        }
+      ]
+    );
+  };
+
+  const renderRightActions = (id: string, title: string) => (
+    <TouchableOpacity
+      style={[styles.deleteAction, { backgroundColor: colors.danger }]}
+      onPress={() => handleDelete(id, title)}
+    >
+      <Trash2 size={20} color="#FFF" />
+      <Text style={styles.deleteActionText}>Delete</Text>
+    </TouchableOpacity>
+  );
 
   const getWeekDates = () => {
     const today = new Date();
@@ -116,7 +148,7 @@ export default function AllHabitsScreen() {
         >
           {habits.length > 0 && (
             <View style={styles.dotsHeaderLabels}>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+              {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d, i) => (
                 <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
               ))}
             </View>
@@ -129,36 +161,60 @@ export default function AllHabitsScreen() {
               const isCompletedToday = habit.completedDays.includes(todayStr);
 
               return (
-                <View 
-                  key={habit.id} 
-                  style={[
-                    styles.habitCard, 
-                    { backgroundColor: colors.card, borderColor: colors.border },
-                    isCompletedToday && { borderColor: colors.success + '40' }
-                  ]}
+                <Swipeable
+                  key={habit.id}
+                  ref={ref => swipeableRefs.current.set(habit.id, ref)}
+                  renderRightActions={() => renderRightActions(habit.id, habit.title)}
+                  overshootRight={false}
+                  friction={2}
                 >
-                  <TouchableOpacity
-                    style={styles.habitInfo}
-                    onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
-                    activeOpacity={0.6}
+                  <View
+                    style={[
+                      styles.habitCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                      isCompletedToday && { borderColor: colors.success + '40' }
+                    ]}
                   >
-                    <View style={styles.habitTitleRow}>
-                      <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
-                        {habit.icon} {habit.title}
-                      </Text>
+                    <TouchableOpacity
+                      style={styles.habitInfo}
+                      onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.habitTitleRow}>
+                        <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
+                          {habit.icon} {habit.title}
+                        </Text>
+                      </View>
+                      <View style={styles.streakInfo}>
+                        <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+                        <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
+                          {streak} day streak
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Visual-only week dots — non-interactive */}
+                    <View style={styles.dotsWrapper} pointerEvents="none">
+                      {renderDots(habit.completedDays)}
                     </View>
-                    <View style={styles.streakInfo}>
-                      <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
-                      <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
-                        {streak} day streak
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                  
-                  <View style={styles.dotsWrapper}>
-                    {renderDots(habit.completedDays)}
+
+                    {/* Dedicated toggle button — separate tap target */}
+                    <TouchableOpacity
+                      style={[
+                        styles.toggleBtn,
+                        { borderColor: isCompletedToday ? colors.success : colors.border },
+                        isCompletedToday && { backgroundColor: colors.success }
+                      ]}
+                      onPress={() => handleToggle(habit.id)}
+                      activeOpacity={0.7}
+                      accessibilityLabel={isCompletedToday ? `${habit.title} completed — tap to undo` : `Complete ${habit.title}`}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isCompletedToday }}
+                    >
+                      {isCompletedToday && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                    </TouchableOpacity>
                   </View>
-                </View>
+                </Swipeable>
               );
             }) : (
               <View style={styles.emptyState}>
@@ -254,8 +310,29 @@ const styles = StyleSheet.create({
   habitTitle: { fontSize: 16, fontWeight: '700' },
   streakInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   habitStreak: { fontSize: 11, fontWeight: '700', opacity: 0.8 },
-  dotsWrapper: { flexDirection: 'row', alignItems: 'center' },
+  dotsWrapper: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
   dotsRow: { flexDirection: 'row', gap: 5 },
+  toggleBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: 24,
+    marginLeft: 8,
+    gap: 4,
+  },
+  deleteActionText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   dot: { width: 10, height: 10, borderRadius: 3.5, justifyContent: 'center', alignItems: 'center' },
   dotCompleted: { shadowOpacity: 0.2, shadowRadius: 2, elevation: 1 },
   dotToday: { borderWidth: 1 },

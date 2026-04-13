@@ -111,6 +111,23 @@ export const notificationService = {
     }
   },
 
+  scheduleMissedTaskNotification: async (taskText: string) => {
+    if (Platform.OS === 'web') return;
+    try {
+      await ensureChannel();
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⏰ Task Missed',
+          body: `"${taskText}" passed its end time without being completed.`,
+          sound: true,
+        },
+        trigger: null, // fire immediately
+      });
+    } catch (e) {
+      // Silence — notifications are best-effort
+    }
+  },
+
   cancelAllNotifications: async () => {
     if (Platform.OS === 'web') return;
     try {

@@ -10,39 +10,37 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 const CATEGORIES = ['Popular', 'Health & Nutrition', 'Fitness', 'Growth', 'Mindfulness'];
 
 const HABIT_TEMPLATES = [
-  // Popular
-  { title: 'Gym Workout', icon: '🏋️', category: 'Fitness', color: '#FF4B4B', subtext: 'Crush a gym session' },
-  { title: 'Drink Enough Water', icon: '💧', category: 'Health & Nutrition', color: '#4B9FFF', subtext: 'Stay hydrated throughout the day' },
-  { title: 'Meditate', icon: '🧘', category: 'Mindfulness', color: '#4BFFB8', subtext: 'Find calm in the chaos' },
-  { title: 'Read a Book', icon: '📖', category: 'Growth', color: '#FFB84B', subtext: 'Read a few pages' },
-  
   // Health & Nutrition
-  { title: '7h Sleep', icon: '😴', category: 'Health & Nutrition', color: '#8A4BFF', subtext: 'Rest and recharge fully' },
+  { title: 'Drink Enough Water', icon: '💧', category: 'Health & Nutrition', color: '#4B9FFF', subtext: 'Stay hydrated throughout the day', popular: true },
+  { title: '7h Sleep', icon: '😴', category: 'Health & Nutrition', color: '#8A4BFF', subtext: 'Rest and recharge fully', popular: true },
   { title: 'Eat Healthier', icon: '🥦', category: 'Health & Nutrition', color: '#00D68F', subtext: 'Make one healthier food choice' },
   { title: 'No Sugar', icon: '🚫', category: 'Health & Nutrition', color: '#FF6B6B', subtext: 'Avoid refined sugars today' },
   { title: 'Intermittent Fasting', icon: '⏲️', category: 'Health & Nutrition', color: '#4ECDC4', subtext: 'Maintain your fasting window' },
-  
+
   // Fitness
-  { title: '10k Steps', icon: '👣', category: 'Fitness', color: '#FF4BCB', subtext: 'Walk your way to wellness' },
+  { title: 'Gym Workout', icon: '🏋️', category: 'Fitness', color: '#FF4B4B', subtext: 'Crush a gym session', popular: true },
+  { title: '10k Steps', icon: '👣', category: 'Fitness', color: '#FF4BCB', subtext: 'Walk your way to wellness', popular: true },
   { title: 'Yoga', icon: '🧘‍♀️', category: 'Fitness', color: '#FF9F43', subtext: 'Improve flexibility and balance' },
   { title: 'Evening Walk', icon: '🌙', category: 'Fitness', color: '#2E86DE', subtext: 'Clear your mind at night' },
   { title: 'Morning Stretch', icon: '🌅', category: 'Fitness', color: '#F39C12', subtext: 'Wake up your body gently' },
-  
+
   // Growth
+  { title: 'Read a Book', icon: '📖', category: 'Growth', color: '#FFB84B', subtext: 'Read a few pages', popular: true },
+  { title: 'Journaling', icon: '✍️', category: 'Growth', color: '#ee5253', subtext: 'Write down your thoughts', popular: true },
   { title: 'Learn Coding', icon: '💻', category: 'Growth', color: '#54a0ff', subtext: 'Practice your coding skills' },
-  { title: 'Journaling', icon: '✍️', category: 'Growth', color: '#ee5253', subtext: 'Write down your thoughts' },
   { title: 'Learn Language', icon: '🌎', category: 'Growth', color: '#10ac84', subtext: 'Master a new tongue' },
   { title: 'Listen to Podcast', icon: '🎧', category: 'Growth', color: '#5f27cd', subtext: 'Gain knowledge on the go' },
-  
+
   // Mindfulness
-  { title: 'Gratitude', icon: '🙏', category: 'Mindfulness', color: '#FF9FF3', subtext: 'List 3 things you are thankful for' },
+  { title: 'Meditate', icon: '🧘', category: 'Mindfulness', color: '#4BFFB8', subtext: 'Find calm in the chaos', popular: true },
+  { title: 'Gratitude', icon: '🙏', category: 'Mindfulness', color: '#FF9FF3', subtext: 'List 3 things you are thankful for', popular: true },
   { title: 'Deep Breathing', icon: '🌬️', category: 'Mindfulness', color: '#48dbfb', subtext: '5 minutes of focus breathing' },
   { title: 'Nature Time', icon: '🌲', category: 'Mindfulness', color: '#1dd1a1', subtext: 'Spend time outdoors' },
   { title: 'Digital Detox', icon: '📵', category: 'Mindfulness', color: '#222f3e', subtext: '1 hour without screens' },
-  
-  // Extra Popular / Others
-  { title: 'Save Money', icon: '💰', category: 'Popular', color: '#feca57', subtext: 'Track your daily savings' },
-  { title: 'Clean Space', icon: '🧹', category: 'Popular', color: '#ff9ff3', subtext: 'Tidy up your workspace' },
+
+  // Others
+  { title: 'Save Money', icon: '💰', category: 'Growth', color: '#feca57', subtext: 'Track your daily savings', popular: true },
+  { title: 'Clean Space', icon: '🧹', category: 'Mindfulness', color: '#ff9ff3', subtext: 'Tidy up your workspace' },
 ];
 
 export default function TemplatesScreen() {
@@ -51,10 +49,11 @@ export default function TemplatesScreen() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Popular');
 
-  const filteredTemplates = HABIT_TEMPLATES.filter(t => 
-    t.title.toLowerCase().includes(search.toLowerCase()) &&
-    (activeCategory === 'Popular' || t.category === activeCategory)
-  );
+  const filteredTemplates = HABIT_TEMPLATES.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = activeCategory === 'Popular' ? !!t.popular : t.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const handleSelect = (template: typeof HABIT_TEMPLATES[0]) => {
     router.push({

@@ -15,7 +15,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function FocusDetailScreen() {
   useKeepAwake();
   const router = useRouter();
-  const { focusSession, focusGoalHours, toggleFocusSession, updateFocusTime } = useStore();
+  // Selectors: focusSession re-renders every second (it shows a live clock — intentional).
+  // updateFocusTime is NOT needed here; the global timer in _layout.tsx handles it.
+  const focusSession = useStore(s => s.focusSession);
+  const focusGoalHours = useStore(s => s.focusGoalHours);
+  const toggleFocusSession = useStore(s => s.toggleFocusSession);
   const colors = useThemeColors();
   
   const [mounted, setMounted] = useState(false);

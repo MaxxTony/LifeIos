@@ -8,8 +8,8 @@ import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
@@ -20,13 +20,76 @@ const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy
   return { text: 'Good night', icon: 'moon' };
 };
 
+function SkeletonBlock({ width, height, borderRadius = 12 }: { width: number | string; height: number; borderRadius?: number }) {
+  const colors = useThemeColors();
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
+  const base = colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+
+  return (
+    <Animated.View
+      style={{
+        width: width as any,
+        height,
+        borderRadius,
+        backgroundColor: base,
+        opacity,
+      }}
+    />
+  );
+}
+
+function HomeSkeleton() {
+  const colors = useThemeColors();
+  return (
+    <View style={skeletonStyles.container}>
+      {/* Header skeleton */}
+      <View style={skeletonStyles.headerSk}>
+        <SkeletonBlock width={100} height={12} borderRadius={6} />
+        <View style={{ marginTop: 8 }}>
+          <SkeletonBlock width={180} height={28} borderRadius={10} />
+        </View>
+      </View>
+      {/* Card skeletons */}
+      {[180, 260, 160, 200].map((h, i) => (
+        <View key={i} style={[skeletonStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SkeletonBlock width="40%" height={13} borderRadius={6} />
+          <View style={{ marginTop: 12 }}>
+            <SkeletonBlock width="100%" height={h - 50} borderRadius={16} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const skeletonStyles = StyleSheet.create({
+  container: { padding: Spacing.md, gap: Spacing.lg },
+  headerSk: { marginBottom: Spacing.md, paddingHorizontal: 4 },
+  card: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+  },
+});
+
 export default function HomeScreen() {
   const userName = useStore(s => s.userName);
+  const isHydrated = useStore(s => s._hasHydrated);
   const colors = useThemeColors();
   const { dashboardTheme } = colors;
   const greeting = getGreeting();
   // checkMissedTasks is now handled globally in _layout.tsx
-
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -41,60 +104,66 @@ export default function HomeScreen() {
       </View>
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <View style={styles.greetingRow}>
-                <Ionicons
-                  name={greeting.icon}
-                  size={14}
-                  color={colors.textSecondary}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-                  {greeting.text},
+        {!isHydrated ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <HomeSkeleton />
+          </ScrollView>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <View>
+                <View style={styles.greetingRow}>
+                  <Ionicons
+                    name={greeting.icon}
+                    size={14}
+                    color={colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                    {greeting.text},
+                  </Text>
+                </View>
+                <Text style={[styles.userName, { color: colors.text }]}>
+                  {userName || 'User'}!
                 </Text>
               </View>
-              <Text style={[styles.userName, { color: colors.text }]}>
-                {userName || 'User'}!
-              </Text>
-            </View>
-          </View>
-
-          {/* Vertical Stack Layout */}
-          <View style={styles.stack}>
-            {/* Card 1: Daily Focus */}
-            <View style={styles.cardContainer}>
-              <FocusWidget />
             </View>
 
-            {/* Card 2: Daily Task List */}
-            <View style={styles.cardContainer}>
-              <DailyTasksWidget />
+            {/* Vertical Stack Layout */}
+            <View style={styles.stack}>
+              {/* Card 1: Daily Focus */}
+              <View style={styles.cardContainer}>
+                <FocusWidget />
+              </View>
+
+              {/* Card 2: Daily Task List */}
+              <View style={styles.cardContainer}>
+                <DailyTasksWidget />
+              </View>
+
+              {/* Card 3: Mood */}
+              <View style={styles.cardContainer}>
+                <MoodTrend />
+              </View>
+
+              {/* Card 4: Habit Streaks */}
+              <View style={styles.cardContainer}>
+                <HabitGrid />
+              </View>
             </View>
 
-            {/* Card 3: Mood (Placeholder/Simplified) */}
-            <View style={styles.cardContainer}>
-              <MoodTrend />
+            {/* AI Call to Action */}
+            <View style={styles.aiSection}>
+              <DashboardAIButton />
             </View>
 
-            {/* Card 4: Habit Streaks (Placeholder/Simplified) */}
-            <View style={styles.cardContainer}>
-              <HabitGrid />
-            </View>
-          </View>
-
-          {/* AI Call to Action */}
-          <View style={styles.aiSection}>
-            <DashboardAIButton />
-          </View>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -150,4 +219,3 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   }
 });
-

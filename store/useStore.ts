@@ -446,6 +446,10 @@ export const useStore = create<UserState>()(
               if (state.userId) {
                 fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'missedTaskSync');
               }
+              // U-3: fire an immediate local notification so user knows a task was missed
+              import('@/services/notificationService').then(({ notificationService }) => {
+                notificationService.scheduleMissedTaskNotification(task.text).catch(() => {});
+              });
               return updatedTask;
             }
           }
@@ -466,25 +470,39 @@ export const useStore = create<UserState>()(
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = formatLocalDate(yesterday);
 
-        const newFocusHistory = {
-          ...state.focusHistory,
-          [yesterdayStr]: state.focusSession.totalSecondsToday
-        };
-
-        if (state.userId) {
-          fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync');
+        // Only persist focus if the user actually ran a session — don't pollute
+        // focusHistory with zero-second entries for days the app was idle.
+        let newFocusHistory = state.focusHistory;
+        if (state.focusSession.totalSecondsToday > 0) {
+          newFocusHistory = { ...state.focusHistory, [yesterdayStr]: state.focusSession.totalSecondsToday };
+          if (state.userId) {
+            fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync');
+          }
         }
 
-        const newTasks = state.tasks.filter(t => t.date >= today);
-        
-        // Sync status changes for tasks that were removed/missed
+        // Prune tasks older than 30 days from both local state and Firestore.
+        // Without this, old tasks accumulate indefinitely — the real-time listener
+        // re-hydrates all Firestore tasks on every login, so local filtering alone
+        // is insufficient.
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 30);
+        const cutoffStr = formatLocalDate(cutoff);
+
+        // Sync status changes and delete stale tasks in Firestore
         if (state.userId) {
           state.tasks.forEach(t => {
             if (t.date < today && t.status === 'pending') {
-               fireSync(() => dbService.saveTask(state.userId!, { ...t, status: 'missed', systemComment: 'Daily reset: task missed.' }), 'taskResetSync');
+              fireSync(() => dbService.saveTask(state.userId!, { ...t, status: 'missed', systemComment: 'Daily reset: task missed.' }), 'taskResetSync');
+            }
+            // Delete tasks older than 30 days from Firestore
+            if (t.date < cutoffStr) {
+              fireSync(() => dbService.deleteTask(state.userId!, t.id), 'taskCleanup');
             }
           });
         }
+
+        // Keep tasks from the last 30 days (includes future tasks)
+        const newTasks = state.tasks.filter(t => t.date >= cutoffStr);
 
         return {
           lastResetDate: today,
@@ -527,8 +545,9 @@ export const useStore = create<UserState>()(
         if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
         const now = Date.now();
         const rawElapsed = now - state.focusSession.lastStartTime;
-        // Cap a single tick to 24h to guard against runaway accumulation
-        const MAX_TICK_MS = 24 * 60 * 60 * 1000;
+        // Cap a single tick to 5 minutes — guards against app backgrounding adding
+        // hours of phantom focus time when the user wasn't actually working.
+        const MAX_TICK_MS = 5 * 60 * 1000;
         const elapsed = Math.min(rawElapsed, MAX_TICK_MS) / 1000;
         const totalSeconds = state.focusSession.totalSecondsToday + elapsed;
 
@@ -586,11 +605,34 @@ export const useStore = create<UserState>()(
 
       logout: () => {
         get()._syncUnsubscribes.forEach(unsub => unsub());
+        // Clear ALL user-specific data to prevent profile leakage between accounts
+        // on a shared device. themePreference is intentionally kept (device pref, not user data).
         set({
-          isAuthenticated: false, userId: null, userName: null,
-          tasks: [], mood: null, habits: [], moodHistory: {},
+          isAuthenticated: false,
+          userId: null,
+          userName: null,
+          tasks: [],
+          habits: [],
+          mood: null,
+          moodHistory: {},
+          focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null },
+          focusHistory: {},
+          focusGoalHours: 8,
+          lastResetDate: null,
+          bio: null,
+          location: null,
+          occupation: null,
+          avatarUrl: null,
+          phoneNumber: null,
+          birthday: null,
+          pronouns: null,
+          skills: null,
+          socialLinks: {},
+          moodTheme: null,
+          accentColor: null,
+          onboardingData: { struggles: [] },
+          hasCompletedOnboarding: false,
           _syncUnsubscribes: [],
-          focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null }
         });
       },
 
@@ -605,7 +647,6 @@ export const useStore = create<UserState>()(
               await dbService.migrateLegacyData(userId, data);
 
               set({
-                mood: data.currentMood || null,
                 userName: data.userName || null,
                 hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (!!data.struggles && data.struggles.length > 0),
                 onboardingData: {
@@ -645,7 +686,6 @@ export const useStore = create<UserState>()(
           if (!data) return;
           set({
             userName: data.userName || get().userName,
-            mood: data.currentMood || get().mood,
             moodTheme: data.moodTheme || get().moodTheme,
             focusGoalHours: data.focusGoalHours || get().focusGoalHours,
             bio: data.bio !== undefined ? data.bio : get().bio,
@@ -674,10 +714,14 @@ export const useStore = create<UserState>()(
         // 4. Mood History Listener
         const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs) => {
           const map: Record<string, MoodEntry> = {};
-          docs.forEach(doc => { map[doc.id] = doc as any; });
-          // M-5 FIX: always derive mood from today's moodHistory entry
+          docs.forEach(doc => { const { id, ...entry } = doc as any; map[id] = entry as MoodEntry; });
+          // B-8 FIX: merge with local state instead of replacing — prevents an in-flight
+          // optimistic setMood() from being wiped by a listener tick before Firestore confirms.
           const today = getTodayLocal();
-          set({ moodHistory: map, mood: map[today]?.mood ?? null });
+          set(state => ({
+            moodHistory: { ...state.moodHistory, ...map },
+            mood: map[today]?.mood ?? state.mood
+          }));
         });
 
         // 5. Focus History Listener

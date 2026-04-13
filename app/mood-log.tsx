@@ -58,6 +58,12 @@ export default function MoodLogScreen() {
       emotions: selectedEmotions.length > 0 ? selectedEmotions : undefined,
       note: note.trim() || undefined,
     }, date);
+
+    if (selectedMood <= 2) {
+      // Brief haptic pause then a second gentle tap to signal care
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 300);
+    }
+
     router.back();
   };
 
@@ -118,6 +124,18 @@ export default function MoodLogScreen() {
               })}
             </View>
           </Animated.View>
+
+          {selectedMood !== null && selectedMood <= 2 && (
+            <Animated.View entering={FadeInDown.delay(150)} style={[styles.empathyCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
+              <Text style={styles.empathyEmoji}>💙</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.empathyTitle, { color: colors.text }]}>Tough day?</Text>
+                <Text style={[styles.empathyBody, { color: colors.textSecondary }]}>
+                  It's okay — every hard day passes. Be kind to yourself today.
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
           {selectedMood && (
             <Animated.View entering={FadeInDown.delay(200)}>
@@ -338,5 +356,27 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     fontFamily: 'Outfit-Bold',
+  },
+  empathyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  empathyEmoji: {
+    fontSize: 28,
+  },
+  empathyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  empathyBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
 });

@@ -50,14 +50,15 @@ export function MoodTrend() {
     return { ...entry, level };
   }, [moodHistory, selectedDate]);
 
-  // Mini trend data
+  // Mini trend data — labels computed here so the render loop creates zero Date objects
+  const DAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
   const weekTrendData = useMemo(() => {
-    return weekDates.map(dateStr => {
+    return weekDates.map((dateStr, i) => {
       const entry = moodHistory[dateStr];
-      const level = entry 
+      const level = entry
         ? (typeof entry.mood === 'number' ? entry.mood : getMoodFromLegacy(entry.mood as any))
         : null;
-      return { date: dateStr, level };
+      return { date: dateStr, level, label: DAY_LABELS[i] };
     });
   }, [moodHistory, weekDates]);
 
@@ -191,15 +192,12 @@ export function MoodTrend() {
                   ]}
                 />
                 <Text style={[
-                  styles.trendLabel, 
-                  { color: colors.textSecondary + '60' }, 
+                  styles.trendLabel,
+                  { color: colors.textSecondary + '60' },
                   isToday && { color: colors.primary, fontWeight: '800' },
                   isSelected && { color: colors.text, fontWeight: '800' }
                 ]}>
-                  {(() => {
-                    const [y, m, d] = day.date.split('-').map(Number);
-                    return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(y, m - 1, d).getDay()];
-                  })()}
+                  {day.label}
                 </Text>
               </TouchableOpacity>
             );

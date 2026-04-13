@@ -62,7 +62,7 @@ export function HabitGrid() {
     });
   };
 
-  const getDayLabels = () => ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const getDayLabels = () => ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
   const streakColor = colors.secondary;
 
   return (
@@ -125,14 +125,9 @@ export function HabitGrid() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dotsContainer}
-                  onPress={() => {
-                    if (!isCompletedToday) {
-                      handleToggle(habit.id);
-                    }
-                  }}
-                  activeOpacity={isCompletedToday ? 1 : 0.7}
-                  disabled={isCompletedToday}
-                  accessibilityLabel={isCompletedToday ? `${habit.title} completed` : `Complete ${habit.title}`}
+                  onPress={() => handleToggle(habit.id)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={isCompletedToday ? `${habit.title} completed — tap to undo` : `Complete ${habit.title}`}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isCompletedToday }}
                 >

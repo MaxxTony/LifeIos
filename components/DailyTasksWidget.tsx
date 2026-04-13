@@ -66,12 +66,12 @@ export function DailyTasksWidget() {
                   task.completed && styles.checkboxChecked
                 ]}
                 onPress={() => {
-                  if (!task.completed) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    toggleTask(task.id);
-                  } else {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  }
+                  Haptics.notificationAsync(
+                    task.completed
+                      ? Haptics.NotificationFeedbackType.Warning
+                      : Haptics.NotificationFeedbackType.Success
+                  );
+                  toggleTask(task.id);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityLabel={task.completed ? `${task.text}, completed` : `Mark ${task.text} as complete`}

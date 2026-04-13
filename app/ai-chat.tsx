@@ -348,15 +348,15 @@ export default function AIChatScreen() {
                 <TouchableOpacity
                   onPress={() => handleSend()}
                   style={styles.sendBtn}
-                  disabled={uploading}
+                  disabled={uploading || loading}
                   accessibilityLabel="Send message"
                   accessibilityRole="button"
                 >
                   <LinearGradient
                     colors={[colors.primary, colors.secondary]}
-                    style={[styles.sendBtnGradient, uploading && { opacity: 0.5 }]}
+                    style={[styles.sendBtnGradient, (uploading || loading) && { opacity: 0.5 }]}
                   >
-                    {uploading
+                    {(uploading || loading)
                       ? <ActivityIndicator size="small" color="#FFF" />
                       : <IconSymbol name="arrow.up" size={18} color="#FFF" />
                     }

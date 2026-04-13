@@ -8,13 +8,13 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 const DAYS = [
-  { label: 'M', value: 1 },
-  { label: 'T', value: 2 },
-  { label: 'W', value: 3 },
-  { label: 'T', value: 4 },
-  { label: 'F', value: 5 },
-  { label: 'S', value: 6 },
-  { label: 'S', value: 0 },
+  { label: 'Mo', value: 1 },
+  { label: 'Tu', value: 2 },
+  { label: 'We', value: 3 },
+  { label: 'Th', value: 4 },
+  { label: 'Fr', value: 5 },
+  { label: 'Sa', value: 6 },
+  { label: 'Su', value: 0 },
 ];
 
 export default function ConfigScreen() {
@@ -75,7 +75,7 @@ export default function ConfigScreen() {
         frequency,
         selectedDays: JSON.stringify(selectedDays),
         reminderEnabled: reminderEnabled ? 'true' : 'false',
-        reminderTime: reminderEnabled ? formatTime(reminderTime) : undefined,
+        reminderTime: reminderEnabled ? formatTime(reminderTime) : '',
       }
     });
   };
@@ -99,6 +99,7 @@ export default function ConfigScreen() {
               placeholderTextColor={colors.textSecondary + '60'}
               value={title}
               onChangeText={setTitle}
+              maxLength={60}
             />
             <View style={[styles.iconBox, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                <Text style={{fontSize: 22}}>{params.icon || '✨'}</Text>

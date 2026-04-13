@@ -30,9 +30,14 @@ export default function TaskDetailScreen() {
   }
 
   const handleToggle = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const isUndo = task.completed;
+    Haptics.notificationAsync(
+      isUndo ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
+    );
     toggleTask(task.id);
-    router.back();
+    // When completing: go back to the list (task is done, no reason to stay).
+    // When undoing: stay on the screen so the user sees the task revert to pending.
+    if (!isUndo) router.back();
   };
 
   const handleDelete = () => {
@@ -79,32 +84,26 @@ export default function TaskDetailScreen() {
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
+          <TouchableOpacity
+            onPress={() => router.back()}
             style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
           >
             <X size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Task Details</Text>
           <View style={styles.headerActions}>
-            {!task.completed && (
-              <TouchableOpacity 
-                onPress={() => router.push(`/tasks/edit/${task.id}`)} 
-                style={[styles.editBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
-              >
-                <Pencil size={20} color={colors.text} />
-              </TouchableOpacity>
-            )}
-            {!task.completed ? (
-              <TouchableOpacity 
-                onPress={handleDelete} 
-                style={[styles.deleteBtn, { backgroundColor: colors.danger + '15' }]}
-              >
-                <Trash2 size={20} color={colors.danger} />
-              </TouchableOpacity>
-            ) : (
-              <View style={{ width: 44 }} />
-            )}
+            <TouchableOpacity
+              onPress={() => router.push(`/tasks/edit/${task.id}`)}
+              style={[styles.editBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
+            >
+              <Pencil size={20} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDelete}
+              style={[styles.deleteBtn, { backgroundColor: colors.danger + '15' }]}
+            >
+              <Trash2 size={20} color={colors.danger} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -133,7 +132,9 @@ export default function TaskDetailScreen() {
                 </View>
                 <View>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Scheduled for</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{task.date}</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {new Date(task.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </Text>
                 </View>
               </View>
 
@@ -143,7 +144,9 @@ export default function TaskDetailScreen() {
                 </View>
                 <View>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Block</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{task.startTime} — {task.endTime}</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {task.startTime && task.endTime ? `${task.startTime} — ${task.endTime}` : 'No time block set'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -169,18 +172,25 @@ export default function TaskDetailScreen() {
           </View>
         </ScrollView>
 
-        {!task.completed && (
+        {task.status !== 'missed' && (
           <View style={styles.footer}>
             <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
-              <LinearGradient
-                colors={colors.gradient}
-                style={styles.gradientBtn}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
-              </LinearGradient>
+              {task.completed ? (
+                <View style={[styles.gradientBtn, { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
+                  <RotateCcw size={20} color={colors.success} />
+                  <Text style={[styles.completeBtnText, { color: colors.success }]}>Undo Completion</Text>
+                </View>
+              ) : (
+                <LinearGradient
+                  colors={colors.gradient}
+                  style={styles.gradientBtn}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
+                </LinearGradient>
+              )}
             </TouchableOpacity>
           </View>
         )}

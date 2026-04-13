@@ -1,8 +1,9 @@
 import { useStore } from '@/store/useStore';
+import * as Crypto from 'expo-crypto';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { notificationService } from '@/services/notificationService';
@@ -20,16 +21,69 @@ export default function GoalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useThemeColors();
-  const { addHabit } = useStore();
+  const { addHabit, updateHabit } = useStore();
 
-  const [selectedGoal, setSelectedGoal] = useState(7);
+  const isEditMode = !!params.habitId;
+  const [selectedGoal, setSelectedGoal] = useState(() => {
+    const existing = parseInt(params.goalDays as string);
+    return isNaN(existing) ? 7 : existing;
+  });
+  const [saving, setSaving] = useState(false);
 
   const handleConfirm = async () => {
+    if (saving) return;
+    setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    // Generate ID beforehand for reliable notification scheduling
-    const tempId = Math.random().toString(36).substring(7);
-    
+
+    // Safely parse targetDays — malformed params must not crash the screen.
+    let targetDays: number[] = [0, 1, 2, 3, 4, 5, 6];
+    try {
+      targetDays = JSON.parse(params.selectedDays as string);
+    } catch {
+      // Default to all days if params are somehow malformed
+    }
+
+    // B-2 FIX: reminderTime is '' (empty string) when reminders are off, not undefined
+    const reminderTime = params.reminderEnabled === 'true' && params.reminderTime
+      ? params.reminderTime as string
+      : null;
+
+    if (isEditMode) {
+      // EDIT MODE: update existing habit without touching completedDays or streak
+      const habitId = params.habitId as string;
+      updateHabit(habitId, {
+        title: params.title as string,
+        icon: params.icon as string || '✨',
+        category: params.category as string || 'General',
+        color: params.color as string || colors.primary,
+        frequency: params.frequency as 'daily' | 'weekly' | 'monthly',
+        targetDays,
+        reminderTime,
+        goalDays: selectedGoal,
+      });
+
+      if (reminderTime) {
+        const hasPermission = await notificationService.requestPermissions();
+        if (hasPermission) {
+          await notificationService.scheduleHabitReminder(
+            habitId,
+            params.title as string,
+            params.icon as string || '✨',
+            reminderTime,
+            params.frequency as 'daily' | 'weekly' | 'monthly',
+            targetDays
+          );
+        }
+      }
+
+      setSaving(false);
+      router.dismissAll();
+      return;
+    }
+
+    // CREATE MODE
+    const tempId = Crypto.randomUUID();
+
     const habitData = {
       id: tempId,
       title: params.title as string,
@@ -37,14 +91,13 @@ export default function GoalScreen() {
       category: params.category as string || 'General',
       color: params.color as string || colors.primary,
       frequency: params.frequency as 'daily' | 'weekly' | 'monthly',
-      targetDays: JSON.parse(params.selectedDays as string),
-      reminderTime: params.reminderEnabled === 'true' ? params.reminderTime as string : null,
+      targetDays,
+      reminderTime,
       goalDays: selectedGoal,
     };
 
     addHabit(habitData);
 
-    // Schedule reminders if enabled
     if (habitData.reminderTime) {
       const hasPermission = await notificationService.requestPermissions();
       if (hasPermission) {
@@ -58,9 +111,9 @@ export default function GoalScreen() {
         );
       }
     }
-    
+
+    setSaving(false);
     router.dismissAll();
-    router.replace('/(tabs)');
   };
 
   return (
@@ -74,7 +127,7 @@ export default function GoalScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <Text style={styles.icon}>{params.icon || '✨'}</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Set your first streak goal for {params.title}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{isEditMode ? 'Update your streak goal for' : 'Set your first streak goal for'} {params.title}</Text>
           <Text style={[styles.sub, { color: colors.textSecondary }]}>Choose your starting goal and make it happen</Text>
 
           <View style={styles.goalsList}>
@@ -110,8 +163,15 @@ export default function GoalScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleConfirm}>
-          <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>I confirm my goal</Text>
+        <TouchableOpacity
+          style={[styles.confirmBtn, { backgroundColor: colors.primary, shadowColor: colors.primary, opacity: saving ? 0.7 : 1 }]}
+          onPress={handleConfirm}
+          disabled={saving}
+        >
+          {saving
+            ? <ActivityIndicator color="#FFF" />
+            : <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>{isEditMode ? 'Save changes' : 'I confirm my goal'}</Text>
+          }
         </TouchableOpacity>
       </View>
     </SafeAreaView>

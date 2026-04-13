@@ -58,12 +58,15 @@ export default function ProgressScreen() {
   const focusCompletionPerc = Math.min((focusSecondsToday / focusGoalSeconds) * 100, 100);
 
   // Overall Score Breakdown
-  const taskCompletionPerc = totalTasksCount > 0 ? (completedTasksCount / totalTasksCount) * 100 : 0;
-  const habitCompletionPerc = totalHabitsCount > 0 ? (completedHabitsCount / totalHabitsCount) * 100 : 0;
-  
-  const lifeScore = Math.round(
-    (taskCompletionPerc + habitCompletionPerc + focusCompletionPerc) / 3
-  );
+  // Only include a metric if the user has data for it — having zero tasks should not
+  // drag the score down; it simply means tasks aren't part of today's picture.
+  const taskCompletionPerc = totalTasksCount > 0 ? (completedTasksCount / totalTasksCount) * 100 : null;
+  const habitCompletionPerc = totalHabitsCount > 0 ? (completedHabitsCount / totalHabitsCount) * 100 : null;
+
+  const activeMetrics = [taskCompletionPerc, habitCompletionPerc, focusCompletionPerc].filter(v => v !== null) as number[];
+  const lifeScore = activeMetrics.length > 0
+    ? Math.round(activeMetrics.reduce((a, b) => a + b, 0) / activeMetrics.length)
+    : 0;
 
   const { 
     level: userLevel, 
