@@ -136,14 +136,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    ...Typography.caption,
-    fontWeight: '600',
-    fontSize: 12,
+    fontFamily: 'Outfit-Bold',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   percentage: {
     ...Typography.caption,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   content: {
     alignSelf: 'center',

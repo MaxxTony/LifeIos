@@ -138,8 +138,8 @@ const styles = StyleSheet.create({
   greeting: {
     ...Typography.body,
     fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   userName: {

@@ -2,36 +2,36 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   dark: {
-    background: '#0B0B0F',
-    card: '#14141A',
-    border: '#1F1F2A',
-    primary: '#7C5CFF',
-    secondary: '#5B8CFF',
-    text: '#FFFFFF',
-    textSecondary: '#A1A1AA',
-    tint: '#7C5CFF',
-    icon: '#FFFFFF',
-    tabIconDefault: '#4F4F5A',
-    tabIconSelected: '#7C5CFF',
-    gradient: ['#7C5CFF', '#5B8CFF'] as const,
-    danger: '#FF4B4B',
-    success: '#00D68F',
+    background: '#020617', // Deep sapphire black
+    card: '#0F172A',
+    border: '#1E293B',
+    primary: '#818CF8', // Brighter indigo
+    secondary: '#38BDF8', // Brighter sky
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8', // Crisp slate
+    tint: '#818CF8',
+    icon: '#F8FAFC',
+    tabIconDefault: '#475569',
+    tabIconSelected: '#818CF8',
+    gradient: ['#818CF8', '#38BDF8'] as const,
+    danger: '#FB7185',
+    success: '#34D399',
   },
   light: {
     background: '#FFFFFF',
-    card: '#F5F5F7',
-    border: '#E5E7EB',
-    primary: '#6D5DF6',
-    secondary: '#4F8CFF',
-    text: '#111827',
-    textSecondary: '#6B7280',
-    tint: '#6D5DF6',
-    icon: '#111827',
-    tabIconDefault: '#9CA3AF',
-    tabIconSelected: '#6D5DF6',
-    gradient: ['#6D5DF6', '#4F8CFF'] as const,
-    danger: '#EF4444',
-    success: '#10B981',
+    card: '#F8FAFC',
+    border: '#E2E8F0',
+    primary: '#4F46E5', // Punchy indigo
+    secondary: '#0EA5E9', // Punchy sky
+    text: '#0F172A', // Rich deep black
+    textSecondary: '#475569', // Strong slate gray
+    tint: '#4F46E5',
+    icon: '#0F172A',
+    tabIconDefault: '#94A3B8',
+    tabIconSelected: '#4F46E5',
+    gradient: ['#4F46E5', '#0EA5E9'] as const,
+    danger: '#E11D48',
+    success: '#059669',
   },
 };
 
@@ -55,9 +55,9 @@ export const BorderRadius = {
 export const Typography = {
   h1Hero: {
     fontFamily: 'Outfit-Bold',
-    fontSize: 42,
-    fontWeight: '800' as const,
-    letterSpacing: -1,
+    fontSize: 44,
+    fontWeight: '900' as const,
+    letterSpacing: -1.5,
   },
   h1: {
     fontFamily: 'Outfit-Bold',
@@ -100,13 +100,13 @@ export const Typography = {
 
 export const DashboardTheme = {
   dark: {
-    bg: ['#0B0B0F', '#14141A'] as const,
-    glow1: '#7C5CFF20',
-    glow2: '#5B8CFF10',
+    bg: ['#020617', '#0F172A'] as const,
+    glow1: '#6366F130',
+    glow2: '#0EA5E920',
   },
   light: {
-    bg: ['#F5F5F7', '#ECEDF2'] as const,
-    glow1: '#7C5CFF15',
-    glow2: '#5B8CFF10',
+    bg: ['#FFFFFF', '#F1F5F9'] as const,
+    glow1: '#6366F120',
+    glow2: '#0EA5E915',
   },
 };

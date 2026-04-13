@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { HabitHeatmap } from '@/components/HabitHeatmap';
 import { formatLocalDate } from '@/utils/dateUtils';
+import * as Haptics from 'expo-haptics';
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -16,6 +17,7 @@ export default function HabitDetailScreen() {
   const { habits, removeHabit, getStreak, toggleHabit } = useStore();
   
   const habit = habits.find(h => h.id === id);
+  const isCompletedToday = habit?.completedDays.includes(formatLocalDate(new Date()));
   
   if (!habit) {
     return (
@@ -123,11 +125,28 @@ export default function HabitDetailScreen() {
         </View>
 
         <TouchableOpacity 
-          style={[styles.toggleBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
-          onPress={() => toggleHabit(habit.id)}
+          style={[
+            styles.toggleBtn, 
+            { 
+              backgroundColor: isCompletedToday ? (colors.isDark ? '#1a332a' : '#f0fdf4') : colors.primary,
+              borderColor: isCompletedToday ? colors.success + '40' : colors.primary
+            },
+            isCompletedToday && { shadowOpacity: 0 }
+          ]}
+          onPress={() => {
+            if (!isCompletedToday) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              toggleHabit(habit.id);
+            }
+          }}
+          disabled={isCompletedToday}
+          activeOpacity={isCompletedToday ? 1 : 0.8}
         >
-          <Text style={[styles.toggleBtnText, { color: '#FFF' }]}>
-            {habit.completedDays.includes(formatLocalDate(new Date())) ? 'Completed for Today ✅' : 'Mark as Done'}
+          <Text style={[
+            styles.toggleBtnText, 
+            { color: isCompletedToday ? colors.success : '#FFF' }
+          ]}>
+            {isCompletedToday ? 'Completed for Today ✅' : 'Mark as Done'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -255,6 +274,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,

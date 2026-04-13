@@ -54,7 +54,7 @@ export function DailyTasksWidget() {
               key={task.id}
               style={[
                 styles.taskItem, 
-                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
+                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderColor: colors.border },
                 task.completed && styles.taskCompleted
               ]}
             >
@@ -94,7 +94,7 @@ export function DailyTasksWidget() {
                     style={[
                       styles.taskText, 
                       { color: colors.text },
-                      task.completed && [styles.taskTextCompleted, { color: colors.textSecondary }]
+                      task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '80' }]
                     ]} 
                     numberOfLines={1}
                   >
@@ -108,7 +108,7 @@ export function DailyTasksWidget() {
                       </Text>
                     </View>
                     {task.startTime && (
-                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
                         <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
                         <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
                       </View>
@@ -150,9 +150,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    ...Typography.labelSmall,
-    fontSize: 14,
-    letterSpacing: 1.5,
+    fontFamily: 'Outfit-Bold',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   addBtn: {
     width: 32,
@@ -174,7 +176,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   taskCompleted: {
-    opacity: 0.5,
+    opacity: 0.7,
   },
   checkbox: {
     width: 22,

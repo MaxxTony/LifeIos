@@ -147,7 +147,7 @@ export default function RootLayout() {
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="focus-detail" options={{ presentation: 'fullScreenModal', headerShown: false }} />
             <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="mood-log" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+            <Stack.Screen name="mood-log" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

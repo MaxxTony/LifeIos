@@ -19,55 +19,54 @@ export function HabitGrid() {
     toggleHabit(id);
   };
 
-  const renderDots = (completedDays: string[]) => {
-    const dots = [];
+  const getWeekDates = () => {
     const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dateString = formatLocalDate(date);
-      const isCompleted = completedDays.includes(dateString);
-      const isToday = i === 0;
+    const day = today.getDay(); // 0 is Sunday, 1 is Monday...
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return formatLocalDate(d);
+    });
+  };
 
-      dots.push(
+  const renderDots = (completedDays: string[]) => {
+    const weekDates = getWeekDates();
+    const today = getTodayLocal();
+    
+    return weekDates.map((dateString, i) => {
+      const isCompleted = completedDays.includes(dateString);
+      const isToday = dateString === today;
+      const isFuture = dateString > today;
+
+      return (
         <View
           key={i}
           style={[
             styles.dot,
-            { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+            { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
             isCompleted && [styles.dotCompleted, { backgroundColor: colors.success, shadowColor: colors.success }],
-            isToday && [styles.dotToday, { borderColor: colors.textSecondary + '60' }]
+            isToday && [styles.dotToday, { borderColor: colors.textSecondary }],
+            isFuture && { opacity: 0.3 }
           ]}
         >
           {isCompleted && <Ionicons name="checkmark" size={7} color="#FFF" />}
         </View>
       );
-    }
-    return dots;
-  };
-
-  const getDayLabels = () => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()];
     });
   };
 
+  const getDayLabels = () => ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
 
   return (
     <View style={[styles.container, { borderColor: colors.border }]}>
       <BlurView intensity={25} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
         <View style={styles.header}>
-          <View style={styles.titleGroup}>
-            <Text style={[styles.title, { color: colors.textSecondary }]}>Habit Streaks</Text>
-            <View style={styles.dayLabels}>
-              {getDayLabels().map((d, i) => (
-                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary + '60' }]}>{d}</Text>
-              ))}
-            </View>
-          </View>
+          <Text style={[styles.title, { color: colors.text }]}>Habit Streaks</Text>
           <TouchableOpacity
             onPress={() => router.push('/(habits)/templates')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
@@ -77,6 +76,17 @@ export function HabitGrid() {
             <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {habits.length > 0 && (
+          <View style={styles.dotsHeaderRow}>
+            <View style={{ flex: 1 }} />
+            <View style={styles.dotsHeaderLabels}>
+              {getDayLabels().map((d, i) => (
+                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={styles.habitList}>
           {habits.length > 0 ? habits.slice(0, 3).map((habit) => {
@@ -89,8 +99,8 @@ export function HabitGrid() {
                 key={habit.id} 
                 style={[
                   styles.habitRow, 
-                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
-                  isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]
+                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)', borderColor: colors.border },
+                  isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '08', borderColor: colors.success + '40' }]
                 ]}
               >
                 <TouchableOpacity
@@ -112,9 +122,14 @@ export function HabitGrid() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dotsContainer}
-                  onPress={() => handleToggle(habit.id)}
-                  activeOpacity={0.7}
-                  accessibilityLabel={isCompletedToday ? `Mark ${habit.title} as incomplete` : `Complete ${habit.title}`}
+                  onPress={() => {
+                    if (!isCompletedToday) {
+                      handleToggle(habit.id);
+                    }
+                  }}
+                  activeOpacity={isCompletedToday ? 1 : 0.7}
+                  disabled={isCompletedToday}
+                  accessibilityLabel={isCompletedToday ? `${habit.title} completed` : `Complete ${habit.title}`}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isCompletedToday }}
                 >
@@ -167,17 +182,15 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  titleGroup: {
-    gap: 6,
-  },
   title: {
-    fontSize: 12,
+    fontFamily: 'Outfit-Bold',
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 0.8,
     textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   addBtn: {
     width: 32,
@@ -185,17 +198,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -2,
     borderWidth: 1,
   },
-  dayLabels: {
+  dotsHeaderRow: {
     flexDirection: 'row',
-    gap: 4,
-    paddingLeft: 2,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+  },
+  dotsHeaderLabels: {
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'center',
+    paddingLeft: 10,
   },
   dayLabelText: {
     fontSize: 7,
-    width: 8,
+    width: 10,
     textAlign: 'center',
     fontWeight: '700',
   },
