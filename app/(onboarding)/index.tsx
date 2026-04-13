@@ -608,8 +608,8 @@ const styles = StyleSheet.create({
   slide3Wrapper: {
     flex: 1,
     width: '100%',
-    justifyContent: 'flex-start',
-    paddingTop: 8,
+    justifyContent: 'center',
+    paddingTop: 0,
   },
   bottomArea: { width: '100%', marginTop: 4 },
   gradientBtn: {

@@ -36,7 +36,11 @@ export default function ConfigScreen() {
   };
 
   const onTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    // On Android, we need to hide the picker after selection (or dismissal)
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    
     if (selectedDate) {
       setReminderTime(selectedDate);
     }
@@ -162,37 +166,50 @@ export default function ConfigScreen() {
             )}
           </View>
 
-          {/* Time Picker Modal */}
-          <Modal
-            visible={showTimePicker}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowTimePicker(false)}
-          >
-            <TouchableOpacity 
-              activeOpacity={1} 
-              onPress={() => setShowTimePicker(false)}
-              style={styles.modalOverlay}
+          {/* Time Picker Modal/Dialog */}
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={showTimePicker}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowTimePicker(false)}
             >
-              <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time</Text>
-                  <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                    <Text style={[styles.doneBtn, { color: colors.primary }]}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  value={reminderTime}
-                  mode="time"
-                  is24Hour={false}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onTimeChange}
-                  textColor={colors.text}
-                  minimumDate={new Date()} // Prevent past time selection if possible by UI
-                />
+              <TouchableOpacity 
+                activeOpacity={1} 
+                onPress={() => setShowTimePicker(false)}
+                style={styles.modalOverlay}
+              >
+                <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time</Text>
+                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                      <Text style={[styles.doneBtn, { color: colors.primary }]}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={reminderTime}
+                    mode="time"
+                    is24Hour={false}
+                    display="spinner"
+                    onChange={onTimeChange}
+                    textColor={colors.text}
+                    minimumDate={new Date()}
+                  />
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
+            </Modal>
+          ) : (
+            showTimePicker && (
+              <DateTimePicker
+                value={reminderTime}
+                mode="time"
+                is24Hour={false}
+                display="default"
+                onChange={onTimeChange}
+                minimumDate={new Date()}
+              />
+            )
+          )}
         </View>
       </ScrollView>
 

@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lifeos.app",
+      "bundleIdentifier": "com.lifeos.prime",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "com.lifeos.app",
+      "package": "com.lifeos.prime",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -49,7 +49,7 @@
       [
         "@react-native-google-signin/google-signin",
         {
-          "iosUrlScheme": "com.googleusercontent.apps.191144362794-1b4frlkh9l96dpcc86gf6ssj491g4tjm"
+          "iosUrlScheme": "com.googleusercontent.apps.191144362794-jlfstgpenl1tkn2ofdunsd1kb64m2nfs"
         }
       ],
       "expo-notifications"

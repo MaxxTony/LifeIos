@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { Eye, EyeOff, Mail, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
@@ -67,6 +68,33 @@ const heroStyles = StyleSheet.create({
   ring: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 1.5 },
 });
 
+// ─── Password Strength Component ─────────────────────────────────────────────
+function PasswordStrengthUI({ pass }: { pass: string }) {
+  const colors = useThemeColors();
+  const rules = [
+    { label: '8+ Characters', met: pass.length >= 8 },
+    { label: 'One Number', met: /\d/.test(pass) },
+    { label: 'Special Char', met: /[^A-Za-z0-9]/.test(pass) },
+  ];
+
+  return (
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.strengthContainer}>
+      {rules.map((rule, i) => (
+        <View key={i} style={styles.strengthRule}>
+          {rule.met ? (
+            <CheckCircle2 size={12} color={colors.primary} />
+          ) : (
+            <AlertCircle size={12} color={colors.textSecondary + '80'} />
+          )}
+          <Text style={[styles.strengthText, { color: rule.met ? colors.text : colors.textSecondary + '80' }]}>
+            {rule.label}
+          </Text>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
 // Configure Google Sign-In once at module scope (not inside the component)
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
@@ -84,22 +112,15 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const router = useRouter();
   const colors = useThemeColors();
   const { setAuth, onboardingData } = useStore();
 
-  const handleForgotPassword = async () => {
-    if (!EMAIL_REGEX.test(email)) {
-      Toast.show({ type: 'error', text1: 'Enter Email First', text2: 'Please enter your email address above.' });
-      return;
-    }
-    const { error } = await authService.resetPassword(email);
-    if (error) {
-      Toast.show({ type: 'error', text1: 'Reset Failed', text2: error });
-    } else {
-      Toast.show({ type: 'success', text1: 'Email Sent', text2: 'Check your inbox for a password reset link.' });
-    }
+  const handleForgotPassword = () => {
+    router.push('/(auth)/forgot-password');
   };
 
   const onGoogleButtonPress = async () => {
@@ -181,9 +202,19 @@ export default function LoginScreen() {
       Toast.show({ type: 'error', text1: 'Invalid Email', text2: 'Please enter a valid email address.' });
       return;
     }
-    if (isSignUp && password.length < 8) {
-      Toast.show({ type: 'error', text1: 'Weak Password', text2: 'Password must be at least 8 characters.' });
-      return;
+    if (isSignUp) {
+      if (password.length < 8) {
+        Toast.show({ type: 'error', text1: 'Weak Password', text2: 'Password must be at least 8 characters.' });
+        return;
+      }
+      if (!/\d/.test(password)) {
+        Toast.show({ type: 'error', text1: 'Validation Error', text2: 'Password must contain at least one number.' });
+        return;
+      }
+      if (!/[^A-Za-z0-9]/.test(password)) {
+        Toast.show({ type: 'error', text1: 'Validation Error', text2: 'Password must contain a special character.' });
+        return;
+      }
     }
     if (isSignUp && password !== confirmPassword) {
       Toast.show({ type: 'error', text1: 'Password Mismatch', text2: 'Passwords do not match.' });
@@ -238,7 +269,7 @@ export default function LoginScreen() {
       resizeMode="cover"
     >
       <LinearGradient
-        colors={[colors.isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)', colors.isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)']}
+        colors={[colors.isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.5)', colors.isDark ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.9)']}
         style={StyleSheet.absoluteFill}
       />
 
@@ -260,12 +291,12 @@ export default function LoginScreen() {
 
           {/* Login Card */}
           <Animated.View entering={FadeInDown.delay(300).springify()} style={[styles.cardWrap, { borderColor: colors.border }]}>
-            <BlurView intensity={35} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
+            <BlurView intensity={90} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email Address</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border, color: colors.text }]}
+                    style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
                     placeholder="name@example.com"
                     placeholderTextColor={colors.textSecondary + '60'}
                     value={email}
@@ -277,27 +308,54 @@ export default function LoginScreen() {
 
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Password</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border, color: colors.text }]}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.textSecondary + '60'}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
+                  <View style={styles.passwordInputWrap}>
+                    <TextInput
+                      style={[styles.input, styles.passwordInput, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
+                      placeholder="••••••••"
+                      placeholderTextColor={colors.textSecondary + '60'}
+                      value= {password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity 
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeBtn}
+                      activeOpacity={0.7}
+                    >
+                      {showPassword ? (
+                        <EyeOff size={20} color={colors.textSecondary} />
+                      ) : (
+                        <Eye size={20} color={colors.textSecondary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {isSignUp && password.length > 0 && <PasswordStrengthUI pass={password} />}
                 </View>
 
                 {isSignUp && (
                   <View style={styles.inputGroup}>
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Confirm Password</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: confirmPassword && confirmPassword !== password ? colors.danger : colors.border, color: colors.text }]}
-                      placeholder="••••••••"
-                      placeholderTextColor={colors.textSecondary + '60'}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry
-                    />
+                    <View style={styles.passwordInputWrap}>
+                      <TextInput
+                        style={[styles.input, styles.passwordInput, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: confirmPassword && confirmPassword !== password ? colors.danger : colors.border, color: colors.text }]}
+                        placeholder="••••••••"
+                        placeholderTextColor={colors.textSecondary + '60'}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirmPassword}
+                      />
+                      <TouchableOpacity 
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={styles.eyeBtn}
+                        activeOpacity={0.7}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff size={20} color={colors.textSecondary} />
+                        ) : (
+                          <Eye size={20} color={colors.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
@@ -434,6 +492,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     borderWidth: 1,
+  },
+  passwordInputWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 16,
+    padding: 4,
+  },
+  strengthContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    marginLeft: 4,
+  },
+  strengthRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  strengthText: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
   },
   primaryButton: {
     height: 58,

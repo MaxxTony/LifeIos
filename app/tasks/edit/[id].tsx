@@ -193,75 +193,111 @@ export default function EditTaskScreen() {
           </View>
 
 
-          <Modal
-            visible={!!pickerMode}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setPickerMode(null)}
-          >
-            <TouchableOpacity 
-              style={styles.modalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setPickerMode(null)}
+          {/* Date Picker Modal/Dialog */}
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={!!pickerMode}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setPickerMode(null)}
             >
-               <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-            </TouchableOpacity>
-            
-            <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-                <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
-                <TouchableOpacity 
-                  onPress={() => {
-                    setPickerMode(null);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
-                >
-                  <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={styles.modalOverlay} 
+                activeOpacity={1} 
+                onPress={() => setPickerMode(null)}
+              >
+                <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+              </TouchableOpacity>
               
-              <View style={styles.pickerWrapper}>
-                <DateTimePicker
-                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                  mode="time"
-                  is24Hour={false}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(e, d) => {
-                    if (Platform.OS === 'android') {
+              <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                  <TouchableOpacity 
+                    onPress={() => {
                       setPickerMode(null);
-                    }
-                    if (d) {
-                      const now = new Date();
-                      if (pickerMode === 'start') {
-                        if (d < now) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setStartTime(now);
-                          if (endTime <= now) {
-                            setEndTime(new Date(now.getTime() + 30 * 60000));
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
+                  >
+                    <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.pickerWrapper}>
+                  <DateTimePicker
+                    value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                    mode="time"
+                    is24Hour={false}
+                    display="spinner"
+                    onChange={(e, d) => {
+                      if (d) {
+                        const now = new Date();
+                        if (pickerMode === 'start') {
+                          if (d < now) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                            setStartTime(now);
+                            if (endTime <= now) {
+                              setEndTime(new Date(now.getTime() + 30 * 60000));
+                            }
+                          } else {
+                            setStartTime(d);
+                            if (d >= endTime) {
+                              setEndTime(new Date(d.getTime() + 30 * 60000));
+                            }
                           }
                         } else {
-                          setStartTime(d);
-                          if (d >= endTime) {
-                            setEndTime(new Date(d.getTime() + 30 * 60000));
+                          if (d <= startTime) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                            setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                          } else {
+                            setEndTime(d);
                           }
-                        }
-                      } else {
-                        if (d <= startTime) {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
-                        } else {
-                          setEndTime(d);
                         }
                       }
-                    }
-                  }}
-                  textColor={colors.text}
-                  themeVariant={colors.isDark ? "dark" : "light"}
-                />
+                    }}
+                    textColor={colors.text}
+                    themeVariant={colors.isDark ? "dark" : "light"}
+                  />
+                </View>
               </View>
-            </View>
-          </Modal>
+            </Modal>
+          ) : (
+            !!pickerMode && (
+              <DateTimePicker
+                value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                mode="time"
+                is24Hour={false}
+                display="default"
+                onChange={(e, d) => {
+                  setPickerMode(null);
+                  if (d) {
+                    const now = new Date();
+                    if (pickerMode === 'start') {
+                      if (d < now) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                        setStartTime(now);
+                        if (endTime <= now) {
+                          setEndTime(new Date(now.getTime() + 30 * 60000));
+                        }
+                      } else {
+                        setStartTime(d);
+                        if (d >= endTime) {
+                          setEndTime(new Date(d.getTime() + 30 * 60000));
+                        }
+                      }
+                    } else {
+                      if (d <= startTime) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                        setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                      } else {
+                        setEndTime(d);
+                      }
+                    }
+                  }
+                }}
+              />
+            )
+          )}
 
           <TouchableOpacity
             style={[styles.updateButton, !text.trim() && styles.saveButtonDisabled]}

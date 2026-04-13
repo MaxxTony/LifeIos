@@ -1,4 +1,5 @@
 import { useFocusTimer } from '@/hooks/useFocusTimer';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -18,11 +19,20 @@ import Toast from 'react-native-toast-message';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset } = useStore();
+  const { setAuth, themePreference, accentColor, _hasHydrated, performDailyReset, focusSession } = useStore();
   const systemColorScheme = useColorScheme();
 
   // Start the global focus timer
   useFocusTimer();
+
+  // Keep screen awake while a focus session is active (must be in root layout, not a modal)
+  useEffect(() => {
+    if (focusSession.isActive) {
+      activateKeepAwakeAsync().catch(() => {});
+    } else {
+      deactivateKeepAwake();
+    }
+  }, [focusSession.isActive]);
 
   const themeMode = themePreference === 'system'
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')

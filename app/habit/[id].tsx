@@ -85,27 +85,62 @@ export default function HabitDetailScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         {/* Liquid Glass Header */}
         <View style={styles.headerContainer}>
-          <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
-            <View style={styles.headerContent}>
-              <TouchableOpacity 
-                onPress={() => router.back()}
-                style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                <ChevronLeft size={22} color={colors.text} />
-              </TouchableOpacity>
-              
-              <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
-              
-              <TouchableOpacity
-                onPress={handleDelete}
-                style={[styles.liquidBtn, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}
-                activeOpacity={0.7}
-              >
-                <Trash2 size={20} color={colors.danger} />
-              </TouchableOpacity>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
+              <View style={styles.headerContent}>
+                <TouchableOpacity 
+                  onPress={() => router.back()}
+                  style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft size={22} color={colors.text} />
+                </TouchableOpacity>
+                
+                <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
+                
+                <TouchableOpacity
+                  onPress={handleDelete}
+                  style={[styles.liquidBtn, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={20} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            </BlurView>
+          ) : (
+            <View style={[
+              styles.headerBlur, 
+              { 
+                backgroundColor: colors.card,
+              }
+            ]}>
+              <View style={styles.headerContent}>
+                <TouchableOpacity 
+                  onPress={() => router.back()}
+                  style={[
+                    styles.liquidBtn, 
+                    { 
+                      backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', 
+                      borderColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' 
+                    }
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft size={22} color={colors.text} />
+                </TouchableOpacity>
+                
+                <Text style={[styles.headerTitle, { color: colors.text }]}>{habit.icon} {habit.title}</Text>
+                
+                <TouchableOpacity
+                  onPress={handleDelete}
+                  style={[styles.liquidBtn, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '30' }]}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={20} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
             </View>
-          </BlurView>
+          )}
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -213,7 +248,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
-      android: { elevation: 4 }
+      android: { elevation: 3, borderColor: 'rgba(255,255,255,0.08)' }
     })
   },
   headerBlur: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.md },

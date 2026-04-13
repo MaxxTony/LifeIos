@@ -190,7 +190,10 @@ export default function AIChatScreen() {
             fontSize: 20,
             color: colors.text
           },
-          headerTransparent: true,
+          headerTransparent: Platform.OS === 'ios',
+          headerStyle: Platform.OS === 'android' ? {
+            backgroundColor: colors.background,
+          } : undefined,
           headerBlurEffect: colors.isDark ? 'dark' : 'light',
           headerBackButtonDisplayMode: 'generic',
           headerTintColor: colors.text,
@@ -206,9 +209,9 @@ export default function AIChatScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -15 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -15 : 80}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
@@ -218,7 +221,10 @@ export default function AIChatScreen() {
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
-            contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 8 }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingTop: Platform.OS === 'ios' ? headerHeight + 8 : 8 }
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {messages.map((m) => (

@@ -73,7 +73,11 @@ export default function EditProfileScreen() {
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
+    // On Android, we need to hide the picker after selection (or dismissal)
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    
     if (selectedDate) {
       const dateString = selectedDate.toISOString().split('T')[0];
       setForm({ ...form, birthday: dateString });
@@ -391,41 +395,58 @@ export default function EditProfileScreen() {
             </Section>
           </Animated.View>
 
-          {/* Date Picker Modal */}
-          <Modal
-            visible={showDatePicker}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setShowDatePicker(false)}
-          >
-            <Pressable style={styles.modalOverlay} onPress={() => setShowDatePicker(false)}>
-              <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
-              <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Select Birthday</Text>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={[styles.doneText, { color: colors.primary }]}>Done</Text>
-                  </TouchableOpacity>
-                </View>
+          {/* Date Picker Modal/Dialog */}
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={showDatePicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowDatePicker(false)}
+            >
+              <Pressable style={styles.modalOverlay} onPress={() => setShowDatePicker(false)}>
+                <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
+                <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>Select Birthday</Text>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={[styles.doneText, { color: colors.primary }]}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                <View style={styles.datePickerWrapper}>
-                  <DateTimePicker
-                    value={(() => {
-                      if (form.birthday) {
-                        const d = new Date(form.birthday);
-                        return isNaN(d.getTime()) ? new Date() : d;
-                      }
-                      return new Date();
-                    })()}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
-                    textColor={colors.text}
-                  />
+                  <View style={styles.datePickerWrapper}>
+                    <DateTimePicker
+                      value={(() => {
+                        if (form.birthday) {
+                          const d = new Date(form.birthday);
+                          return isNaN(d.getTime()) ? new Date() : d;
+                        }
+                        return new Date();
+                      })()}
+                      mode="date"
+                      display="spinner"
+                      onChange={onDateChange}
+                      textColor={colors.text}
+                    />
+                  </View>
                 </View>
-              </View>
-            </Pressable>
-          </Modal>
+              </Pressable>
+            </Modal>
+          ) : (
+            showDatePicker && (
+              <DateTimePicker
+                value={(() => {
+                  if (form.birthday) {
+                    const d = new Date(form.birthday);
+                    return isNaN(d.getTime()) ? new Date() : d;
+                  }
+                  return new Date();
+                })()}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+              />
+            )
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
