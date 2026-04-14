@@ -15,10 +15,12 @@ import {
   Moon, 
   Settings2, 
   Shield,
-  User 
+  User,
+  History,
+  Download
 } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Share, Alert } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
@@ -42,6 +44,27 @@ export default function ProfileScreen() {
     return themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
   };
 
+  const handleExport = async () => {
+    const state = useStore.getState();
+    const data = {
+      habits: state.habits,
+      tasks: state.tasks,
+      moodHistory: state.moodHistory,
+      focusHistory: state.focusHistory,
+      focusGoalHours: state.focusGoalHours,
+      exportDate: new Date().toISOString()
+    };
+
+    try {
+      await Share.share({
+        message: JSON.stringify(data, null, 2),
+        title: 'LifeOS Export Data'
+      });
+    } catch (error: any) {
+      Alert.alert('Export Failed', error.message);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView 
@@ -54,7 +77,10 @@ export default function ProfileScreen() {
         <View style={styles.mainContent}>
           {/* Stats Section */}
           <Animated.View entering={FadeIn.delay(400).duration(600)}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>YOUR PROGRESS</Text>
+            <View style={styles.sectionTitleRow}>
+              <History size={16} color={colors.textSecondary} />
+              <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>YOUR PROGRESS</Text>
+            </View>
             <StatsBentoGrid />
           </Animated.View>
 
@@ -65,6 +91,11 @@ export default function ProfileScreen() {
               <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>PREFERENCES</Text>
             </View>
             <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+               <ProfileMenuItem 
+                icon={History} 
+                label="Weekly Review" 
+                onPress={() => router.push('/weekly-review')} 
+              />
               <ProfileMenuItem 
                 icon={User} 
                 label="Edit Profile" 
@@ -110,8 +141,13 @@ export default function ProfileScreen() {
                <ProfileMenuItem 
                 icon={Info} 
                 label="About LifeOS" 
-                isLast
                 onPress={() => router.push('/settings/about')} 
+              />
+              <ProfileMenuItem 
+                icon={Download} 
+                label="Export My Data (JSON)" 
+                isLast
+                onPress={handleExport} 
               />
             </View>
           </Animated.View>

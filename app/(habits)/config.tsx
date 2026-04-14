@@ -47,10 +47,16 @@ export default function ConfigScreen() {
     // On Android, we need to hide the picker after selection (or dismissal)
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
-    }
-    
-    if (selectedDate) {
-      setReminderTime(selectedDate);
+      
+      // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
+      if (event.type === 'set' && selectedDate) {
+        setReminderTime(selectedDate);
+      }
+    } else {
+      // iOS behavior (spinner/compact/inline often updates immediately or via 'Done' button which we handled in Modal)
+      if (selectedDate) {
+        setReminderTime(selectedDate);
+      }
     }
   };
 
@@ -190,19 +196,26 @@ export default function ConfigScreen() {
               >
                 <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={styles.modalHeader}>
+                    <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
                     <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time</Text>
-                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                      <Text style={[styles.doneBtn, { color: colors.primary }]}>Done</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowTimePicker(false)}
+                      style={[styles.doneBtnPill, { backgroundColor: colors.primaryTransparent }]}
+                    >
+                      <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
                     </TouchableOpacity>
                   </View>
-                  <DateTimePicker
-                    value={reminderTime}
-                    mode="time"
-                    is24Hour={false}
-                    display="spinner"
-                    onChange={onTimeChange}
-                    textColor={colors.text}
-                  />
+                  <View style={styles.pickerWrapper}>
+                    <DateTimePicker
+                      value={reminderTime}
+                      mode="time"
+                      is24Hour={false}
+                      display="spinner"
+                      onChange={onTimeChange}
+                      textColor={colors.text}
+                      themeVariant={colors.isDark ? "dark" : "light"}
+                    />
+                  </View>
                 </TouchableOpacity>
               </TouchableOpacity>
             </Modal>
@@ -378,8 +391,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pickerWrapper: {
-    marginTop: 10,
-    borderRadius: 20,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: 8,
   },
   modalOverlay: {
     flex: 1,
@@ -408,10 +430,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
+    marginLeft: 10,
   },
-  doneBtn: {
+  doneBtnPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  doneBtnText: {
     fontSize: 16,
     fontWeight: '700',
   },

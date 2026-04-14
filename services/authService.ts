@@ -6,7 +6,8 @@ import {
   User,
   sendPasswordResetEmail,
   GoogleAuthProvider,
-  signInWithCredential
+  signInWithCredential,
+  deleteUser
 } from 'firebase/auth';
 import { auth } from '../firebase/config';
 
@@ -88,8 +89,21 @@ export const authService = {
       // For other errors, we might still be offline, so we return true to avoid false logouts
       return true;
     }
-  }
-};
+  },
+
+  // Delete Account
+  deleteAccount: async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('No authenticated user found');
+      await deleteUser(user);
+       return { error: null };
+     } catch (error: any) {
+       console.error('Account deletion error:', error);
+       return { error: mapAuthErrorToMessage(error.code) || error.message };
+     }
+   }
+ };
 
 const mapAuthErrorToMessage = (code: string): string => {
   switch (code) {
@@ -109,6 +123,8 @@ const mapAuthErrorToMessage = (code: string): string => {
       return 'Network error, please check your connection';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please try again later';
+    case 'auth/requires-recent-login':
+      return 'For security, please log out and log back in before deleting your account.';
     default:
       return 'Authentication failed. Please try again';
   }

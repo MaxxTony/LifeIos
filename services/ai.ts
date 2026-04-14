@@ -40,6 +40,7 @@ const getCurrentAppContext = () => {
     today: {
       date: today,
       tasks: state.tasks.filter(t => t.date === today).map(t => ({
+        id: t.id,
         text: t.text,
         priority: t.priority,
         status: t.status,
@@ -50,6 +51,7 @@ const getCurrentAppContext = () => {
       currentMood: state.moodHistory[today]?.mood || 'Not logged'
     },
     habits: state.habits.map(h => ({
+      id: h.id,
       title: h.title,
       frequency: h.frequency,
       isCompletedToday: h.completedDays.includes(today),
@@ -104,6 +106,56 @@ const tools = [
             emotions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'List of specific emotions' },
           },
           required: ['mood'],
+        },
+      },
+      {
+        name: 'updateTask',
+        description: 'Edit an existing task\'s properties.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            id: { type: SchemaType.STRING, description: 'The task ID from context' },
+            text: { type: SchemaType.STRING, description: 'New description' },
+            priority: { type: SchemaType.STRING, enum: ['high', 'medium', 'low'] },
+            startTime: { type: SchemaType.STRING },
+            endTime: { type: SchemaType.STRING },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'removeTask',
+        description: 'Delete a task from the list.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            id: { type: SchemaType.STRING, description: 'The task ID from context' },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'updateHabit',
+        description: 'Modify an existing habit.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            id: { type: SchemaType.STRING, description: 'The habit ID from context' },
+            title: { type: SchemaType.STRING },
+            frequency: { type: SchemaType.STRING, enum: ['daily', 'weekly', 'monthly'] },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'removeHabit',
+        description: 'Permanently remove a habit.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            id: { type: SchemaType.STRING, description: 'The habit ID from context' },
+          },
+          required: ['id'],
         },
       },
     ],
@@ -179,6 +231,14 @@ export const getAIResponse = async (
           toolResults[call.name] = aiActionHandler.handleAddHabit(call.args as any);
         } else if (call.name === 'setMood') {
           toolResults[call.name] = aiActionHandler.handleSetMood(call.args as any);
+        } else if (call.name === 'updateTask') {
+          toolResults[call.name] = aiActionHandler.handleUpdateTask(call.args as any);
+        } else if (call.name === 'removeTask') {
+          toolResults[call.name] = aiActionHandler.handleRemoveTask(call.args as any);
+        } else if (call.name === 'updateHabit') {
+          toolResults[call.name] = aiActionHandler.handleUpdateHabit(call.args as any);
+        } else if (call.name === 'removeHabit') {
+          toolResults[call.name] = aiActionHandler.handleRemoveHabit(call.args as any);
         }
       }
 

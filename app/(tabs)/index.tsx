@@ -3,6 +3,7 @@ import { DashboardAIButton } from '@/components/DashboardAIButton';
 import { FocusWidget } from '@/components/FocusWidget';
 import { HabitGrid } from '@/components/HabitGrid';
 import { MoodTrend } from '@/components/MoodTrend';
+import { OnboardingWalkthrough } from '@/components/Onboarding/OnboardingWalkthrough';
 import { Spacing, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -164,6 +165,7 @@ export default function HomeScreen() {
             <View style={{ height: 40 }} />
           </ScrollView>
         )}
+        <OnboardingWalkthrough />
       </SafeAreaView>
     </View>
   );

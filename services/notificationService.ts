@@ -128,6 +128,52 @@ export const notificationService = {
     }
   },
 
+  scheduleTaskNotification: async (taskId: string, title: string, startTime: string, date: string) => {
+    if (Platform.OS === 'web') return;
+    try {
+      await ensureChannel();
+      await notificationService.cancelTaskNotification(taskId);
+
+      const [timePart, modifier] = startTime.split(' ');
+      let [hours, minutes] = timePart.split(':').map(Number);
+      if (modifier === 'PM' && hours < 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+
+      const [year, month, day] = date.split('-').map(Number);
+      const targetDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+      // Schedule for 5 minutes before
+      const triggerDate = new Date(targetDate.getTime() - 5 * 60 * 1000);
+      const secondsUntil = Math.floor((triggerDate.getTime() - Date.now()) / 1000);
+      if (secondsUntil <= 0) return;
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `🚀 Task Starting Soon`,
+          body: `"${title}" starts in 5 minutes!`,
+          data: { taskId, type: 'TASK_REMINDER' },
+          sound: true,
+        },
+        trigger: { 
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate 
+        },
+        identifier: `task-${taskId}`,
+      });
+    } catch (e) {
+      console.warn('Failed to schedule task notification:', e);
+    }
+  },
+
+  cancelTaskNotification: async (taskId: string) => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`);
+    } catch (e) {
+      // Silence
+    }
+  },
+
   cancelAllNotifications: async () => {
     if (Platform.OS === 'web') return;
     try {

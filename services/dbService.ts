@@ -130,7 +130,11 @@ export const dbService = {
         onUpdate(docSnap.data());
       }
     }, (error) => {
-      console.error('Firestore root subscription error:', error);
+      if (error.code === 'permission-denied') {
+        process.env.NODE_ENV === 'development' && console.warn('Firestore root subscription closed: Permission denied (likely logout)');
+      } else {
+        console.error('Firestore root subscription error:', error);
+      }
     });
   },
 
@@ -141,7 +145,11 @@ export const dbService = {
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       onUpdate(docs);
     }, (error) => {
-      console.error(`Firestore ${collectionName} subscription error:`, error);
+      if (error.code === 'permission-denied') {
+        process.env.NODE_ENV === 'development' && console.warn(`Firestore ${collectionName} subscription closed: Permission denied (likely logout)`);
+      } else {
+        console.error(`Firestore ${collectionName} subscription error:`, error);
+      }
     });
   }
 };

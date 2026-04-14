@@ -1,12 +1,12 @@
 import { useFocusTimer } from '@/hooks/useFocusTimer';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Notifications from 'expo-notifications';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
@@ -30,6 +30,7 @@ export default function RootLayout() {
   const checkMissedTasks = useStore(s => s.checkMissedTasks);
   const systemColorScheme = useColorScheme();
   const appState = useRef(AppState.currentState);
+  const router = useRouter();
 
   // Start the global focus timer
   useFocusTimer();
@@ -37,7 +38,7 @@ export default function RootLayout() {
   // Keep screen awake while a focus session is active (must be in root layout, not a modal)
   useEffect(() => {
     if (focusIsActive) {
-      activateKeepAwakeAsync().catch(() => {});
+      activateKeepAwakeAsync().catch(() => { });
     } else {
       deactivateKeepAwake();
     }
@@ -149,7 +150,9 @@ export default function RootLayout() {
       // Handle notification click when app is in background/closed
       const data = response.notification.request.content.data;
       if (data?.habitId) {
-        // Logic to navigate can be added here
+        router.push(`/habit/${data.habitId}`);
+      } else if (data?.taskId) {
+        router.push(`/tasks/${data.taskId}`);
       }
     });
 
@@ -168,20 +171,14 @@ export default function RootLayout() {
       <BottomSheetModalProvider>
         <ThemeProvider value={navTheme}>
           <Stack screenOptions={{
-
             headerTintColor: accentColor || '#7C5CFF',
             headerShown: false
-
-
           }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
             <Stack.Screen name="(habits)" options={{ presentation: 'modal', headerShown: false }} />
-
-
             <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="focus-detail" options={{ presentation: 'modal', headerShown: false }} />

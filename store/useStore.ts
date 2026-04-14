@@ -18,6 +18,8 @@ interface Task {
   endTime?: string;   // e.g. "07:00 PM"
   status: 'pending' | 'completed' | 'missed';
   systemComment?: string;
+  repeat?: 'none' | 'daily' | 'weekly' | 'monthly'; // F-3
+  subtasks?: { id: string; text: string; completed: boolean }[]; // F-4
 }
 
 interface Habit {
@@ -33,6 +35,7 @@ interface Habit {
   completedDays: string[]; // ISO Dates (e.g. "2024-04-10")
   createdAt: number;
   bestStreak: number;
+  pausedUntil: string | null; // F-2: ISO date string
 }
 
 interface FocusSession {
@@ -98,14 +101,17 @@ interface UserState {
   toggleTask: (id: string) => void;
   removeTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
+  updateSubtask: (taskId: string, subtaskId: string, updates: Partial<{ text: string, completed: boolean }>) => void; // F-4
+  toggleSubtask: (taskId: string, subtaskId: string) => void; // F-4
   checkMissedTasks: () => void;
   performDailyReset: () => void;
 
   // Habit Actions
-  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id'> & { id?: string }) => void;
+  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
   toggleHabit: (id: string) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
+  pauseHabit: (id: string, until: string | null) => void; // F-2
 
   // Focus Actions
   setFocusGoal: (hours: number) => void;
@@ -140,6 +146,8 @@ interface UserState {
   // Utilities
   getStreak: (habitId: string) => number;
   refreshHabitNotifications: () => Promise<void>;
+  hasSeenWalkthrough: boolean;
+  setHasSeenWalkthrough: (seen: boolean) => void;
 }
 
 const migrateTasks = (tasks: Task[]): Task[] => {
@@ -215,6 +223,7 @@ export const useStore = create<UserState>()(
       themePreference: 'system',
       accentColor: null,
       _syncUnsubscribes: [],
+      hasSeenWalkthrough: false,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
@@ -266,6 +275,13 @@ export const useStore = create<UserState>()(
         if (get().userId) {
           fireSync(() => dbService.saveTask(get().userId!, newTask), 'addTask');
         }
+        
+        // F-6: Schedule Notification
+        if (newTask.startTime) {
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleTaskNotification(newTask.id, newTask.text, newTask.startTime!, newTask.date);
+          });
+        }
       },
 
       updateTask: (id, updates) => {
@@ -275,6 +291,21 @@ export const useStore = create<UserState>()(
           if (state.userId && updatedTask) {
             fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'updateTask');
           }
+
+          // F-6: Refresh Notification
+          if (updates.startTime || updates.date || updates.text) {
+            const task = updatedTask || newTasks.find(t => t.id === id);
+            if (task?.startTime) {
+              import('@/services/notificationService').then(({ notificationService }) => {
+                notificationService.scheduleTaskNotification(task.id, task.text, task.startTime!, task.date);
+              });
+            } else {
+              import('@/services/notificationService').then(({ notificationService }) => {
+                notificationService.cancelTaskNotification(id);
+              });
+            }
+          }
+
           return { tasks: newTasks };
         });
       },
@@ -292,13 +323,50 @@ export const useStore = create<UserState>()(
           const updatedTask: Task = { ...task, completed: nowCompleted, status: nowCompleted ? 'completed' : 'pending' };
           // When undoing completion, remove the systemComment (auto-set by checkMissedTasks)
           if (!nowCompleted) delete updatedTask.systemComment;
-          const newTasks: Task[] = state.tasks.map((t) =>
+          
+          let newTasks: Task[] = state.tasks.map((t) =>
             t.id === id ? updatedTask : t
           );
+
+          // F-3: Recurring Task Logic
+          if (nowCompleted && task.repeat && task.repeat !== 'none') {
+            const nextDate = new Date(task.date);
+            if (task.repeat === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+            else if (task.repeat === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+            else if (task.repeat === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+
+            const nextDateStr = formatLocalDate(nextDate);
+            
+            // Check if next occurrence already exists to avoid duplicates
+            const exists = state.tasks.some(t => t.text === task.text && t.date === nextDateStr);
+            if (!exists) {
+              const newTask: Task = {
+                ...task,
+                id: Crypto.randomUUID(),
+                date: nextDateStr,
+                completed: false,
+                status: 'pending',
+                createdAt: Date.now(),
+              };
+              delete newTask.systemComment;
+              newTasks.push(newTask);
+              if (state.userId) {
+                fireSync(() => dbService.saveTask(state.userId!, newTask), 'recursiveTaskSync');
+              }
+            }
+          }
 
           if (state.userId) {
             fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleTask');
           }
+
+          // F-6: Cancel notification if completed
+          if (nowCompleted) {
+            import('@/services/notificationService').then(({ notificationService }) => {
+              notificationService.cancelTaskNotification(id);
+            });
+          }
+
           return { tasks: newTasks };
         });
       },
@@ -309,10 +377,42 @@ export const useStore = create<UserState>()(
           if (state.userId) {
             fireSync(() => dbService.deleteTask(state.userId!, id), 'removeTask');
           }
+
+          // F-6: Cancel Notification
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.cancelTaskNotification(id);
+          });
+
           return { tasks: newTasks };
         });
       },
       setTasks: (tasks) => set({ tasks }),
+
+      updateSubtask: (taskId, subtaskId, updates) => set((state) => {
+        const tasks = state.tasks.map(t => {
+          if (t.id === taskId) {
+            const subtasks = t.subtasks?.map(st => st.id === subtaskId ? { ...st, ...updates } : st);
+            const updatedTask = { ...t, subtasks };
+            if (state.userId) fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'updateSubtask');
+            return updatedTask;
+          }
+          return t;
+        });
+        return { tasks };
+      }),
+
+      toggleSubtask: (taskId, subtaskId) => set((state) => {
+        const tasks = state.tasks.map(t => {
+          if (t.id === taskId) {
+            const subtasks = t.subtasks?.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st);
+            const updatedTask = { ...t, subtasks };
+            if (state.userId) fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleSubtask');
+            return updatedTask;
+          }
+          return t;
+        });
+        return { tasks };
+      }),
 
       addHabit: (habitData) => {
         const newHabit: Habit = {
@@ -320,7 +420,8 @@ export const useStore = create<UserState>()(
           id: habitData.id || Crypto.randomUUID(),
           completedDays: [],
           bestStreak: 0,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          pausedUntil: null // F-2
         };
         set((state) => ({ habits: [...state.habits, newHabit] }));
         if (get().userId) {
@@ -339,6 +440,10 @@ export const useStore = create<UserState>()(
         const newHabits = state.habits.map(h => {
           if (h.id === id) {
             const today = getTodayLocal();
+            
+            // F-2: Cannot toggle if paused
+            if (h.pausedUntil && today <= h.pausedUntil) return h;
+
             const isCompleted = h.completedDays.includes(today);
             const newCompletedDays = isCompleted
               ? h.completedDays.filter(d => d !== today)
@@ -351,9 +456,14 @@ export const useStore = create<UserState>()(
             for (let i = startOffset; i < 365; i++) {
               const d = new Date();
               d.setDate(d.getDate() - i);
+              const dStr = formatLocalDate(d);
+
               // Respect targetDays for weekly habits — don't break streak on unscheduled days
               if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
-              const dStr = formatLocalDate(d);
+              
+              // F-2: Skip days the habit was paused — don't break the streak
+              if (h.pausedUntil && dStr <= h.pausedUntil) continue;
+
               if (newCompletedDays.includes(dStr)) {
                 currentStreak++;
               } else {
@@ -387,6 +497,15 @@ export const useStore = create<UserState>()(
         return { habits: newHabits };
       }),
 
+      pauseHabit: (id, until) => set((state) => {
+        const newHabits = state.habits.map(h => h.id === id ? { ...h, pausedUntil: until } : h);
+        const updatedHabit = newHabits.find(h => h.id === id);
+        if (state.userId && updatedHabit) {
+          fireSync(() => dbService.saveHabit(state.userId!, updatedHabit), 'pauseHabit');
+        }
+        return { habits: newHabits };
+      }),
+
       getStreak: (id) => {
         const habit = get().habits.find(h => h.id === id);
         if (!habit) return 0;
@@ -412,6 +531,10 @@ export const useStore = create<UserState>()(
           if (!isScheduledDay(checkDate)) continue;
 
           const dateStr = formatLocalDate(checkDate);
+          
+          // F-2: Skip days the habit was paused
+          if (habit.pausedUntil && dateStr <= habit.pausedUntil) continue;
+
           if (habit.completedDays.includes(dateStr)) {
             streak++;
           } else {
@@ -631,7 +754,6 @@ export const useStore = create<UserState>()(
           moodTheme: null,
           accentColor: null,
           onboardingData: { struggles: [] },
-          hasCompletedOnboarding: false,
           _syncUnsubscribes: [],
         });
       },
@@ -766,6 +888,7 @@ export const useStore = create<UserState>()(
         if (state.userId) fireSync(() => dbService.saveAccentColor(state.userId!, color), 'saveAccentColor');
         return { accentColor: color };
       }),
+      setHasSeenWalkthrough: (seen) => set({ hasSeenWalkthrough: seen }),
     }),
 
     {

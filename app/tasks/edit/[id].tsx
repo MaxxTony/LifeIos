@@ -212,6 +212,9 @@ export default function EditTaskScreen() {
               <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
                   <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                  <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                    {pickerMode === 'start' ? 'Start Time' : 'End Time'}
+                  </Text>
                   <TouchableOpacity 
                     onPress={() => {
                       setPickerMode(null);
@@ -270,7 +273,7 @@ export default function EditTaskScreen() {
                 display="default"
                 onChange={(e, d) => {
                   setPickerMode(null);
-                  if (d) {
+                  if (e.type === 'set' && d) {
                     const now = new Date();
                     if (pickerMode === 'start') {
                       if (d < now) {
@@ -471,8 +474,12 @@ const styles = StyleSheet.create({
     marginLeft: -20,
     top: 8,
   },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
   doneBtn: {
-    marginLeft: 'auto',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,

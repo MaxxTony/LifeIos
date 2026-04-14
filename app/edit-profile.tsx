@@ -68,14 +68,22 @@ export default function EditProfileScreen() {
   const onDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
-    }
-    if (selectedDate) {
-      // P-5 FIX: Use local date components to avoid UTC midnight off-by-one.
-      // new Date("YYYY-MM-DD").toISOString() shifts the date in negative-offset timezones.
-      const y = selectedDate.getFullYear();
-      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const d = String(selectedDate.getDate()).padStart(2, '0');
-      setForm({ ...form, birthday: `${y}-${m}-${d}` });
+      
+      // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
+      if (event.type === 'set' && selectedDate) {
+        const y = selectedDate.getFullYear();
+        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedDate.getDate()).padStart(2, '0');
+        setForm({ ...form, birthday: `${y}-${m}-${d}` });
+      }
+    } else {
+      // iOS behavior
+      if (selectedDate) {
+        const y = selectedDate.getFullYear();
+        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedDate.getDate()).padStart(2, '0');
+        setForm({ ...form, birthday: `${y}-${m}-${d}` });
+      }
     }
   };
 
@@ -403,9 +411,13 @@ export default function EditProfileScreen() {
                 <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
                 <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
                   <View style={styles.modalHeader}>
+                    <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
                     <Text style={[styles.modalTitle, { color: colors.text }]}>Select Birthday</Text>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={[styles.doneText, { color: colors.primary }]}>Done</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowDatePicker(false)}
+                      style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
+                    >
+                      <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -811,9 +823,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   modalTitle: {
-    ...Typography.h3,
-    fontSize: 20,
-    fontFamily: 'Outfit-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
   },
   modalOptions: {
     marginBottom: 20,
@@ -849,9 +861,22 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     minHeight: 200,
   },
-  doneText: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
+  doneBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  doneBtnText: {
     fontSize: 16,
+    fontWeight: '700',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: 8,
   },
 });

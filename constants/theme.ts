@@ -16,6 +16,7 @@ export const Colors = {
     gradient: ['#818CF8', '#38BDF8'] as const,
     danger: '#FB7185',
     success: '#34D399',
+    warning: '#FBBF24',
   },
   light: {
     background: '#FFFFFF',
@@ -32,6 +33,7 @@ export const Colors = {
     gradient: ['#4F46E5', '#0EA5E9'] as const,
     danger: '#E11D48',
     success: '#059669',
+    warning: '#D97706',
   },
 };
 

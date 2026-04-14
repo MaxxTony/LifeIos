@@ -8,7 +8,7 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Calendar, Clock, Flag, X } from 'lucide-react-native';
+import { Calendar, Clock, Flag, X, Repeat } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,6 +52,7 @@ export default function CreateTaskScreen() {
 
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(new Date(Date.now() + 3600 * 1000));
+  const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
 
   // 'start' | 'end' | 'date' | null
   const [pickerMode, setPickerMode] = useState<'start' | 'end' | 'date' | null>(null);
@@ -78,8 +79,17 @@ export default function CreateTaskScreen() {
       formatTime(startTime),
       formatTime(endTime),
       priority,
-      formatLocalDate(date)   // M-1 FIX: use user-selected date, not always today
+      formatLocalDate(date)
     );
+    
+    // F-3: Set repeat if not none
+    if (repeat !== 'none') {
+      const lastTask = useStore.getState().tasks[useStore.getState().tasks.length - 1];
+      if (lastTask) {
+        useStore.getState().updateTask(lastTask.id, { repeat });
+      }
+    }
+
     router.back();
   };
 
@@ -163,13 +173,37 @@ export default function CreateTaskScreen() {
                 onPress={() => setPickerMode('end')}
               >
                 <View style={styles.selectLeft}>
-                  <Ionicons name="time-outline" size={20} color={colors.primary} />
+                  <Clock size={20} color={colors.secondary} />
                   <View>
                     <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
                     <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Repeat</Text>
+              <View style={styles.priorityRow}>
+                {(['none', 'daily', 'weekly', 'monthly'] as const).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    onPress={() => {
+                      setRepeat(r);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={[
+                      styles.repeatChip,
+                      { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border },
+                      repeat === r && { backgroundColor: colors.primary + '20', borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.repeatText, { color: colors.textSecondary }, repeat === r && { color: colors.primary }]}>
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
 
@@ -192,6 +226,9 @@ export default function CreateTaskScreen() {
                 <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
                     <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                    <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                      {pickerMode === 'date' ? 'Select Date' : pickerMode === 'start' ? 'Start Time' : 'End Time'}
+                    </Text>
                     <TouchableOpacity
                       onPress={() => {
                         setPickerMode(null);
@@ -252,18 +289,19 @@ export default function CreateTaskScreen() {
                   onChange={(e, d) => {
                     const mode = pickerMode;
                     setPickerMode(null);
-                    if (!d) return;
-                    if (mode === 'date') {
-                      setDate(d);
-                    } else if (mode === 'start') {
-                      setStartTime(d);
-                      if (d >= endTime) setEndTime(new Date(d.getTime() + 30 * 60000));
-                    } else {
-                      if (d <= startTime) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                        setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                    if (e.type === 'set' && d) {
+                      if (mode === 'date') {
+                        setDate(d);
+                      } else if (mode === 'start') {
+                        setStartTime(d);
+                        if (d >= endTime) setEndTime(new Date(d.getTime() + 30 * 60000));
                       } else {
-                        setEndTime(d);
+                        if (d <= startTime) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                        } else {
+                          setEndTime(d);
+                        }
                       }
                     }
                   }}
@@ -436,8 +474,12 @@ const styles = StyleSheet.create({
     marginLeft: -20,
     top: 8,
   },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
   doneBtn: {
-    marginLeft: 'auto',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
@@ -449,5 +491,16 @@ const styles = StyleSheet.create({
   pickerWrapper: {
     paddingVertical: 10,
     alignItems: 'center',
+  },
+  repeatChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  repeatText: {
+    fontSize: 12,
+    fontWeight: '700',
   }
 });

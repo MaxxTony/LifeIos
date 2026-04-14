@@ -61,5 +61,47 @@ export const aiActionHandler = {
       console.error('AI Set Mood Error:', error);
       return { success: false, message: `Failed to log mood: ${error.message}` };
     }
+  },
+
+  handleUpdateTask: (params: { id: string; text?: string; priority?: 'high' | 'medium' | 'low'; startTime?: string; endTime?: string }) => {
+    const store = useStore.getState();
+    try {
+      const { id, ...updates } = params;
+      store.updateTask(id, updates);
+      return { success: true, message: `Updated task ${id}` };
+    } catch (error: any) {
+      return { success: false, message: `Failed to update task: ${error.message}` };
+    }
+  },
+
+  handleRemoveTask: (params: { id: string }) => {
+    const store = useStore.getState();
+    try {
+      store.removeTask(params.id);
+      return { success: true, message: `Removed task ${params.id}` };
+    } catch (error: any) {
+      return { success: false, message: `Failed to remove task: ${error.message}` };
+    }
+  },
+
+  handleUpdateHabit: (params: { id: string; title?: string; frequency?: 'daily' | 'weekly' | 'monthly' }) => {
+    const store = useStore.getState();
+    try {
+      const { id, ...updates } = params;
+      store.updateHabit(id, updates);
+      return { success: true, message: `Updated habit ${id}` };
+    } catch (error: any) {
+      return { success: false, message: `Failed to update habit: ${error.message}` };
+    }
+  },
+
+  handleRemoveHabit: (params: { id: string }) => {
+    const store = useStore.getState();
+    try {
+      store.removeHabit(params.id);
+      return { success: true, message: `Removed habit ${params.id}` };
+    } catch (error: any) {
+      return { success: false, message: `Failed to remove habit: ${error.message}` };
+    }
   }
 };

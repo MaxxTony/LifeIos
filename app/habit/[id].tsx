@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Platform, Modal, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -10,8 +10,9 @@ import { HabitCalendar } from '@/components/HabitCalendar';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info, Pencil } from 'lucide-react-native';
+import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info, Pencil, Coffee } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
 
@@ -32,7 +33,9 @@ export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colors = useThemeColors();
-  const { habits, removeHabit, getStreak, toggleHabit } = useStore();
+  const { habits, removeHabit, getStreak, toggleHabit, pauseHabit } = useStore();
+  
+  const [showPausePicker, setShowPausePicker] = React.useState(false);
   
   const habit = habits.find(h => h.id === id);
   const isCompletedToday = habit?.completedDays.includes(getTodayLocal());
@@ -211,7 +214,109 @@ export default function HabitDetailScreen() {
                </View>
                <Text style={[styles.infoValue, { color: colors.text }]}>{totalCompletions} successful sessions</Text>
             </PremiumCard>
+
+            {/* F-2: Pause Habit Section */}
+            <PremiumCard style={styles.longInfoCard}>
+               <View style={styles.infoHead}>
+                 <Coffee size={14} color={colors.warning} />
+                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Habit Status</Text>
+               </View>
+               <View style={styles.pauseContent}>
+                 <View>
+                   <Text style={[styles.infoValue, { color: colors.text }]}>
+                     {habit.pausedUntil 
+                       ? `Paused until ${new Date(habit.pausedUntil).toLocaleDateString()}` 
+                       : 'Active'}
+                   </Text>
+                   <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
+                     {habit.pausedUntil 
+                       ? 'Streak is frozen and won\'t break.' 
+                       : 'Keep showing up to grow your streak!'}
+                   </Text>
+                 </View>
+                 <TouchableOpacity 
+                   style={[styles.pauseBtn, { backgroundColor: habit.pausedUntil ? colors.success + '15' : colors.warning + '15' }]}
+                   onPress={() => {
+                     if (habit.pausedUntil) {
+                       pauseHabit(habit.id, null);
+                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                     } else {
+                       setShowPausePicker(true);
+                     }
+                   }}
+                 >
+                   <Text style={[styles.pauseBtnText, { color: habit.pausedUntil ? colors.success : colors.warning }]}>
+                     {habit.pausedUntil ? 'Resume' : 'Pause'}
+                   </Text>
+                 </TouchableOpacity>
+               </View>
+            </PremiumCard>
           </View>
+
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={showPausePicker}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setShowPausePicker(false)}
+            >
+              <Pressable 
+                style={styles.modalOverlay} 
+                onPress={() => setShowPausePicker(false)}
+              >
+                <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+              </Pressable>
+
+              <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                  <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>Select Pause Date</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowPausePicker(false);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
+                  >
+                    <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.pickerWrapper}>
+                  <DateTimePicker
+                    value={new Date()}
+                    mode="date"
+                    display="spinner"
+                    minimumDate={new Date()}
+                    onChange={(event, date) => {
+                      if (event.type === 'set' && date) {
+                        pauseHabit(habit.id, formatLocalDate(date));
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      }
+                    }}
+                    textColor={colors.text}
+                    themeVariant={colors.isDark ? "dark" : "light"}
+                  />
+                </View>
+              </View>
+            </Modal>
+          ) : (
+            showPausePicker && (
+              <DateTimePicker
+                value={new Date()}
+                mode="date"
+                display="default"
+                minimumDate={new Date()}
+                onChange={(event, date) => {
+                  setShowPausePicker(false);
+                  if (event.type === 'set' && date) {
+                    pauseHabit(habit.id, formatLocalDate(date));
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }
+                }}
+              />
+            )
+          )}
 
           <TouchableOpacity
             style={[
@@ -408,5 +513,73 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  pauseContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  infoSub: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  pauseBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  pauseBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+  },
+  sheetContainer: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 40,
+    borderWidth: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: 8,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  doneBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  doneBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerWrapper: {
+    paddingVertical: 10,
+    alignItems: 'center',
   }
 });

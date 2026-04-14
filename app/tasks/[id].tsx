@@ -1,20 +1,22 @@
-import { Spacing, Typography, Colors } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { X, Pencil, Trash2, Flag, Calendar, Clock, CheckCircle, RotateCcw, AlertTriangle } from 'lucide-react-native';
-import React from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStore } from '@/store/useStore';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AlertTriangle, Calendar, CheckCircle, Circle, Flag, Pencil, Plus, Repeat, RotateCcw, Trash2, X } from 'lucide-react-native';
+import React from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colors = useThemeColors();
-  const { tasks, toggleTask, removeTask } = useStore();
+  const { tasks, toggleTask, removeTask, updateSubtask, toggleSubtask, updateTask } = useStore();
+
+  const [newSubtaskText, setNewSubtaskText] = React.useState('');
 
   const task = tasks.find(t => t.id === id);
 
@@ -46,8 +48,8 @@ export default function TaskDetailScreen() {
       'Are you sure you want to delete this task? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Delete',
           style: 'destructive',
           onPress: () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -67,19 +69,19 @@ export default function TaskDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient 
-        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]} 
-        style={StyleSheet.absoluteFill} 
+      <LinearGradient
+        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* Background Glows */}
-      <LinearGradient 
-        colors={[colors.primaryTransparent, 'transparent']} 
-        style={[styles.glow, { top: -100, left: -50, shadowColor: colors.primary }]} 
+      <LinearGradient
+        colors={[colors.primaryTransparent, 'transparent']}
+        style={[styles.glow, { top: -100, left: -50, shadowColor: colors.primary }]}
       />
-      <LinearGradient 
-        colors={[colors.isDark ? colors.primary + '20' : colors.primary + '0A', 'transparent']} 
-        style={[styles.glow, { bottom: 100, right: -100, shadowColor: colors.primary }]} 
+      <LinearGradient
+        colors={[colors.isDark ? colors.primary + '20' : colors.primary + '0A', 'transparent']}
+        style={[styles.glow, { bottom: 100, right: -100, shadowColor: colors.primary }]}
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -139,18 +141,79 @@ export default function TaskDetailScreen() {
               </View>
 
               <View style={styles.infoItem}>
-                <View style={[styles.infoIconBox, { backgroundColor: colors.success + '15' }]}>
-                  <Clock size={20} color={colors.success} />
+                <View style={[styles.infoIconBox, { backgroundColor: colors.warning + '15' }]}>
+                  <Repeat size={20} color={colors.warning} />
                 </View>
                 <View>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Block</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Recurrence</Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>
-                    {task.startTime && task.endTime ? `${task.startTime} — ${task.endTime}` : 'No time block set'}
+                    {task.repeat && task.repeat !== 'none' ? `Repeats ${task.repeat}` : 'One-off task'}
                   </Text>
                 </View>
               </View>
             </View>
           </BlurView>
+
+          {/* F-4: Subtasks Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Subtasks</Text>
+              <Text style={[styles.subtaskCount, { color: colors.textSecondary }]}>
+                {(task.subtasks?.filter(st => st.completed).length || 0)} / {(task.subtasks?.length || 0)}
+              </Text>
+            </View>
+
+            <View style={[styles.subtaskList, { borderColor: colors.border }]}>
+              {task.subtasks?.map(st => (
+                <TouchableOpacity
+                  key={st.id}
+                  style={[styles.subtaskItem, { borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    toggleSubtask(task.id, st.id);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  {st.completed ? (
+                    <CheckCircle size={20} color={colors.success} fill={colors.success + '20'} />
+                  ) : (
+                    <Circle size={20} color={colors.textSecondary + '40'} />
+                  )}
+                  <Text style={[styles.subtaskText, { color: colors.text }, st.completed && { color: colors.textSecondary, textDecorationLine: 'line-through' }]}>
+                    {st.text}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const updatedSubtasks = task.subtasks?.filter(s => s.id !== st.id);
+                      updateTask(task.id, { subtasks: updatedSubtasks });
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }}
+                  >
+                    <X size={16} color={colors.textSecondary + '40'} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+
+              <View style={styles.addSubtaskRow}>
+                <Plus size={20} color={colors.primary} />
+                <TextInput
+                  style={[styles.subtaskInput, { color: colors.text }]}
+                  placeholder="Add a subtask..."
+                  placeholderTextColor={colors.textSecondary + '60'}
+                  value={newSubtaskText}
+                  onChangeText={setNewSubtaskText}
+                  onSubmitEditing={() => {
+                    if (!newSubtaskText.trim()) return;
+                    const newSubtask = { id: Math.random().toString(36).substring(7), text: newSubtaskText.trim(), completed: false };
+                    const updatedSubtasks = [...(task.subtasks || []), newSubtask];
+                    updateTask(task.id, { subtasks: updatedSubtasks });
+                    setNewSubtaskText('');
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }}
+                  blurOnSubmit={false}
+                />
+              </View>
+            </View>
+          </View>
 
           <View style={styles.statusSection}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Task Progress</Text>
@@ -172,30 +235,32 @@ export default function TaskDetailScreen() {
           </View>
         </ScrollView>
 
-        {task.status !== 'missed' && (
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
-              {task.completed ? (
-                <View style={[styles.gradientBtn, { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
-                  <RotateCcw size={20} color={colors.success} />
-                  <Text style={[styles.completeBtnText, { color: colors.success }]}>Undo Completion</Text>
-                </View>
-              ) : (
-                <LinearGradient
-                  colors={colors.gradient}
-                  style={styles.gradientBtn}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
-                  <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
-                </LinearGradient>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </SafeAreaView>
-    </View>
+        {
+          task.status !== 'missed' && (
+            <View style={styles.footer}>
+              <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
+                {task.completed ? (
+                  <View style={[styles.gradientBtn, { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
+                    <RotateCcw size={20} color={colors.success} />
+                    <Text style={[styles.completeBtnText, { color: colors.success }]}>Undo Completion</Text>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={colors.gradient}
+                    style={styles.gradientBtn}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
+                    <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
+                  </LinearGradient>
+                )}
+              </TouchableOpacity>
+            </View>
+          )
+        }
+      </SafeAreaView >
+    </View >
   );
 }
 
@@ -271,6 +336,10 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     fontFamily: 'Outfit-Bold',
     marginVertical: 20,
+  },
+  section: {
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
   statusSection: {
     marginTop: 8,
@@ -395,5 +464,44 @@ const styles = StyleSheet.create({
   },
   backLink: {
     fontSize: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  subtaskCount: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  subtaskList: {
+    borderWidth: 1,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    overflow: 'hidden',
+  },
+  subtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  subtaskText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  addSubtaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  subtaskInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
   }
 });
