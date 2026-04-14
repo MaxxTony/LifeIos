@@ -91,12 +91,19 @@ interface UserState {
   themePreference: 'light' | 'dark' | 'system';
   accentColor: string | null;
 
+  notificationSettings: {
+    push: boolean;
+    habits: boolean;
+    tasks: boolean;
+    mood: boolean;
+  };
+
   // Actions
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
   setAuth: (userId: string | null, userName: string | null) => void;
   setOnboardingData: (data: Partial<UserState['onboardingData']>) => void;
-  addTask: (text: string, startTime?: string, endTime?: string, priority?: Task['priority'], date?: string) => void;
+  addTask: (text: string, startTime?: string, endTime?: string, priority?: Task['priority'], date?: string) => string;
   updateTask: (id: string, updates: Partial<Task>) => void;
   toggleTask: (id: string) => void;
   removeTask: (id: string) => void;
@@ -142,6 +149,7 @@ interface UserState {
 
   setThemePreference: (theme: 'light' | 'dark' | 'system') => void;
   setAccentColor: (color: string) => void;
+  updateNotificationSettings: (updates: Partial<UserState['notificationSettings']>) => void;
 
   // Utilities
   getStreak: (habitId: string) => number;
@@ -164,6 +172,28 @@ const migrateTasks = (tasks: Task[]): Task[] => {
     }
     return migrated;
   });
+};
+
+const parseTimeString = (timeStr: string) => {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  try {
+    // Robustly handle different space characters and casing (e.g. "12:30pm", "12:30 PM", "12:30\u202fPM")
+    const cleaned = timeStr.trim().replace(/\s+/g, ' ').toUpperCase();
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
+    
+    if (!match) return null;
+    
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const modifier = match[3];
+    
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    else if (modifier === 'AM' && hours === 12) hours = 0;
+    
+    return { hours, minutes };
+  } catch (e) {
+    return null;
+  }
 };
 
 const migrateMoodHistory = (history: any): Record<string, MoodEntry> => {
@@ -222,6 +252,12 @@ export const useStore = create<UserState>()(
       socialLinks: {},
       themePreference: 'system',
       accentColor: null,
+      notificationSettings: {
+        push: true,
+        habits: true,
+        tasks: true,
+        mood: true,
+      },
       _syncUnsubscribes: [],
       hasSeenWalkthrough: false,
 
@@ -248,18 +284,18 @@ export const useStore = create<UserState>()(
         let dueTime: number | undefined;
 
         if (startTime) {
-          const [time, modifier] = startTime.split(' ');
-          let [hours, minutes] = time.split(':').map(Number);
-          if (modifier === 'PM' && hours < 12) hours += 12;
-          if (modifier === 'AM' && hours === 12) hours = 0;
-
-          const [year, month, day] = date.split('-').map(Number);
-          const targetDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
-          dueTime = targetDate.getTime();
+          const parsed = parseTimeString(startTime);
+          if (parsed) {
+            const [year, month, day] = date.split('-').map(Number);
+            const targetDate = new Date(year, month - 1, day, parsed.hours, parsed.minutes, 0, 0);
+            const ts = targetDate.getTime();
+            if (!isNaN(ts)) dueTime = ts;
+          }
         }
 
+        const id = Crypto.randomUUID();
         const newTask: Task = {
-          id: Crypto.randomUUID(),
+          id,
           text,
           priority,
           date,
@@ -277,11 +313,13 @@ export const useStore = create<UserState>()(
         }
         
         // F-6: Schedule Notification
-        if (newTask.startTime) {
+        if (newTask.startTime && newTask.dueTime) {
           import('@/services/notificationService').then(({ notificationService }) => {
             notificationService.scheduleTaskNotification(newTask.id, newTask.text, newTask.startTime!, newTask.date);
           });
         }
+
+        return id;
       },
 
       updateTask: (id, updates) => {
@@ -551,13 +589,11 @@ export const useStore = create<UserState>()(
         let changed = false;
         const newTasks = state.tasks.map(task => {
           if (task.status === 'pending' && task.endTime) {
-            const [time, modifier] = task.endTime.split(' ');
-            let [hours, minutes] = time.split(':').map(Number);
-            if (modifier === 'PM' && hours < 12) hours += 12;
-            if (modifier === 'AM' && hours === 12) hours = 0;
+            const parsed = parseTimeString(task.endTime);
+            if (!parsed) return task;
 
             const [taskYear, taskMonth, taskDay] = task.date.split('-').map(Number);
-            const endDateTime = new Date(taskYear, taskMonth - 1, taskDay, hours, minutes, 0, 0);
+            const endDateTime = new Date(taskYear, taskMonth - 1, taskDay, parsed.hours, parsed.minutes, 0, 0);
 
             if (now > endDateTime) {
               changed = true;
@@ -706,6 +742,12 @@ export const useStore = create<UserState>()(
           // M-5 FIX: Derive the current mood from moodHistory[today] instead of a
           // separate root field that can drift on multi-device or date-boundary scenarios.
           const today = getTodayLocal();
+          
+          // Refresh mood reminder content based on new mood
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleDailyMoodReminder();
+          });
+
           return {
             mood: newHistory[today]?.mood ?? null,
             moodHistory: newHistory
@@ -717,6 +759,34 @@ export const useStore = create<UserState>()(
         if (state.userId) fireSync(() => dbService.saveMoodTheme(state.userId!, theme), 'saveMoodTheme');
         return { moodTheme: theme };
       }),
+
+      updateNotificationSettings: (updates) => {
+        const current = get().notificationSettings;
+        const next = { ...current, ...updates };
+        set({ notificationSettings: next });
+
+        // If push is disabled, cancel all
+        if (updates.push === false) {
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.cancelAllNotifications();
+          });
+        }
+
+        // If specific categories are disabled, we might want to cancel them
+        // But for tasks/habits, the service will check on next schedule.
+        // For habits, we can force refresh
+        // Force refresh mood reminder if setting changed
+        if (updates.mood !== undefined || updates.push !== undefined) {
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleDailyMoodReminder();
+          });
+        }
+
+        // Save to cloud if needed (not implemented in dbService yet, but could be)
+        if (get().userId) {
+          fireSync(() => dbService.saveUserProfile(get().userId!, { notificationSettings: next }), 'updateNotificationSettings');
+        }
+      },
 
       updateProfile: async (updates) => {
         const { userId } = get();

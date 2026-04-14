@@ -1,7 +1,27 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { useStore } from '@/store/useStore';
+import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 
 const DEFAULT_CHANNEL_ID = 'default';
+
+const parseTimeString = (timeStr: string) => {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  // Robustly handle different space characters and casing (e.g. "12:30pm", "12:30 PM", "12:30\u202fPM")
+  const cleaned = timeStr.trim().replace(/\s+/g, ' ').toUpperCase();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
+  
+  if (!match) return null;
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3];
+  
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  else if (modifier === 'AM' && hours === 12) hours = 0;
+  
+  return { hours, minutes };
+};
 
 // Configure how notifications should be handled when the app is foregrounded
 if (Platform.OS !== 'web') {
@@ -47,6 +67,9 @@ export const notificationService = {
   scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[]) => {
     if (Platform.OS === 'web') return;
 
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.push || !notificationSettings.habits) return;
+
     try {
       // 1. Prepare platform-specific channel (Async)
       await ensureChannel();
@@ -55,10 +78,9 @@ export const notificationService = {
       await notificationService.cancelHabitReminders(habitId);
 
       // 3. Parse reminder time
-      const [timePart, modifier] = time.split(' ');
-      let [hours, minutes] = timePart.split(':').map(Number);
-      if (modifier === 'PM' && hours < 12) hours += 12;
-      if (modifier === 'AM' && hours === 12) hours = 0;
+      const parsed = parseTimeString(time);
+      if (!parsed) return;
+      const { hours, minutes } = parsed;
 
       // 4. Schedule based on selected days (1=Sunday in expo-notifications)
       for (const day of days) {
@@ -113,6 +135,8 @@ export const notificationService = {
 
   scheduleMissedTaskNotification: async (taskText: string) => {
     if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.push || !notificationSettings.tasks) return;
     try {
       await ensureChannel();
       await Notifications.scheduleNotificationAsync({
@@ -130,20 +154,25 @@ export const notificationService = {
 
   scheduleTaskNotification: async (taskId: string, title: string, startTime: string, date: string) => {
     if (Platform.OS === 'web') return;
+
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.push || !notificationSettings.tasks) return;
     try {
       await ensureChannel();
       await notificationService.cancelTaskNotification(taskId);
 
-      const [timePart, modifier] = startTime.split(' ');
-      let [hours, minutes] = timePart.split(':').map(Number);
-      if (modifier === 'PM' && hours < 12) hours += 12;
-      if (modifier === 'AM' && hours === 12) hours = 0;
+      const parsed = parseTimeString(startTime);
+      if (!parsed) return;
 
       const [year, month, day] = date.split('-').map(Number);
-      const targetDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      const targetDate = new Date(year, month - 1, day, parsed.hours, parsed.minutes, 0, 0);
 
       // Schedule for 5 minutes before
       const triggerDate = new Date(targetDate.getTime() - 5 * 60 * 1000);
+      
+      // Safety check: ensure triggerDate is valid and in the future
+      if (isNaN(triggerDate.getTime())) return;
+      
       const secondsUntil = Math.floor((triggerDate.getTime() - Date.now()) / 1000);
       if (secondsUntil <= 0) return;
 
@@ -180,6 +209,72 @@ export const notificationService = {
       await Notifications.cancelAllScheduledNotificationsAsync();
     } catch (e) {
       console.warn('Failed to cancel all notifications:', e);
+    }
+  },
+
+  scheduleDailyMoodReminder: async () => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings, moodHistory } = useStore.getState();
+    if (!notificationSettings.push || !notificationSettings.mood) {
+      await notificationService.cancelMoodReminder();
+      return;
+    }
+
+    try {
+      await ensureChannel();
+      await notificationService.cancelMoodReminder();
+
+      const today = getTodayLocal();
+      const moodEntry = moodHistory[today];
+
+      let title = "How are you feeling today? 🌿";
+      let body = "Take a moment to record your mood and reflect on your day.";
+
+      if (moodEntry) {
+        if (moodEntry.mood >= 4) {
+          title = "Glad you're having a great day! 🚀";
+          body = "Keep that positive energy going. Remember to celebrate the wins!";
+        } else {
+          title = "How's it going? 🧘‍♂️";
+          body = "It's okay to have rough days. Take a breath and remember to be kind to yourself.";
+        }
+      }
+
+      // Schedule for 8:00 PM every day
+      const trigger: any = Platform.OS === 'ios'
+        ? {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: 20,
+          minute: 0,
+          repeats: true,
+        }
+        : {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: 20,
+          minute: 0,
+        };
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'MOOD_REMINDER' },
+          sound: true,
+        },
+        trigger,
+        identifier: 'daily-mood-reminder',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule mood reminder:', e);
+    }
+  },
+
+  cancelMoodReminder: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('daily-mood-reminder');
+    } catch (e) {
+      // Silence
     }
   }
 };

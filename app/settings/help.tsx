@@ -1,61 +1,67 @@
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { 
-  BookOpen, 
-  ChevronDown, 
-  ChevronUp, 
-  CircleCheck, 
-  Clock, 
-  Compass, 
-  Heart, 
-  Layers, 
-  Layout, 
-  Mail, 
-  MessageSquare, 
-  ShieldCheck, 
-  Sparkles, 
-  Trophy, 
-  Zap 
+import * as Haptics from 'expo-haptics';
+import {
+  Brain,
+  ChevronDown,
+  ChevronUp,
+  CircleCheck,
+  Clock,
+  Compass,
+  Heart,
+  Layers,
+  Layout,
+  MessageSquare,
+  Sparkles,
+  Zap
 } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { 
-  Dimensions, 
-  Platform, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View,
-  StatusBar
+import {
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import Animated, { 
-  FadeInDown, 
-  FadeInRight, 
-  FadeInUp,
-  Layout as ReanimatedLayout 
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  Layout as ReanimatedLayout
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 
 const GUIDES = [
   {
-    title: "The LifeOS Vision",
+    title: "LifeOS Vision",
     icon: Compass,
     color: '#7C5CFF',
-    content: "LifeOS isn't just a list app—it's an operating system for your reality. We combine AI intelligence with behavioral science to help you master your time, energy, and happiness."
+    content: "LifeOS is more than just a list app—it's a companion for intentional living. We bridge the gap between where you are and where you want to be by combining behavioral science with seamless design."
   },
   {
     title: "How it Works",
     icon: Zap,
     color: '#FFD700',
     steps: [
-      { t: "Plan", d: "Add tasks and let AI help you schedule them effectively." },
-      { t: "Act", d: "Track habits and stay focused with integrated timers." },
-      { t: "Reflect", d: "Log your mood to see how your actions affect your mind." }
+      { t: "Plan", d: "Add your tasks and let the system organize your day.", icon: Layout },
+      { t: "Act", d: "Execute with focus using dedicated timers and habit trackers.", icon: Zap },
+      { t: "Reflect", d: "Record your mood to understand what truly moves you.", icon: Heart }
     ]
   }
 ];
+
+const AI_SECTION = {
+  title: "Meet your AI Brain",
+  desc: "The LifeOS AI isn't just a chatbot—it's an assistant that lives inside your schedule. It analyzes your patterns to help you work smarter, not harder.",
+  capabilities: [
+    "Identify gaps in your busy schedule",
+    "Suggest the best times for Deep Work",
+    "Find correlations between tasks & mood",
+    "Generate personalized productivity tips"
+  ]
+};
 
 const FEATURES = [
   { id: 'tasks', title: 'Smart Tasks', icon: Layout, desc: 'Auto-categorized lists with AI scheduling.' },
@@ -66,30 +72,21 @@ const FEATURES = [
 
 const FAQS = [
   {
-    q: "Is my data safe and private?",
-    a: "Yes. LifeOS follows a local-first privacy model. Your data is synced securely via Firebase, but we never sell or share your personal history."
-  },
-  {
-    q: "How does AI planning work?",
-    a: "The AI observes your task due dates and descriptions to suggest optimal times for you to start working, based on your typical productivity patterns."
-  },
-  {
-    q: "Can I use LifeOS offline?",
-    a: "Absolutely. Most features work offline and will automatically sync to your other devices once you're back online."
+    q: "How does the AI optimize my time?",
+    a: "The AI looks at your current load and historical productivity to suggest the 'Best Time to Start' for tasks, helping you avoid burnout."
   },
   {
     q: "What are 'Atomic Habits'?",
-    a: "Inspired by James Clear, these are tiny actions that compound over time to create massive personal change."
+    a: "These are small, consistent actions that compound. We use streak protection to keep you motivated even on off-days."
+  },
+  {
+    q: "How is my data handled?",
+    a: "Your data is yours. We use high-grade encryption and a local-first sync model via Firebase to keep your history private and safe."
   },
 ];
 
-interface FAQItemType {
-  q: string;
-  a: string;
-}
-
 interface FAQItemProps {
-  faq: FAQItemType;
+  faq: { q: string; a: string };
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
@@ -97,13 +94,13 @@ interface FAQItemProps {
 
 function FAQItem({ faq, index, isExpanded, onToggle }: FAQItemProps) {
   const colors = useThemeColors();
-  
+
   return (
     <Animated.View entering={FadeInDown.delay(600 + index * 100)}>
       <TouchableOpacity
         style={[
           styles.faqItem,
-          { backgroundColor: colors.card, borderColor: isExpanded ? colors.primary : colors.border }
+          { backgroundColor: colors.isDark ? '#111827' : '#FFFFFF', borderColor: isExpanded ? colors.primary : colors.isDark ? '#1F2937' : '#F1F5F9' }
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -133,65 +130,92 @@ export default function HelpCenter() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const colors = useThemeColors();
 
+  const cardBg = colors.isDark ? '#111827' : '#FFFFFF';
+  const borderColor = colors.isDark ? '#1F2937' : '#F1F5F9';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={colors.isDark ? "light-content" : "dark-content"} />
-      
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Section 1: Hero Guide */}
-        <Animated.View entering={FadeInDown.duration(600)} style={styles.heroSection}>
-          <View style={[styles.iconLarge, { backgroundColor: colors.primary + '15' }]}>
-            <Compass size={36} color={colors.primary} />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>What is LifeOS?</Text>
-          <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Header Section */}
+        <Animated.View entering={FadeInDown.duration(600).springify()} style={styles.heroSection}>
+          <View style={[styles.surfaceCard, { backgroundColor: cardBg, borderColor }]}>
             <Text style={[styles.heroText, { color: colors.textSecondary }]}>
               {GUIDES[0].content}
             </Text>
           </View>
         </Animated.View>
 
-        {/* Section 2: The Loop */}
+        {/* Section 2: AI Brain */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeadingRow}>
+            <Sparkles size={14} color={colors.primary} />
+            <Text style={[styles.sectionHeading, { color: colors.primary }]}>AI INTELLIGENCE</Text>
+          </View>
+          <Animated.View entering={FadeInDown.delay(200)} style={[styles.surfaceCard, { backgroundColor: cardBg, borderColor }]}>
+            <View style={styles.aiHeader}>
+              <View style={[styles.aiIcon, { backgroundColor: colors.primary + '20' }]}>
+                <Brain size={20} color={colors.primary} />
+              </View>
+              <Text style={[styles.aiTitle, { color: colors.text }]}>{AI_SECTION.title}</Text>
+            </View>
+            <Text style={[styles.aiDesc, { color: colors.textSecondary }]}>{AI_SECTION.desc}</Text>
+            <View style={styles.capabilitiesList}>
+              {AI_SECTION.capabilities.map((cap, i) => (
+                <View key={i} style={styles.capabilityItem}>
+                  <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                  <Text style={[styles.capabilityText, { color: colors.text }]}>{cap}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
+
+        {/* Section 3: The Flow */}
         <View style={styles.section}>
           <View style={styles.sectionHeadingRow}>
             <Zap size={14} color={colors.textSecondary} />
-            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>HOW IT WORKS</Text>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>CORE FLOW</Text>
           </View>
           <View style={styles.loopContainer}>
-            {GUIDES[1].steps?.map((step, i) => (
-              <Animated.View 
-                key={i} 
-                entering={FadeInRight.delay(200 + i * 150)} 
-                style={[styles.loopStep, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View style={[styles.stepNumber, { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={[styles.stepNumberText, { color: colors.primary }]}>{i + 1}</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={[styles.stepTitle, { color: colors.text }]}>{step.t}</Text>
-                  <Text style={[styles.stepDesc, { color: colors.textSecondary }]}>{step.d}</Text>
-                </View>
-              </Animated.View>
-            ))}
+            {GUIDES[1].steps?.map((step, i) => {
+              const StepIcon = step.icon;
+              return (
+                <Animated.View
+                  key={i}
+                  entering={FadeInRight.delay(200 + i * 150)}
+                  style={[styles.surfaceCard, { backgroundColor: cardBg, borderColor, padding: 16, flexDirection: 'row', alignItems: 'center' }]}
+                >
+                  <View style={[styles.stepIconContainer, { backgroundColor: colors.isDark ? '#1F2937' : '#F8FAFC' }]}>
+                    <StepIcon size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={[styles.stepTitle, { color: colors.text }]}>{step.t}</Text>
+                    <Text style={[styles.stepDesc, { color: colors.textSecondary }]}>{step.d}</Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
           </View>
         </View>
 
-        {/* Section 3: Feature Grid */}
+        {/* Section 4: Feature Grid */}
         <View style={styles.section}>
           <View style={styles.sectionHeadingRow}>
             <Layers size={14} color={colors.textSecondary} />
-            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>KEY FEATURES</Text>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>TOOLS & FEATURES</Text>
           </View>
           <View style={styles.featureGrid}>
             {FEATURES.map((feat, i) => {
               const Icon = feat.icon;
               return (
-                <Animated.View 
-                  key={feat.id} 
-                  entering={FadeInDown.delay(400 + i * 100)} 
-                  style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                <Animated.View
+                  key={feat.id}
+                  entering={FadeInDown.delay(400 + i * 100)}
+                  style={[styles.featureCard, { backgroundColor: cardBg, borderColor }]}
                 >
-                  <View style={[styles.featIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                  <View style={[styles.featIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                     <Icon size={20} color={colors.text} />
                   </View>
                   <Text style={[styles.featTitle, { color: colors.text }]}>{feat.title}</Text>
@@ -202,41 +226,37 @@ export default function HelpCenter() {
           </View>
         </View>
 
-        {/* Section 4: Privacy */}
-        <Animated.View entering={FadeInUp.delay(500)} style={[styles.privacyBanner, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]}>
-          <ShieldCheck size={18} color={colors.success} />
-          <Text style={[styles.privacyText, { color: colors.success }]}>Your data is yours—end-to-end local privacy.</Text>
-        </Animated.View>
-
         {/* Section 5: FAQs */}
         <View style={styles.section}>
           <View style={styles.sectionHeadingRow}>
             <MessageSquare size={14} color={colors.textSecondary} />
-            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>GENERAL FAQ</Text>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>COMMON QUESTIONS</Text>
           </View>
           <View style={styles.faqList}>
             {FAQS.map((faq, i) => (
-              <FAQItem 
-                key={i} 
-                index={i} 
-                faq={faq} 
-                isExpanded={expandedIndex === i} 
-                onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)} 
+              <FAQItem
+                key={i}
+                index={i}
+                faq={faq}
+                isExpanded={expandedIndex === i}
+                onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
               />
             ))}
           </View>
         </View>
 
-        {/* Community Button */}
-        <Animated.View entering={FadeInUp.delay(800)} style={styles.communitySection}>
-          <TouchableOpacity 
+        {/* Bottom Actions */}
+        <Animated.View entering={FadeInDown.delay(800)} style={styles.communitySection}>
+          <TouchableOpacity
             style={[styles.communityButton, { backgroundColor: colors.primary }]}
             onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
           >
             <Sparkles size={18} color="#FFF" style={{ marginRight: 10 }} />
             <Text style={styles.communityButtonText}>Talk to the Community</Text>
           </TouchableOpacity>
-          <Text style={[styles.footerSub, { color: colors.textSecondary }]}>Need official support? Reach out via Email</Text>
+          <TouchableOpacity style={styles.emailButton}>
+            <Text style={[styles.footerSub, { color: colors.textSecondary }]}>Need official support? Reach out via Email</Text>
+          </TouchableOpacity>
         </Animated.View>
       </ScrollView>
     </View>
@@ -257,30 +277,35 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   iconLarge: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
   },
   title: {
-    ...Typography.h2,
-    fontSize: 28,
-    fontWeight: '900',
-    marginBottom: 16,
+    fontSize: 32,
+    fontFamily: 'Outfit-Bold',
+    marginBottom: 24,
   },
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1.5,
+  surfaceCard: {
+    borderRadius: 24,
+    borderWidth: 1,
     padding: 24,
     width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
   heroText: {
     ...Typography.body,
     textAlign: 'center',
     lineHeight: 24,
     fontSize: 15,
+    opacity: 0.9,
   },
   section: {
     marginBottom: 32,
@@ -290,43 +315,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     marginLeft: 4,
-    gap: 8,
+    gap: 10,
   },
   sectionHeading: {
     ...Typography.labelSmall,
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     fontWeight: '800',
-    fontSize: 10,
+    fontSize: 11,
+    opacity: 0.6,
   },
-  loopContainer: {
-    gap: 12,
-  },
-  loopStep: {
+  aiHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 16,
-    gap: 16,
+    marginBottom: 16,
+    gap: 12,
   },
-  stepNumber: {
-    width: 32,
-    height: 32,
+  aiIcon: {
+    width: 36,
+    height: 36,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stepNumberText: {
+  aiTitle: {
     fontWeight: '800',
+    fontSize: 18,
+  },
+  aiDesc: {
     fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  capabilitiesList: {
+    gap: 12,
+  },
+  capabilityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  capabilityText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loopContainer: {
+    gap: 12,
+  },
+  stepIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   stepContent: {
     flex: 1,
   },
   stepTitle: {
-    fontWeight: '700',
-    fontSize: 15,
-    marginBottom: 2,
+    fontWeight: '800',
+    fontSize: 16,
+    marginBottom: 4,
   },
   stepDesc: {
     fontSize: 13,
@@ -338,48 +392,35 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   featureCard: {
-    width: (width - 40 - 12) / 2, // 2 columns with gaps
+    width: (width - 48 - 12) / 2,
     borderRadius: 24,
-    borderWidth: 1.5,
+    borderWidth: 1,
     padding: 20,
   },
   featIconBg: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   featTitle: {
-    fontWeight: '700',
-    fontSize: 14,
-    marginBottom: 6,
+    fontWeight: '800',
+    fontSize: 16,
+    marginBottom: 8,
   },
   featDesc: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  privacyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 40,
-    gap: 10,
-  },
-  privacyText: {
     fontSize: 12,
-    fontWeight: '600',
+    lineHeight: 18,
   },
   faqList: {
     gap: 12,
   },
   faqItem: {
     borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 16,
+    borderWidth: 1,
+    padding: 20,
     overflow: 'hidden',
   },
   faqHeader: {
@@ -389,14 +430,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   faqQuestion: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     flex: 1,
   },
   faqAnswer: {
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 16,
   },
   communitySection: {
     alignItems: 'center',
@@ -406,19 +447,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: 20,
     width: '100%',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
   },
   communityButtonText: {
     color: '#FFF',
-    fontWeight: '800',
+    fontWeight: '900',
     fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  emailButton: {
+    marginTop: 16,
   },
   footerSub: {
-    fontSize: 11,
-    marginTop: 12,
+    fontSize: 12,
+    fontWeight: '600',
     opacity: 0.6,
   },
 });

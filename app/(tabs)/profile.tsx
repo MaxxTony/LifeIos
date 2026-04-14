@@ -6,21 +6,20 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
 import { useRouter } from 'expo-router';
-import { 
-  Bell, 
-  HelpCircle, 
-  Info, 
-  LogOut, 
-  MessageSquare, 
-  Moon, 
-  Settings2, 
-  Shield,
-  User,
+import {
+  Bell,
+  HelpCircle,
   History,
-  Download
+  Info,
+  LogOut,
+  MessageSquare,
+  Moon,
+  Settings2,
+  Shield,
+  User
 } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View, Share, Alert } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
@@ -44,30 +43,12 @@ export default function ProfileScreen() {
     return themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
   };
 
-  const handleExport = async () => {
-    const state = useStore.getState();
-    const data = {
-      habits: state.habits,
-      tasks: state.tasks,
-      moodHistory: state.moodHistory,
-      focusHistory: state.focusHistory,
-      focusGoalHours: state.focusGoalHours,
-      exportDate: new Date().toISOString()
-    };
-
-    try {
-      await Share.share({
-        message: JSON.stringify(data, null, 2),
-        title: 'LifeOS Export Data'
-      });
-    } catch (error: any) {
-      Alert.alert('Export Failed', error.message);
-    }
-  };
+  const cardBg = colors.isDark ? '#111827' : '#FFFFFF';
+  const borderColor = colors.isDark ? '#1F2937' : '#F1F5F9';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -90,77 +71,80 @@ export default function ProfileScreen() {
               <Settings2 size={16} color={colors.textSecondary} />
               <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>PREFERENCES</Text>
             </View>
-            <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-               <ProfileMenuItem 
-                icon={History} 
-                label="Weekly Review" 
-                onPress={() => router.push('/weekly-review')} 
+            <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
+              <ProfileMenuItem
+                icon={History}
+                label="Weekly Review"
+                accentColor={colors.primary}
+                onPress={() => router.push('/weekly-review')}
               />
-              <ProfileMenuItem 
-                icon={User} 
-                label="Edit Profile" 
-                onPress={() => router.push('/edit-profile')} 
+              <ProfileMenuItem
+                icon={User}
+                label="Edit Profile"
+                accentColor="#38BDF8"
+                onPress={() => router.push('/edit-profile')}
               />
-              <ProfileMenuItem 
-                icon={Bell} 
-                label="Notifications" 
-                onPress={() => router.push('/settings/notifications')} 
+              <ProfileMenuItem
+                icon={Bell}
+                label="Notifications"
+                accentColor="#F87171"
+                onPress={() => router.push('/settings/notifications')}
               />
-              <ProfileMenuItem 
-                icon={Moon} 
-                label="Appearance" 
-                value={getAppearanceValue()} 
-                onPress={() => router.push('/settings/appearance')} 
+              <ProfileMenuItem
+                icon={Moon}
+                label="Appearance"
+                accentColor="#FBBF24"
+                value={getAppearanceValue()}
+                onPress={() => router.push('/settings/appearance')}
               />
-              <ProfileMenuItem 
-                icon={Shield} 
-                label="Privacy & Security" 
+              <ProfileMenuItem
+                icon={Shield}
+                label="Privacy & Security"
+                accentColor="#34D399"
                 isLast
-                onPress={() => router.push('/settings/privacy')} 
+                onPress={() => router.push('/settings/privacy')}
               />
             </View>
           </Animated.View>
 
           {/* Support Section */}
           <Animated.View entering={FadeIn.delay(600).duration(600)} style={styles.section}>
-             <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionTitleRow}>
               <HelpCircle size={16} color={colors.textSecondary} />
               <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>SUPPORT</Text>
             </View>
-            <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ProfileMenuItem 
-                icon={MessageSquare} 
-                label="Send Feedback" 
-                onPress={() => router.push('/settings/feedback')} 
+            <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
+              <ProfileMenuItem
+                icon={MessageSquare}
+                label="Send Feedback"
+                accentColor="#F472B6"
+                onPress={() => router.push('/settings/feedback')}
               />
-              <ProfileMenuItem 
-                icon={HelpCircle} 
-                label="Help Center" 
-                onPress={() => router.push('/settings/help')} 
+              <ProfileMenuItem
+                icon={HelpCircle}
+                label="Help Center"
+                accentColor="#A78BFA"
+                onPress={() => router.push('/settings/help')}
               />
-               <ProfileMenuItem 
-                icon={Info} 
-                label="About LifeOS" 
-                onPress={() => router.push('/settings/about')} 
-              />
-              <ProfileMenuItem 
-                icon={Download} 
-                label="Export My Data (JSON)" 
+              <ProfileMenuItem
+                icon={Info}
+                label="About LifeOS"
+                accentColor="#94A3B8"
                 isLast
-                onPress={handleExport} 
+                onPress={() => router.push('/settings/about')}
               />
             </View>
           </Animated.View>
 
           {/* Account Actions */}
           <Animated.View entering={FadeIn.delay(700).duration(600)} style={styles.section}>
-            <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ProfileMenuItem 
-                icon={LogOut} 
-                label="Log Out Account" 
+            <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
+              <ProfileMenuItem
+                icon={LogOut}
+                label="Log Out Account"
                 destructive
                 isLast
-                onPress={handleLogout} 
+                onPress={handleLogout}
               />
             </View>
           </Animated.View>
@@ -170,7 +154,7 @@ export default function ProfileScreen() {
             <Text style={[styles.versionText, { color: colors.textSecondary }]}>LifeOS v1.0.0 (Beta)</Text>
             <Text style={[styles.copyrightText, { color: colors.textSecondary }]}>© {new Date().getFullYear()} LifeOS Team</Text>
           </View>
-          
+
           <View style={{ height: 60 }} />
         </View>
       </ScrollView>
@@ -208,9 +192,14 @@ const styles = StyleSheet.create({
   },
   menuList: {
     borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   footer: {
     marginTop: Spacing.xl,

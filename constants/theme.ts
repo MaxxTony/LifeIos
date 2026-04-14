@@ -86,6 +86,11 @@ export const Typography = {
     fontSize: 16,
     fontWeight: '400' as const,
   },
+  bodyBold: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
   caption: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,

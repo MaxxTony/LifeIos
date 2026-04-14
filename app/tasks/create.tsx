@@ -74,7 +74,7 @@ export default function CreateTaskScreen() {
     if (!text.trim()) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    addTask(
+    const taskId = addTask(
       text.trim(),
       formatTime(startTime),
       formatTime(endTime),
@@ -82,12 +82,9 @@ export default function CreateTaskScreen() {
       formatLocalDate(date)
     );
     
-    // F-3: Set repeat if not none
-    if (repeat !== 'none') {
-      const lastTask = useStore.getState().tasks[useStore.getState().tasks.length - 1];
-      if (lastTask) {
-        useStore.getState().updateTask(lastTask.id, { repeat });
-      }
+    // F-3: Set repeat if not none using the direct ID returned from addTask
+    if (repeat !== 'none' && taskId) {
+      useStore.getState().updateTask(taskId, { repeat });
     }
 
     router.back();

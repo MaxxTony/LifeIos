@@ -1,50 +1,53 @@
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { ChevronLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function PrivacyPolicy() {
+export default function TermsOfService() {
   const colors = useThemeColors();
   const router = useRouter();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ChevronLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Terms of Service</Text>
+      </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-
-
         <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last Updated: April 14, 2026</Text>
-
-        <Section title="1. Transparency">
-          We are committed to being transparent about what data we collect and why. LifeOS is designed to work as much as possible on your device directly.
+        
+        <Section title="1. Acceptance of Terms">
+          By accessing or using LifeOS, you agree to be bound by these Terms of Service. If you do not agree to all of these terms, do not use the application.
         </Section>
 
-        <Section title="2. Information We Collect">
-          - **Essential Data**: Tasks, Habits, and Mood entries are collected only to provide the app service and cross-device sync.
-          - **AI Interactions**: Your chat history with the LifeOS AI assistant is stored to maintain context for your assistant.
+        <Section title="2. Description of Service">
+          LifeOS is an AI-powered productivity platform designed to help users manage tasks, track habits, and reflect on their daily mood. The service includes local-first data management and cloud synchronization.
         </Section>
 
-        <Section title="3. How We Use Data">
-          Your data is used exclusively to facilitate your productivity experience. We do not use your personal information or productivity patterns for advertising or profiling.
+        <Section title="3. AI Assistant usage">
+          The AI features in LifeOS are intended to provide suggestions and insights based on your data. While we strive for accuracy, AI-generated content should be used as a guide and not as professional advice.
         </Section>
 
-        <Section title="4. Local-First & Sync">
-          LifeOS uses a local-first architecture. This means your data is stored on your device and synchronized securely via encrypted Firebase channels to your other devices.
+        <Section title="4. User Data & Responsibility">
+          You are responsible for the data you input into LifeOS. While we take measures to secure your data, you should maintain your own backups for critical information.
         </Section>
 
-        <Section title="5. Your Control">
-          You can edit, delete, or export your account data at any time through the app settings. Deleting your account permanently removes all your history from our sync servers.
+        <Section title="5. Prohibited Conduct">
+          You agree not to misuse the LifeOS services or help anyone else do so. This includes any attempt to reverse engineer the application or bypass security measures.
         </Section>
 
-        <Section title="6. Security">
-          We use industry-standard encryption to protect your data during transit and at rest. Security is a top priority for the LifeOS Team.
+        <Section title="6. Limitation of Liability">
+          LifeOS is provided "as is" without any warranties. The LifeOS Team will not be liable for any data loss, service interruptions, or direct/indirect damages arising from the use of the app.
         </Section>
-
+        
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Privacy matters to us just as much as it does to you.
+            Questions about our Terms? Contact us through the Help Center.
           </Text>
         </View>
       </ScrollView>
@@ -85,23 +88,6 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.xl,
     paddingBottom: 60,
-  },
-  heroBox: {
-    padding: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginBottom: 40,
-    gap: 12,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontFamily: 'Outfit-Bold',
-  },
-  heroDesc: {
-    textAlign: 'center',
-    ...Typography.body,
-    fontSize: 14,
-    lineHeight: 20,
   },
   lastUpdated: {
     ...Typography.caption,
