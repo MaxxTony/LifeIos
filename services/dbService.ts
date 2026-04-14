@@ -56,9 +56,13 @@ export const dbService = {
     await setDoc(doc(db, 'users', userId, 'focusHistory', dateKey), { totalSeconds });
   },
 
-  // Mood Theme
   saveMoodTheme: async (userId: string, theme: string | null) => {
     await setDoc(doc(db, 'users', userId), { moodTheme: theme }, { merge: true });
+  },
+
+  // Generic Sub-collection Persistence
+  saveCollectionDoc: async (userId: string, collectionName: string, docId: string, data: any) => {
+    await setDoc(doc(db, 'users', userId, collectionName, docId), data, { merge: true });
   },
 
   saveAccentColor: async (userId: string, color: string | null) => {

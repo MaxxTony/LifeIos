@@ -276,5 +276,68 @@ export const notificationService = {
     } catch (e) {
       // Silence
     }
+  },
+
+  scheduleComebackNotifications: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      // 1. Cancel existing comeback notifications
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      for (const n of scheduled) {
+        if (n.identifier.startsWith('comeback-')) {
+          await Notifications.cancelScheduledNotificationAsync(n.identifier);
+        }
+      }
+
+      // 2. Schedule 48h reminder
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "We miss you! 🌿",
+          body: "Your streak is waiting. Let's get back on track with your goals today. 🔥",
+          data: { type: 'COMEBACK' },
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        },
+        identifier: 'comeback-48h',
+      });
+
+      // 3. Schedule 7 day reminder
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Level Up Pending... 🚀",
+          body: "It's been a week! Check in now to see your progress and stay consistent.",
+          data: { type: 'COMEBACK' },
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        identifier: 'comeback-7d',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule comeback notifications:', e);
+    }
+  },
+
+  sendProactiveAI: async (title: string, body: string) => {
+    if (Platform.OS === 'web') return;
+    try {
+      await ensureChannel();
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'PROACTIVE_AI' },
+          sound: true,
+        },
+        trigger: null, // fire immediately
+      });
+    } catch (e) {
+      // Silence
+    }
   }
 };

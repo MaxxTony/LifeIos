@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Spacing, BorderRadius, Typography } from '@/constants/theme';
@@ -40,17 +40,23 @@ export default function ProgressScreen() {
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const moodHistory = useStore(s => s.moodHistory);
+  const lifeScoreHistory = useStore(s => s.lifeScoreHistory);
+  const updateLifeScoreHistory = useStore(s => s.updateLifeScoreHistory);
   const colors = useThemeColors();
+
+  useEffect(() => {
+    updateLifeScoreHistory();
+  }, [tasks, habits, focusSession.totalSecondsToday]);
   const [selectedHabitIndex, setSelectedHabitIndex] = useState(0);
 
   // 1. Calculate Today's Stats
-  const today = getTodayLocal();
+  const todayStr = getTodayLocal();
   
-  const todayTasks = tasks.filter(t => t.date === today);
+  const todayTasks = tasks.filter(t => t.date === todayStr);
   const completedTasksCount = todayTasks.filter(t => t.completed).length;
   const totalTasksCount = todayTasks.length;
   
-  const completedHabitsCount = habits.filter(h => h.completedDays.includes(today)).length;
+  const completedHabitsCount = habits.filter(h => h.completedDays.includes(todayStr)).length;
   const totalHabitsCount = habits.length;
 
   const focusSecondsToday = focusSession?.totalSecondsToday || 0;
@@ -124,6 +130,34 @@ export default function ProgressScreen() {
     return moods.length === 0 ? "0" : (moods.reduce((acc, item) => acc + item.mood, 0) / moods.length).toFixed(1);
   }, [moodChartData]);
 
+  const lifeScoreChartData = useMemo(() => {
+    const data = [];
+    const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    
+    // Find the most recent Monday
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dStr = formatLocalDate(d);
+      const score = dStr === todayStr ? lifeScore : (lifeScoreHistory[dStr] || 0);
+      data.push({ day: DAYS[i], score, date: dStr });
+    }
+    return data;
+  }, [lifeScoreHistory, lifeScore, todayStr]);
+
+  const momentum = useMemo(() => {
+    const pastScores = lifeScoreChartData.filter(d => d.date < todayStr && d.score > 0);
+    if (pastScores.length === 0) return 0;
+    const avgPast = pastScores.reduce((acc, d) => acc + d.score, 0) / pastScores.length;
+    return Math.round(lifeScore - avgPast);
+  }, [lifeScoreChartData, lifeScore, todayStr]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -156,6 +190,20 @@ export default function ProgressScreen() {
                   </View>
                   <Text style={[styles.momentumValue, { color: colors.text }]}>{lifeScore}%</Text>
                   
+                  <View style={styles.momentumStats}>
+                    <Ionicons 
+                      name={momentum >= 0 ? 'trending-up' : 'trending-down'} 
+                      size={14} 
+                      color={momentum >= 0 ? colors.success : colors.danger} 
+                    />
+                    <Text style={[
+                      styles.momentumText, 
+                      { color: momentum >= 0 ? colors.success : colors.danger }
+                    ]}>
+                      {momentum >= 0 ? `+${momentum}%` : `${momentum}%`} from avg
+                    </Text>
+                  </View>
+
                   {/* Breakdown Icons */}
                   <View style={styles.breakdownRow}>
                     <BreakdownIcon icon={<Target size={10} color={colors.secondary} />} label={`${Math.round(taskCompletionPerc || 0)}%`} />
@@ -224,6 +272,37 @@ export default function ProgressScreen() {
                   })}
                 </View>
                 <Text style={[styles.moodInsight, { color: colors.textSecondary }]}>{parseFloat(avgMood) >= 4 ? "Your mood is powering your momentum! 🚀" : "Consistency is key. Keep pushing forward! ✨"}</Text>
+              </PremiumCard>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Life Evolution</Text>
+                <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>Weekly Score</Text>
+              </View>
+              <PremiumCard style={styles.lifeHistoryCard}>
+                <View style={[styles.chartInner, { height: 120 }]}>
+                  {lifeScoreChartData.map((item, i) => {
+                    const h = item.score > 0 ? (item.score / 100) * 80 : 4;
+                    const isToday = item.date === todayStr;
+                    return (
+                      <View key={i} style={styles.barContainer}>
+                        <View style={[styles.barBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
+                          <LinearGradient
+                            colors={item.score > 0 ? [colors.primary, colors.secondary] : ['transparent', 'transparent']}
+                            style={[styles.barFill, { height: h }]}
+                          />
+                        </View>
+                        <Text style={[styles.barLabel, { 
+                          color: isToday ? colors.primary : colors.textSecondary,
+                          fontWeight: isToday ? '800' : '600'
+                        }]}>
+                          {item.day}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </PremiumCard>
             </View>
 
@@ -306,6 +385,8 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   momentumLabel: { ...Typography.labelSmall, fontSize: 10, letterSpacing: 1.2 },
   momentumValue: { ...Typography.h1Hero, fontSize: 48, lineHeight: 56 },
+  momentumStats: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -4, marginBottom: 4 },
+  momentumText: { fontSize: 11, fontWeight: '700' },
   breakdownRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   breakdownItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   breakdownLabel: { fontSize: 10, fontWeight: '700' },
@@ -336,6 +417,12 @@ const styles = StyleSheet.create({
   moodBarFill: { width: '100%', borderRadius: 7 },
   moodBarLabel: { fontSize: 10, fontWeight: '700' },
   moodInsight: { textAlign: 'center', fontSize: 12, fontStyle: 'italic', marginTop: Spacing.sm },
+  lifeHistoryCard: { padding: Spacing.md },
+  chartInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: 10 },
+  barContainer: { alignItems: 'center', flex: 1 },
+  barBg: { width: 12, height: 80, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
+  barFill: { width: '100%', borderRadius: 6 },
+  barLabel: { fontSize: 10 },
   chartCard: { padding: Spacing.md, paddingBottom: Spacing.xl },
   heatmapCard: { padding: Spacing.md },
   habitSelector: { marginBottom: Spacing.md },

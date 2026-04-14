@@ -1,17 +1,17 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Swipeable } from 'react-native-gesture-handler';
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
+import { useStore } from '@/store/useStore';
+import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { Plus, ChevronLeft, Trash2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, Plus, Trash2 } from 'lucide-react-native';
+import React, { useRef } from 'react';
+import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -62,7 +62,7 @@ export default function AllHabitsScreen() {
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(today);
     monday.setDate(diff);
-    
+
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
@@ -73,7 +73,7 @@ export default function AllHabitsScreen() {
   const renderDots = (completedDays: string[]) => {
     const weekDates = getWeekDates();
     const today = getTodayLocal();
-    
+
     return (
       <View style={styles.dotsRow}>
         {weekDates.map((dateString, i) => {
@@ -82,17 +82,18 @@ export default function AllHabitsScreen() {
           const isFuture = dateString > today;
 
           return (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)', borderColor: 'transparent' },
-                isCompleted && [styles.dotCompleted, { backgroundColor: colors.success }],
-                isToday && [styles.dotToday, { borderColor: colors.textSecondary }],
-                isFuture && { opacity: 0.5 }
-              ]}
-            >
-              {isCompleted && <Ionicons name="checkmark" size={6} color="#FFF" />}
+            <View key={i} style={styles.dotWrapper}>
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)', borderColor: 'transparent' },
+                  isCompleted && [styles.dotCompleted, { backgroundColor: colors.success }],
+                  isToday && [styles.dotToday, { borderColor: colors.textSecondary }],
+                  isFuture && { opacity: 0.5 }
+                ]}
+              >
+                {isCompleted && <Ionicons name="checkmark" size={6} color="#FFF" />}
+              </View>
             </View>
           );
         })}
@@ -113,16 +114,16 @@ export default function AllHabitsScreen() {
         <View style={styles.headerContainer}>
           <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
             <View style={styles.headerContent}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.back()}
                 style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                 activeOpacity={0.7}
               >
                 <ChevronLeft size={22} color={colors.text} />
               </TouchableOpacity>
-              
+
               <Text style={[styles.headerTitle, { color: colors.text }]}>Habit Mastery</Text>
-              
+
               <TouchableOpacity
                 onPress={() => router.push('/(habits)/templates')}
                 style={styles.plusBtnContainer}
@@ -140,16 +141,17 @@ export default function AllHabitsScreen() {
             </View>
           </BlurView>
         </View>
-
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           style={{ marginTop: 10 }}
         >
           {habits.length > 0 && (
             <View style={styles.dotsHeaderLabels}>
-              {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d, i) => (
-                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                <View key={i} style={styles.dayLabelContainer}>
+                  <Text style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
+                </View>
               ))}
             </View>
           )}
@@ -176,30 +178,29 @@ export default function AllHabitsScreen() {
                     ]}
                   >
                     <TouchableOpacity
-                      style={styles.habitInfo}
+                      style={styles.habitMain}
                       onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
                       activeOpacity={0.6}
                     >
-                      <View style={styles.habitTitleRow}>
+                      <View style={styles.habitInfo}>
                         <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
                           {habit.icon} {habit.title}
                         </Text>
+                        <View style={styles.streakInfo}>
+                          <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+                          <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
+                            {streak} day streak
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.streakInfo}>
-                        <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
-                        <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
-                          {streak} day streak
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.dotsWrapper}
-                      onPress={() => handleToggle(habit.id)}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Toggle habit completion for today"
-                    >
-                      {renderDots(habit.completedDays)}
+                      <TouchableOpacity
+                        style={styles.dotsContainer}
+                        onPress={() => handleToggle(habit.id)}
+                        activeOpacity={0.7}
+                      >
+                        {renderDots(habit.completedDays)}
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   </View>
                 </Swipeable>
@@ -268,22 +269,23 @@ const styles = StyleSheet.create({
   },
   dotsHeaderLabels: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 6,
-    paddingRight: 16, // Matches card internal padding
+    alignSelf: 'flex-end',
+    width: 150,
     marginBottom: 8,
+    marginRight: 17, // Align with dots inside the padded habit card
+  },
+  dayLabelContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayLabelText: {
-    fontSize: 8,
-    width: 12,
-    textAlign: 'center',
+    fontSize: 9,
     fontWeight: '800',
-    opacity: 0.5,
+    opacity: 0.6,
   },
   list: { gap: 12 },
   habitCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: 16,
     borderRadius: 24,
     borderWidth: 1,
@@ -293,13 +295,35 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-  habitInfo: { flex: 1 },
-  habitTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  habitTitle: { fontSize: 16, fontWeight: '700' },
+  habitMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  habitInfo: {
+    flex: 1,
+    marginRight: 12
+  },
+  habitTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
   streakInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   habitStreak: { fontSize: 11, fontWeight: '700', opacity: 0.8 },
-  dotsWrapper: { flexDirection: 'row', alignItems: 'center' },
-  dotsRow: { flexDirection: 'row', gap: 6 },
+  dotsContainer: {
+    width: 150,
+    justifyContent: 'center',
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  dotWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   toggleBtn: {
     width: 28,
     height: 28,

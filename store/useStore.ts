@@ -42,6 +42,11 @@ interface FocusSession {
   totalSecondsToday: number;
   isActive: boolean;
   lastStartTime: number | null;
+  isPomodoro: boolean; // A-8
+  pomodoroMode: 'work' | 'break'; // A-8
+  pomodoroWorkDuration: number; // in seconds
+  pomodoroBreakDuration: number; // in seconds
+  pomodoroTimeLeft: number; // in seconds
 }
 
 interface MoodEntry {
@@ -52,6 +57,27 @@ interface MoodEntry {
   emotions?: string[];
   note?: string;
 }
+
+interface Quest {
+  id: string;
+  type: 'task' | 'habit' | 'focus' | 'mood';
+  title: string;
+  rewardXP: number;
+  targetCount: number;
+  currentCount: number;
+  completed: boolean;
+}
+
+const QUEST_TEMPLATES: Omit<Quest, 'id' | 'currentCount' | 'completed'>[] = [
+  { type: 'task', title: 'Complete 3 Tasks', targetCount: 3, rewardXP: 50 },
+  { type: 'task', title: 'Complete 5 Tasks', targetCount: 5, rewardXP: 100 },
+  { type: 'focus', title: 'Deep Work: 1 Hour Focus', targetCount: 3600, rewardXP: 100 },
+  { type: 'focus', title: 'Zen Moment: 10 Min Break', targetCount: 600, rewardXP: 30 },
+  { type: 'habit', title: 'Consistency: 2 Habits Done', targetCount: 2, rewardXP: 60 },
+  { type: 'habit', title: 'Daily Master: 4 Habits Done', targetCount: 4, rewardXP: 100 },
+  { type: 'mood', title: 'Emotional Insight: Log Mood', targetCount: 1, rewardXP: 40 },
+  { type: 'mood', title: 'Daily Reflection: Log with Note', targetCount: 1, rewardXP: 60 },
+];
 
 interface UserState {
   _hasHydrated: boolean;
@@ -93,10 +119,26 @@ interface UserState {
 
   notificationSettings: {
     push: boolean;
-    habits: boolean;
     tasks: boolean;
+    habits: boolean;
     mood: boolean;
+    proactive: boolean; // A-10
   };
+
+  recentXP: { amount: number; timestamp: number } | null;
+  streakMilestone: { habitTitle: string; streak: number; timestamp: number } | null;
+  lastMoodLog: { mood: number; timestamp: number } | null;
+  
+  // Phase 2 State
+  lifeScoreHistory: Record<string, number>; // Date -> Score
+  lastActiveTimestamp: number;
+  dailyQuests: Quest[];
+  completedQuests: string[]; // Quest IDs
+  proactivePrompt: { message: string; trigger: string; timestamp: number } | null;
+
+  dismissXP: () => void;
+  dismissMilestone: () => void;
+  dismissMoodLog: () => void;
 
   // Actions
   setHasHydrated: (state: boolean) => void;
@@ -124,6 +166,16 @@ interface UserState {
   setFocusGoal: (hours: number) => void;
   toggleFocusSession: () => void;
   updateFocusTime: () => void;
+  togglePomodoro: () => void; // A-8
+  
+  // Phase 2 Actions
+  updateLifeScoreHistory: () => void;
+  generateDailyQuests: () => void;
+  completeQuest: (questId: string) => void;
+  checkQuestProgress: (type: Quest['type'], count?: number) => void;
+  triggerProactivePrompt: (trigger: string, message: string) => void;
+  dismissProactive: () => void;
+  setLastActive: () => void;
 
   setMood: (mood: number, extras?: { activities?: string[]; emotions?: string[]; note?: string; reason?: string }, date?: string) => void;
   setMoodTheme: (theme: 'classic' | 'panda' | 'cat' | null) => void;
@@ -234,6 +286,11 @@ export const useStore = create<UserState>()(
         totalSecondsToday: 0,
         isActive: false,
         lastStartTime: null,
+        isPomodoro: false,
+        pomodoroMode: 'work',
+        pomodoroWorkDuration: 25 * 60,
+        pomodoroBreakDuration: 5 * 60,
+        pomodoroTimeLeft: 25 * 60,
       },
       focusGoalHours: 8,
       focusHistory: {},
@@ -254,12 +311,26 @@ export const useStore = create<UserState>()(
       accentColor: null,
       notificationSettings: {
         push: true,
-        habits: true,
         tasks: true,
+        habits: true,
         mood: true,
+        proactive: true,
       },
+      recentXP: null,
+      streakMilestone: null,
+      lastMoodLog: null,
+      lifeScoreHistory: {},
+      lastActiveTimestamp: Date.now(),
+      dailyQuests: [],
+      completedQuests: [],
+      proactivePrompt: null,
+
       _syncUnsubscribes: [],
       hasSeenWalkthrough: false,
+      dismissXP: () => set({ recentXP: null }),
+      dismissMilestone: () => set({ streakMilestone: null }),
+      dismissMoodLog: () => set({ lastMoodLog: null }),
+      dismissProactive: () => set({ proactivePrompt: null }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
@@ -398,11 +469,20 @@ export const useStore = create<UserState>()(
             fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleTask');
           }
 
+          // Phase 2: Quests & Scoring
+          setTimeout(() => {
+            const { checkQuestProgress, updateLifeScoreHistory } = get();
+            checkQuestProgress('task');
+            updateLifeScoreHistory();
+          }, 0);
+
           // F-6: Cancel notification if completed
           if (nowCompleted) {
             import('@/services/notificationService').then(({ notificationService }) => {
               notificationService.cancelTaskNotification(id);
             });
+            // A-3: Visible XP (Tasks give 10 XP but let's make them 15 as per user request example)
+            set({ recentXP: { amount: 15, timestamp: Date.now() } });
           }
 
           return { tasks: newTasks };
@@ -472,6 +552,14 @@ export const useStore = create<UserState>()(
         if (state.userId) {
           fireSync(() => dbService.deleteHabit(state.userId!, id), 'removeHabit');
         }
+
+        // Phase 2: Quests & Scoring
+        setTimeout(() => {
+          const { checkQuestProgress, updateLifeScoreHistory } = get();
+          checkQuestProgress('habit');
+          updateLifeScoreHistory();
+        }, 0);
+
         return { habits: newHabits };
       }),
       toggleHabit: (id) => set((state) => {
@@ -519,7 +607,46 @@ export const useStore = create<UserState>()(
               fireSync(() => dbService.saveHabit(state.userId!, updatedHabit), 'toggleHabit');
             }
 
-            return updatedHabit;
+            // A-1 & A-3: Rewards
+            let streakMilestone = null;
+            if (!isCompleted) {
+              const milestones = [7, 14, 30, 50, 100];
+              if (milestones.includes(currentStreak)) {
+                streakMilestone = { habitTitle: h.title, streak: currentStreak, timestamp: Date.now() };
+              }
+              set({ recentXP: { amount: 10, timestamp: Date.now() } });
+            }
+
+              // Trigger celebration
+              if (streakMilestone) {
+                setTimeout(() => {
+                  import('react-native-toast-message').then(Toast => {
+                    Toast.default.show({
+                      type: 'success',
+                      text1: 'Milestone Reached! 🔥',
+                      text2: `You hit a ${streakMilestone.streak}-day streak for ${h.title}!`
+                    });
+                  });
+                  
+                  // Proactive AI Milestone
+                  get().triggerProactivePrompt(
+                    'milestone', 
+                    `Incredible consistency! You just hit a ${streakMilestone.streak}-day streak for ${h.title}. How does it feel to be this focused?`
+                  );
+                }, 500);
+              }
+
+            // Phase 2: Quests & Scoring
+            setTimeout(() => {
+              const { checkQuestProgress, updateLifeScoreHistory } = get();
+              checkQuestProgress('habit');
+              updateLifeScoreHistory();
+            }, 0);
+
+            return {
+              ...updatedHabit,
+              streakMilestone
+            };
           }
           return h;
         });
@@ -609,6 +736,15 @@ export const useStore = create<UserState>()(
               import('@/services/notificationService').then(({ notificationService }) => {
                 notificationService.scheduleMissedTaskNotification(task.text).catch(() => {});
               });
+
+              // Phase 2: Proactive AI Missed Task
+              setTimeout(() => {
+                get().triggerProactivePrompt(
+                  'missed_task',
+                  `I noticed you missed "${task.text}". Don't sweat it—life happens! Want to reschedule this or adjust your focus for the rest of the day?`
+                );
+              }, 1000);
+
               return updatedTask;
             }
           }
@@ -666,7 +802,14 @@ export const useStore = create<UserState>()(
         return {
           lastResetDate: today,
           tasks: newTasks,
-          focusSession: { ...state.focusSession, totalSecondsToday: 0, isActive: false, lastStartTime: null },
+          focusSession: { 
+            ...state.focusSession, 
+            totalSecondsToday: 0, 
+            isActive: false, 
+            lastStartTime: null,
+            pomodoroMode: 'work',
+            pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
+          },
           focusHistory: newFocusHistory
         };
       }),
@@ -704,20 +847,190 @@ export const useStore = create<UserState>()(
         if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
         const now = Date.now();
         const rawElapsed = now - state.focusSession.lastStartTime;
-        // Cap a single tick to 5 minutes — guards against app backgrounding adding
-        // hours of phantom focus time when the user wasn't actually working.
+        // Cap a single tick to 5 minutes
         const MAX_TICK_MS = 5 * 60 * 1000;
         const elapsed = Math.min(rawElapsed, MAX_TICK_MS) / 1000;
         const totalSeconds = state.focusSession.totalSecondsToday + elapsed;
+
+        // A-8: Pomodoro Logic
+        let newMode = state.focusSession.pomodoroMode;
+        let newTimeLeft = state.focusSession.pomodoroTimeLeft - elapsed;
+        let newIsActive = state.focusSession.isActive;
+
+        if (state.focusSession.isPomodoro) {
+          if (newTimeLeft <= 0) {
+            // Signal transition
+            import('expo-haptics').then(Haptics => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+            import('@/services/notificationService').then(({ notificationService }) => {
+              notificationService.scheduleMissedTaskNotification(
+                newMode === 'work' ? "Work session complete! Time for a break. ☕" : "Break over! Ready to focus? 🔥"
+              );
+            });
+
+            if (newMode === 'work') {
+              newMode = 'break';
+              newTimeLeft = state.focusSession.pomodoroBreakDuration;
+            } else {
+              newMode = 'work';
+              newTimeLeft = state.focusSession.pomodoroWorkDuration;
+            }
+          }
+        }
+
+        // Phase 2: Quests & Scoring
+        setTimeout(() => {
+          const { checkQuestProgress, updateLifeScoreHistory } = get();
+          checkQuestProgress('focus', totalSeconds);
+          updateLifeScoreHistory();
+        }, 0);
 
         return {
           focusSession: {
             ...state.focusSession,
             totalSecondsToday: totalSeconds,
-            lastStartTime: now
+            lastStartTime: now,
+            pomodoroMode: newMode,
+            pomodoroTimeLeft: newTimeLeft,
+            isActive: newIsActive
           }
         };
       }),
+
+      togglePomodoro: () => set((state) => ({
+        focusSession: {
+          ...state.focusSession,
+          isPomodoro: !state.focusSession.isPomodoro,
+          pomodoroMode: 'work',
+          pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
+        }
+      })),
+
+      updateLifeScoreHistory: () => set((state) => {
+        const today = getTodayLocal();
+        
+        // Calculate current Life Score (Logic from progress.tsx)
+        const todayTasks = state.tasks.filter(t => t.date === today);
+        const completedTasksCount = todayTasks.filter(t => t.completed).length;
+        const totalTasksCount = todayTasks.length;
+        
+        const completedHabitsCount = state.habits.filter(h => h.completedDays.includes(today)).length;
+        const totalHabitsCount = state.habits.length;
+
+        const focusSecondsToday = state.focusSession?.totalSecondsToday || 0;
+        const focusGoalSeconds = (state.focusGoalHours || 8) * 3600;
+        const focusCompletionPerc = Math.min((focusSecondsToday / focusGoalSeconds) * 100, 100);
+
+        const taskCompletionPerc = totalTasksCount > 0 ? (completedTasksCount / totalTasksCount) * 100 : null;
+        const habitCompletionPerc = totalHabitsCount > 0 ? (completedHabitsCount / totalHabitsCount) * 100 : null;
+
+        const activeMetrics = [taskCompletionPerc, habitCompletionPerc, focusCompletionPerc].filter(v => v !== null) as number[];
+        const lifeScore = activeMetrics.length > 0
+          ? Math.round(activeMetrics.reduce((a, b) => a + b, 0) / activeMetrics.length)
+          : 0;
+
+        const newHistory = { ...state.lifeScoreHistory, [today]: lifeScore };
+
+        // Save to Firestore if score changed or is new
+        if (state.userId && state.lifeScoreHistory[today] !== lifeScore) {
+          fireSync(() => dbService.saveCollectionDoc(state.userId!, 'lifeScoreHistory', today, { score: lifeScore }), 'saveLifeScore');
+        }
+
+        return { lifeScoreHistory: newHistory };
+      }),
+
+      generateDailyQuests: () => {
+        const { lastResetDate, dailyQuests } = get();
+        const today = getTodayLocal();
+        
+        if (lastResetDate === today && dailyQuests.length > 0) return;
+
+        // Pick 3 random quests
+        const shuffled = [...QUEST_TEMPLATES].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 3).map((q, idx) => ({
+          ...q,
+          id: `quest-${today}-${idx}`,
+          currentCount: 0,
+          completed: false
+        }));
+
+        set({ dailyQuests: selected, lastResetDate: today });
+      },
+
+      completeQuest: (questId) => set((state) => {
+        const quest = state.dailyQuests.find(q => q.id === questId);
+        if (!quest || quest.completed) return state;
+
+        const newQuests = state.dailyQuests.map(q => 
+          q.id === questId ? { ...q, completed: true, currentCount: q.targetCount } : q
+        );
+
+        // Reward XP
+        const now = Date.now();
+        const newXP = { amount: quest.rewardXP, timestamp: now };
+        
+        // Trigger celebration
+        setTimeout(() => {
+          import('react-native-toast-message').then(Toast => {
+            Toast.default.show({
+              type: 'success',
+              text1: 'Quest Completed! 🏆',
+              text2: `${quest.title} (+${quest.rewardXP} XP)`
+            });
+          });
+        }, 500);
+
+        return { 
+          dailyQuests: newQuests, 
+          completedQuests: [...state.completedQuests, questId],
+          recentXP: newXP
+        };
+      }),
+
+      checkQuestProgress: (type, count) => set((state) => {
+        let changed = false;
+        const newQuests = state.dailyQuests.map(q => {
+          if (q.type !== type || q.completed) return q;
+          
+          let newCount = q.currentCount;
+          if (type === 'task') {
+            newCount = state.tasks.filter(t => t.date === getTodayLocal() && t.completed).length;
+          } else if (type === 'habit') {
+            newCount = state.habits.filter(h => h.completedDays.includes(getTodayLocal())).length;
+          } else if (type === 'focus' && count !== undefined) {
+             newCount = count;
+          } else if (type === 'mood') {
+             newCount = 1;
+          }
+
+          if (newCount !== q.currentCount) {
+            changed = true;
+            const isFinished = newCount >= q.targetCount;
+            if (isFinished) {
+              // We'll call completeQuest separately or trigger here
+              setTimeout(() => get().completeQuest(q.id), 0);
+            }
+            return { ...q, currentCount: Math.min(newCount, q.targetCount) };
+          }
+          return q;
+        });
+
+        if (changed) return { dailyQuests: newQuests };
+        return state;
+      }),
+
+      triggerProactivePrompt: (trigger, message) => {
+        const { notificationSettings } = get();
+        if (!notificationSettings.proactive) return;
+
+        set({ proactivePrompt: { message, trigger, timestamp: Date.now() } });
+        
+        // Push notification
+        import('@/services/notificationService').then(({ notificationService }) => {
+          notificationService.scheduleMissedTaskNotification(message); // Re-using for simplicity
+        });
+      },
+
+      setLastActive: () => set({ lastActiveTimestamp: Date.now() }),
 
       setMood: (mood, extras, date) => {
         const dateKey = date || getTodayLocal();
@@ -748,9 +1061,25 @@ export const useStore = create<UserState>()(
             notificationService.scheduleDailyMoodReminder();
           });
 
+          // Phase 2: Quests & Scoring
+          setTimeout(() => {
+            const { checkQuestProgress, updateLifeScoreHistory, triggerProactivePrompt } = get();
+            checkQuestProgress('mood');
+            updateLifeScoreHistory();
+
+            // Low Mood Proactive Trigger
+            if (mood <= 2) {
+              triggerProactivePrompt(
+                'low_mood',
+                "I'm sorry to hear you're having a rough time today. 🌿 I'm here if you want to talk it out or just need a moment of zen."
+              );
+            }
+          }, 0);
+
           return {
             mood: newHistory[today]?.mood ?? null,
-            moodHistory: newHistory
+            moodHistory: newHistory,
+            lastMoodLog: { mood, timestamp: Date.now() }
           };
         });
       },
@@ -808,7 +1137,16 @@ export const useStore = create<UserState>()(
           habits: [],
           mood: null,
           moodHistory: {},
-          focusSession: { totalSecondsToday: 0, isActive: false, lastStartTime: null },
+          focusSession: { 
+            totalSecondsToday: 0, 
+            isActive: false, 
+            lastStartTime: null,
+            isPomodoro: false,
+            pomodoroMode: 'work',
+            pomodoroWorkDuration: 25 * 60,
+            pomodoroBreakDuration: 5 * 60,
+            pomodoroTimeLeft: 25 * 60
+          },
           focusHistory: {},
           focusGoalHours: 8,
           lastResetDate: null,

@@ -1,13 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { BorderRadius, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
-import * as Haptics from 'expo-haptics';
+import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export function HabitGrid() {
   // Selectors: only re-render when habits, toggleHabit, or getStreak changes.
@@ -28,7 +28,7 @@ export function HabitGrid() {
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(today);
     monday.setDate(diff);
-    
+
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
@@ -39,7 +39,7 @@ export function HabitGrid() {
   const renderDots = (completedDays: string[]) => {
     const weekDates = getWeekDates();
     const today = getTodayLocal();
-    
+
     return weekDates.map((dateString, i) => {
       const isCompleted = completedDays.includes(dateString);
       const isToday = dateString === today;
@@ -85,11 +85,12 @@ export function HabitGrid() {
             <View style={{ flex: 1 }} />
             <View style={styles.dotsHeaderLabels}>
               {getDayLabels().map((d, i) => (
-                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
+                <Text key={i} style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d[0]}</Text>
               ))}
             </View>
           </View>
         )}
+
 
         <View style={styles.habitList}>
           {habits.length > 0 ? habits.slice(0, 5).map((habit) => {
@@ -98,40 +99,38 @@ export function HabitGrid() {
             const isCompletedToday = habit.completedDays.includes(todayStr);
 
             return (
-              <View 
-                key={habit.id} 
+              <View
+                key={habit.id}
                 style={[
-                  styles.habitRow, 
+                  styles.habitRow,
                   { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)', borderColor: colors.border },
                   isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '08', borderColor: colors.success + '40' }]
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.habitInfo}
+                  style={styles.habitMain}
                   onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
                   activeOpacity={0.6}
-                  accessibilityLabel={`View ${habit.title} habit details`}
-                  accessibilityRole="button"
                 >
-                  <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
-                    {habit.icon} {habit.title}
-                  </Text>
-                  <View style={styles.streakInfo}>
-                    <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
-                    <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
-                      {streak} day streak
+                  <View style={styles.habitInfo}>
+                    <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
+                      {habit.icon} {habit.title}
                     </Text>
+                    <View style={styles.streakInfo}>
+                      <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+                      <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
+                        {streak} day streak
+                      </Text>
+                    </View>
                   </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dotsContainer}
-                  onPress={() => handleToggle(habit.id)}
-                  activeOpacity={0.7}
-                  accessibilityLabel={isCompletedToday ? `${habit.title} completed — tap to undo` : `Complete ${habit.title}`}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isCompletedToday }}
-                >
-                  {renderDots(habit.completedDays)}
+
+                  <TouchableOpacity
+                    style={styles.dotsContainer}
+                    onPress={() => handleToggle(habit.id)}
+                    activeOpacity={0.7}
+                  >
+                    {renderDots(habit.completedDays)}
+                  </TouchableOpacity>
                 </TouchableOpacity>
               </View>
             );
@@ -200,46 +199,50 @@ const styles = StyleSheet.create({
   },
   dotsHeaderRow: {
     flexDirection: 'row',
-    marginBottom: 6,
+    marginBottom: 8,
     paddingHorizontal: 12,
   },
   dotsHeaderLabels: {
     flexDirection: 'row',
-    gap: 5,
-    alignItems: 'center',
-    paddingLeft: 10,
+    width: 150, // Increased for more space
+    justifyContent: 'space-between',
+    paddingRight: 4,
   },
   dayLabelText: {
-    fontSize: 7,
-    width: 10,
+    fontSize: 9,
+    width: 16,
     textAlign: 'center',
-    fontWeight: '700',
+    fontWeight: '800',
+    opacity: 0.6,
   },
   habitList: {
-    gap: 12,
+    gap: 10,
   },
   habitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
   },
   habitRowCompleted: {
   },
+  habitMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   habitInfo: {
     flex: 1,
+    marginRight: 12,
   },
   habitTitle: {
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   streakInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   habitStreak: {
     fontSize: 10,
@@ -247,10 +250,10 @@ const styles = StyleSheet.create({
   },
   dotsContainer: {
     flexDirection: 'row',
-    gap: 5,
+    width: 150, // Matches header labels exactly
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingLeft: 10,
-    height: '100%',
+    paddingRight: 4,
   },
   dot: {
     width: 10,

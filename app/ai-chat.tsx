@@ -40,7 +40,7 @@ const ACTION_CHIPS = [
 ];
 
 export default function AIChatScreen() {
-  const { userId, userName } = useStore();
+  const { userId, userName, proactivePrompt, dismissProactive } = useStore();
   const colors = useThemeColors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -58,14 +58,22 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     if (!currentConversationId && messages.length === 0) {
+      const welcomeContent = proactivePrompt 
+        ? proactivePrompt.message 
+        : `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`;
+      
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        content: `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`,
+        content: welcomeContent,
         createdAt: Date.now()
       }]);
+
+      if (proactivePrompt) {
+        dismissProactive();
+      }
     }
-  }, [userName, currentConversationId, messages.length]);
+  }, [userName, currentConversationId, messages.length, proactivePrompt]);
 
   const loadConversation = async (id: string) => {
     if (!userId || id === currentConversationId) return;

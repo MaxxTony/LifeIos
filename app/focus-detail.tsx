@@ -20,6 +20,7 @@ export default function FocusDetailScreen() {
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const toggleFocusSession = useStore(s => s.toggleFocusSession);
+  const togglePomodoro = useStore(s => s.togglePomodoro);
   const colors = useThemeColors();
   
   const [mounted, setMounted] = useState(false);
@@ -40,7 +41,8 @@ export default function FocusDetailScreen() {
     fetchQuote();
   }, []);
 
-  const formatTimeParts = (seconds: number) => {
+  const formatTimeParts = (totalSeconds: number) => {
+    const seconds = focusSession.isPomodoro ? focusSession.pomodoroTimeLeft : totalSeconds;
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
@@ -97,18 +99,22 @@ export default function FocusDetailScreen() {
           </Text>
           
           <View style={styles.timerContainer}>
+            {(!focusSession.isPomodoro || parseInt(timeParts.h) > 0) && (
+              <>
+                <View style={styles.timeBlock}>
+                  <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.h}</Text>
+                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>HRS</Text>
+                </View>
+                <Text style={[styles.separator, { color: colors.textSecondary + '20' }]}>:</Text>
+              </>
+            )}
             <View style={styles.timeBlock}>
-              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.h}</Text>
-              <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>HRS</Text>
-            </View>
-            <Text style={[styles.separator, { color: colors.textSecondary + '20' }]}>:</Text>
-            <View style={styles.timeBlock}>
-              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.m}</Text>
+              <Text style={[styles.timeDigit, { color: focusSession.isPomodoro && focusSession.pomodoroMode === 'break' ? colors.secondary : colors.text }]}>{timeParts.m}</Text>
               <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>MINS</Text>
             </View>
             <Text style={[styles.separator, { color: colors.textSecondary + '20' }]}>:</Text>
             <View style={styles.timeBlock}>
-              <Text style={[styles.timeDigit, { color: colors.text }]}>{timeParts.s}</Text>
+              <Text style={[styles.timeDigit, { color: focusSession.isPomodoro && focusSession.pomodoroMode === 'break' ? colors.secondary : colors.text }]}>{timeParts.s}</Text>
               <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>SECS</Text>
             </View>
           </View>
@@ -135,6 +141,24 @@ export default function FocusDetailScreen() {
             {isLoadingQuote && <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 10 }} />}
           </View>
           <Text style={[styles.quoteText, { color: colors.textSecondary }]}>{displayQuote}</Text>
+        </Animated.View>
+
+        <Animated.View exiting={FadeInDown.delay(500)} style={styles.pomoSection}>
+          <TouchableOpacity 
+            style={[
+              styles.pomoToggle, 
+              { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: focusSession.isPomodoro ? colors.primary : colors.border }
+            ]} 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              togglePomodoro();
+            }}
+          >
+            <Ionicons name="timer-outline" size={20} color={focusSession.isPomodoro ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.pomoToggleText, { color: focusSession.isPomodoro ? colors.primary : colors.textSecondary }]}>
+              {focusSession.isPomodoro ? `Pomodoro: ${focusSession.pomodoroMode === 'work' ? 'Working' : 'Resting'}` : 'Switch to Pomodoro'}
+            </Text>
+          </TouchableOpacity>
         </Animated.View>
 
         <Animated.View entering={SlideInUp.delay(600)} style={styles.actionSection}>
@@ -315,5 +339,23 @@ const styles = StyleSheet.create({
   buttonText: {
     ...Typography.h3,
     color: '#FFF',
+  },
+  pomoSection: {
+    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  pomoToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  pomoToggleText: {
+    fontSize: 14,
+    fontWeight: '700',
   }
 });

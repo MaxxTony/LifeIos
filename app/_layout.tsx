@@ -103,6 +103,19 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Phase 2: Re-engagement & Proactive Logic
+  useEffect(() => {
+    if (_hasHydrated) {
+      const { setLastActive } = useStore.getState();
+      setLastActive();
+      
+      // Schedule comeback notifications for when user closes app
+      import('@/services/notificationService').then(({ notificationService }) => {
+        notificationService.scheduleComebackNotifications();
+      });
+    }
+  }, [_hasHydrated]);
+
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
@@ -153,6 +166,8 @@ export default function RootLayout() {
         router.push(`/habit/${data.habitId}`);
       } else if (data?.taskId) {
         router.push(`/tasks/${data.taskId}`);
+      } else if (data?.type === 'PROACTIVE_AI') {
+        router.push('/ai-chat');
       }
     });
 
