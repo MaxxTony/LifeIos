@@ -3,15 +3,15 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { useStore } from '@/store/useStore';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { AntDesign } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import { Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
@@ -110,9 +110,12 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function LoginScreen() {
   const [loading, setLoading] = useState<LoadingType>(null);
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [setupMode, setSetupMode] = useState(false);
+  const [setupUser, setSetupUser] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -165,6 +168,19 @@ export default function LoginScreen() {
             hasCompletedOnboarding: true,
             createdAt: Date.now()
           });
+
+          // Switch to setup mode to let them confirm/change their name
+          setSetupUser(user);
+          setFullName(user.displayName || '');
+          setSetupMode(true);
+          setLoading(null);
+          return;
+        } else if (existingProfile.userName === existingProfile.email?.split('@')[0] || existingProfile.userName === 'User') {
+          // If profile exists but name is generic, we still might want to show setup
+          // but for now let's just update and continue to avoid re-prompting old users too much.
+          if (user.displayName) {
+            await dbService.saveUserProfile(user.uid, { userName: user.displayName });
+          }
         }
 
         useStore.getState().completeOnboarding();
@@ -198,8 +214,8 @@ export default function LoginScreen() {
 
 
   const handleEmailAuth = async () => {
-    if (!email || !password) {
-      Toast.show({ type: 'error', text1: 'Missing Details', text2: 'Please enter both email and password.' });
+    if (!email || !password || (isSignUp && !fullName)) {
+      Toast.show({ type: 'error', text1: 'Missing Details', text2: 'Please fill in all fields.' });
       return;
     }
     if (!EMAIL_REGEX.test(email)) {
@@ -237,7 +253,7 @@ export default function LoginScreen() {
         if (isSignUp || !existingProfile) {
           await dbService.saveUserProfile(user.uid, {
             email: user.email,
-            userName: email.split('@')[0],
+            userName: fullName || email.split('@')[0],
             ...onboardingData,
             hasCompletedOnboarding: true,
             createdAt: Date.now()
@@ -245,7 +261,7 @@ export default function LoginScreen() {
         }
 
         useStore.getState().completeOnboarding();
-        setAuth(user.uid, user.email?.split('@')[0] || existingProfile?.userName || 'User');
+        setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User');
 
         Toast.show({
           type: 'success',
@@ -271,6 +287,84 @@ export default function LoginScreen() {
       setLoading(null);
     }
   };
+
+  const handleFinishSetup = async () => {
+    if (!fullName.trim()) {
+      Toast.show({ type: 'error', text1: 'Name Required', text2: 'Please enter a name to continue.' });
+      return;
+    }
+
+    setLoading('google');
+    try {
+      if (setupUser) {
+        await dbService.saveUserProfile(setupUser.uid, { userName: fullName.trim() });
+        useStore.getState().completeOnboarding();
+        setAuth(setupUser.uid, fullName.trim());
+
+        Toast.show({
+          type: 'success',
+          text1: 'Perfect!',
+          text2: `Welcome aboard, ${fullName.trim()}!`,
+        });
+
+        router.replace('/(tabs)');
+      }
+    } catch (err: any) {
+      Toast.show({ type: 'error', text1: 'Setup Error', text2: err.message });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  if (setupMode) {
+    return (
+      <ImageBackground
+        source={require('../../assets/images/login-bg.png')}
+        style={[styles.container, { backgroundColor: colors.background }]}
+        resizeMode="cover"
+      >
+        <LinearGradient
+          colors={[colors.isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)', colors.isDark ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)']}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <View style={styles.setupContainer}>
+          <Animated.View entering={FadeInDown.springify()} style={styles.setupCard}>
+            <View style={styles.setupHeader}>
+              <Text style={styles.setupEmoji}>👋</Text>
+              <Text style={[styles.setupTitle, { color: colors.text }]}>Almost there!</Text>
+              <Text style={[styles.setupSub, { color: colors.textSecondary }]}>What should we call you? Your coach will use this to personalize your journey.</Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Preferred Name</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
+                placeholder="John Doe"
+                placeholderTextColor={colors.textSecondary + '60'}
+                value={fullName}
+                onChangeText={setFullName}
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleFinishSetup}
+              disabled={loading !== null}
+            >
+              <LinearGradient
+                colors={colors.gradient}
+                style={styles.primaryButton}
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Finish Setup →</Text>}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </ImageBackground>
+    );
+  }
 
   return (
     <ImageBackground
@@ -303,6 +397,20 @@ export default function LoginScreen() {
           <Animated.View entering={FadeInDown.delay(300).springify()} style={[styles.cardWrap, { borderColor: colors.border }]}>
             <BlurView intensity={90} tint={colors.isDark ? "dark" : "light"} style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
               <View style={styles.form}>
+                {isSignUp && (
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
+                      placeholder="John Doe"
+                      placeholderTextColor={colors.textSecondary + '60'}
+                      value={fullName}
+                      onChangeText={setFullName}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                )}
+
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email Address</Text>
                   <TextInput
@@ -323,16 +431,16 @@ export default function LoginScreen() {
                       style={[styles.input, styles.passwordInput, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
                       placeholder="••••••••"
                       placeholderTextColor={colors.textSecondary + '60'}
-                      value= {password}
+                      value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!showPassword}
                     />
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => setShowPassword(!showPassword)}
                       style={styles.eyeBtn}
                       activeOpacity={0.7}
                     >
-                      {showPassword ? (
+                      {!showPassword ? (
                         <EyeOff size={20} color={colors.textSecondary} />
                       ) : (
                         <Eye size={20} color={colors.textSecondary} />
@@ -354,12 +462,12 @@ export default function LoginScreen() {
                         onChangeText={setConfirmPassword}
                         secureTextEntry={!showConfirmPassword}
                       />
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                         style={styles.eyeBtn}
                         activeOpacity={0.7}
                       >
-                        {showConfirmPassword ? (
+                        {!showConfirmPassword ? (
                           <EyeOff size={20} color={colors.textSecondary} />
                         ) : (
                           <Eye size={20} color={colors.textSecondary} />
@@ -610,6 +718,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,
+  },
+  setupContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  setupCard: {
+    borderRadius: 32,
+    padding: 32,
+    backgroundColor: 'transparent',
+  },
+  setupHeader: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  setupEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  setupTitle: {
+    ...Typography.h1,
+    fontSize: 32,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  setupSub: {
+    ...Typography.body,
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 22,
   }
 });
 

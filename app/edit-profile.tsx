@@ -1,31 +1,46 @@
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Modal, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { useRouter } from 'expo-router';
-import { 
-  ChevronLeft, Camera, User, FileText, Briefcase, MapPin, 
-  Globe, Trash2, Image as ImageIcon, X, Phone, Calendar, 
-  Sparkles, Hash, MessageSquare, Plus
-} from 'lucide-react-native';
-import { FontAwesome6 } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
 import { GlassCard } from '@/components/GlassCard';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import React, { useState, useMemo } from 'react';
-import { BlurView } from 'expo-blur';
+import { Spacing, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { storageService } from '@/services/storageService';
+import { useStore } from '@/store/useStore';
+import { formatPhoneInput, isPhoneValid } from '@/utils/phoneUtils';
+import { FontAwesome6 } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Animated, { FadeInDown, FadeInUp, Layout } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import {
+  AlertCircle,
+  Briefcase,
+  Calendar,
+  Camera,
+  CheckCircle2,
+  ChevronLeft,
+  FileText,
+  Globe,
+  Image as ImageIcon,
+  MapPin,
+  MessageSquare,
+  Phone,
+  Plus,
+  Sparkles,
+  Trash2,
+  User,
+  X
+} from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditProfileScreen() {
-  const { 
-    userId, userName, bio, location, occupation, avatarUrl, 
-    phoneNumber, birthday, pronouns, skills, socialLinks, 
-    updateProfile 
+  const {
+    userId, userName, bio, location, occupation, avatarUrl,
+    phoneNumber, birthday, pronouns, skills, socialLinks,
+    updateProfile
   } = useStore();
   const router = useRouter();
   const colors = useThemeColors();
@@ -55,20 +70,35 @@ export default function EditProfileScreen() {
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showOccupationPicker, setShowOccupationPicker] = useState(false);
+  const [customOccupation, setCustomOccupation] = useState('');
+  const [isOccupationInputFocused, setIsOccupationInputFocused] = useState(false);
+
+  const COMMON_OCCUPATIONS = [
+    { label: 'Student', icon: '🎓' },
+    { label: 'Software Developer', icon: '💻' },
+    { label: 'Product Designer', icon: '🎨' },
+    { label: 'Entrepreneur', icon: '🚀' },
+    { label: 'Content Creator', icon: '🎥' },
+    { label: 'Educator / Teacher', icon: '🍎' },
+    { label: 'Healthcare Professional', icon: '🏥' },
+    { label: 'Business Analyst', icon: '📊' },
+    { label: 'Freelancer', icon: '🏠' },
+    { label: 'Other', icon: '✍️' },
+  ];
 
   // M-7 FIX: Accept any phone format (international-friendly).
   // Strip non-digit/non-plus characters so the stored value is clean,
   // but don't force a US (xxx) xxx-xxxx pattern.
   const handlePhoneChange = (text: string) => {
-    // Allow digits, spaces, dashes, parentheses, plus (for country codes)
-    const cleaned = text.replace(/[^\d\s\-()+]/g, '');
-    setForm({ ...form, phoneNumber: cleaned });
+    const { formatted, raw } = formatPhoneInput(text);
+    setForm({ ...form, phoneNumber: formatted });
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
-      
+
       // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
       if (event.type === 'set' && selectedDate) {
         const y = selectedDate.getFullYear();
@@ -104,9 +134,9 @@ export default function EditProfileScreen() {
 
   const handlePickImage = async (useCamera: boolean) => {
     setShowImagePicker(false);
-    
+
     try {
-      const permissionResult = useCamera 
+      const permissionResult = useCamera
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -122,21 +152,21 @@ export default function EditProfileScreen() {
         quality: 0.7,
       };
 
-      const result = useCamera 
+      const result = useCamera
         ? await ImagePicker.launchCameraAsync(pickerOptions)
         : await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
       if (!result.canceled) {
         setUploadingImage(true);
         const localUri = result.assets[0].uri;
-        
+
         // Upload to Firebase Storage
         if (!userId) {
           Alert.alert('Error', 'User ID not found. Please log in again.');
           return;
         }
         const downloadUrl = await storageService.uploadProfileImage(localUri, userId, form.avatarUrl);
-        
+
         // Update local state and auto-save (or just state)
         setForm({ ...form, avatarUrl: downloadUrl });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -151,7 +181,7 @@ export default function EditProfileScreen() {
 
   const handleRemoveImage = async () => {
     setShowImagePicker(false);
-    
+
     if (form.avatarUrl) {
       setUploadingImage(true);
       try {
@@ -173,6 +203,12 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     if (!form.userName.trim()) {
       Alert.alert('Error', 'Username cannot be empty');
+      return;
+    }
+
+    // P-7 FIX: Strict Phone Validation before saving
+    if (form.phoneNumber && !isPhoneValid(form.phoneNumber)) {
+      Alert.alert('Invalid Phone Number', 'The phone number you entered is not valid for the detected country. Please check it and try again.');
       return;
     }
 
@@ -200,7 +236,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
@@ -227,23 +263,23 @@ export default function EditProfileScreen() {
               <Text style={[styles.completenessPercentage, { color: colors.primary }]}>{profileCompleteness}%</Text>
             </View>
             <View style={[styles.progressBarBg, { backgroundColor: colors.primary + '10' }]}>
-              <Animated.View 
+              <Animated.View
                 style={[
-                  styles.progressBarFill, 
+                  styles.progressBarFill,
                   { backgroundColor: colors.primary, width: `${profileCompleteness}%` }
-                ]} 
+                ]}
               />
             </View>
           </Animated.View>
 
           {/* Avatar Section */}
           <Animated.View entering={FadeInDown.delay(200)} style={styles.avatarSection}>
-            <TouchableOpacity 
-              onPress={() => setShowImagePicker(true)} 
+            <TouchableOpacity
+              onPress={() => setShowImagePicker(true)}
               style={styles.avatarWrapper}
               disabled={uploadingImage}
             >
-               <LinearGradient
+              <LinearGradient
                 colors={[colors.primary, colors.primary + '30']}
                 style={styles.avatarBorderGradient}
               >
@@ -257,7 +293,7 @@ export default function EditProfileScreen() {
                       </Text>
                     </View>
                   )}
-                  
+
                   {uploadingImage && (
                     <View style={styles.uploadingOverlay}>
                       <BlurView intensity={20} style={StyleSheet.absoluteFill} />
@@ -266,7 +302,7 @@ export default function EditProfileScreen() {
                   )}
                 </View>
               </LinearGradient>
-              
+
               <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
                 <Camera size={14} color="white" />
               </View>
@@ -277,17 +313,17 @@ export default function EditProfileScreen() {
           {/* Info Sections */}
           <Animated.View entering={FadeInDown.delay(300)}>
             <Section title="PERSONAL ACCOUNT" icon={User}>
-              <InputItem 
-                label="User Name" 
-                value={form.userName} 
-                onChangeText={(t) => setForm({...form, userName: t})}
+              <InputItem
+                label="User Name"
+                value={form.userName}
+                onChangeText={(t) => setForm({ ...form, userName: t })}
                 placeholder="e.g. John Doe"
                 icon={User}
               />
-              <InputItem 
-                label="Your Bio" 
-                value={form.bio} 
-                onChangeText={(t) => setForm({...form, bio: t})}
+              <InputItem
+                label="Your Bio"
+                value={form.bio}
+                onChangeText={(t) => setForm({ ...form, bio: t })}
                 placeholder="Tell us about yourself..."
                 multiline
                 icon={FileText}
@@ -297,55 +333,76 @@ export default function EditProfileScreen() {
 
           <Animated.View entering={FadeInDown.delay(400)}>
             <Section title="IDENTITY & INFO" icon={Sparkles}>
-              <InputItem 
-                label="Pronouns" 
-                value={form.pronouns} 
-                onChangeText={(t) => setForm({...form, pronouns: t})}
+              <InputItem
+                label="Pronouns"
+                value={form.pronouns}
+                onChangeText={(t) => setForm({ ...form, pronouns: t })}
                 placeholder="e.g. he/him, they/them"
                 icon={Sparkles}
               />
-               <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-                <InputItem 
-                  label="Birthday" 
-                  value={form.birthday} 
-                  onChangeText={() => {}}
+              <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+                <InputItem
+                  label="Birthday"
+                  value={form.birthday}
+                  onChangeText={() => { }}
                   placeholder="YYYY-MM-DD"
                   editable={false}
                   icon={Calendar}
                   pointerEvents="none"
                 />
               </TouchableOpacity>
-              <InputItem 
-                label="Phone Number" 
-                value={form.phoneNumber} 
+              <InputItem
+                label="Phone Number"
+                value={form.phoneNumber}
                 onChangeText={handlePhoneChange}
-                placeholder="(555) 000-0000"
+                placeholder={formatPhoneInput(form.phoneNumber).country.placeholder}
                 keyboardType="phone-pad"
-                icon={Phone}
+                icon={form.phoneNumber && isPhoneValid(form.phoneNumber) ? CheckCircle2 : Phone}
+                leftElement={
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>
+                      {formatPhoneInput(form.phoneNumber).country.flag}
+                    </Text>
+                    <View style={{ width: 1, height: 18, backgroundColor: colors.border, marginLeft: 12 }} />
+                  </View>
+                }
+                rightElement={
+                  form.phoneNumber && (
+                    isPhoneValid(form.phoneNumber) ? (
+                      <CheckCircle2 size={16} color="#4ADE80" />
+                    ) : (
+                      <AlertCircle size={16} color="#F87171" style={{ opacity: 0.6 }} />
+                    )
+                  )
+                }
               />
             </Section>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(500)}>
             <Section title="PROFILE DETAILS" icon={Briefcase}>
-              <InputItem 
-                label="Occupation" 
-                value={form.occupation} 
-                onChangeText={(t) => setForm({...form, occupation: t})}
-                placeholder="Product Designer"
-                icon={Briefcase}
-              />
-              <InputItem 
-                label="Skills / Expertise" 
-                value={form.skills} 
-                onChangeText={(t) => setForm({...form, skills: t})}
+              <TouchableOpacity onPress={() => setShowOccupationPicker(true)} activeOpacity={0.7}>
+                <InputItem
+                  label="Occupation"
+                  value={form.occupation}
+                  onChangeText={() => { }}
+                  placeholder="Product Designer"
+                  icon={Briefcase}
+                  editable={false}
+                  pointerEvents="none"
+                />
+              </TouchableOpacity>
+              <InputItem
+                label="Skills / Expertise"
+                value={form.skills}
+                onChangeText={(t) => setForm({ ...form, skills: t })}
                 placeholder="Product design, React, AI..."
                 icon={Plus}
               />
-              <InputItem 
-                label="Location" 
-                value={form.location} 
-                onChangeText={(t) => setForm({...form, location: t})}
+              <InputItem
+                label="Location"
+                value={form.location}
+                onChangeText={(t) => setForm({ ...form, location: t })}
                 placeholder="San Francisco, CA"
                 icon={MapPin}
               />
@@ -354,44 +411,44 @@ export default function EditProfileScreen() {
 
           <Animated.View entering={FadeInDown.delay(600)}>
             <Section title="SOCIAL LINKS" icon={Globe}>
-               <InputItem 
-                label="Twitter / X" 
-                value={form.socialLinks.twitter} 
+              <InputItem
+                label="Twitter / X"
+                value={form.socialLinks.twitter}
                 onChangeText={(t) => updateSocial('twitter', t)}
                 placeholder="@username"
                 icon={TwitterIcon}
               />
-               <InputItem 
-                label="Instagram" 
-                value={form.socialLinks.instagram} 
+              <InputItem
+                label="Instagram"
+                value={form.socialLinks.instagram}
                 onChangeText={(t) => updateSocial('instagram', t)}
                 placeholder="@username"
                 icon={InstagramIcon}
               />
-              <InputItem 
-                label="GitHub" 
-                value={form.socialLinks.github} 
+              <InputItem
+                label="GitHub"
+                value={form.socialLinks.github}
                 onChangeText={(t) => updateSocial('github', t)}
                 placeholder="username"
                 icon={GithubIcon}
               />
-              <InputItem 
-                label="LinkedIn" 
-                value={form.socialLinks.linkedin} 
+              <InputItem
+                label="LinkedIn"
+                value={form.socialLinks.linkedin}
                 onChangeText={(t) => updateSocial('linkedin', t)}
                 placeholder="profile-username"
                 icon={LinkedinIcon}
               />
-              <InputItem 
-                label="Discord" 
-                value={form.socialLinks.discord} 
+              <InputItem
+                label="Discord"
+                value={form.socialLinks.discord}
                 onChangeText={(t) => updateSocial('discord', t)}
                 placeholder="username#0000"
                 icon={MessageSquare}
               />
-              <InputItem 
-                label="Website" 
-                value={form.socialLinks.website} 
+              <InputItem
+                label="Website"
+                value={form.socialLinks.website}
                 onChangeText={(t) => updateSocial('website', t)}
                 placeholder="https://..."
                 icon={Globe}
@@ -413,7 +470,7 @@ export default function EditProfileScreen() {
                   <View style={styles.modalHeader}>
                     <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
                     <Text style={[styles.modalTitle, { color: colors.text }]}>Select Birthday</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => setShowDatePicker(false)}
                       style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
                     >
@@ -463,6 +520,125 @@ export default function EditProfileScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
 
+        {/* Occupation Picker Modal */}
+        <Modal
+          visible={showOccupationPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowOccupationPicker(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <Pressable style={styles.modalOverlay} onPress={() => setShowOccupationPicker(false)}>
+              <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
+              <View style={[styles.modalContent, { backgroundColor: colors.card, height: '90%' }]}>
+
+                <View style={[styles.modalHeader, { marginBottom: 12 }]}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Select Occupation</Text>
+                  <TouchableOpacity onPress={() => setShowOccupationPicker(false)}>
+                    <X size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={{ flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Hide list when focused on custom entry if space is tight */}
+                  {!isOccupationInputFocused && (
+                    <View style={{ gap: 2 }}>
+                      {COMMON_OCCUPATIONS.map((occ) => (
+                        <TouchableOpacity
+                          key={occ.label}
+                          style={[
+                            styles.optionItem,
+                            { borderBottomColor: colors.border + '40' },
+                            form.occupation === occ.label && { backgroundColor: colors.primary + '10' }
+                          ]}
+                          onPress={() => {
+                            if (occ.label === 'Other') {
+                              setCustomOccupation(form.occupation);
+                              // We don't close, but user can type
+                            } else {
+                              setForm({ ...form, occupation: occ.label });
+                              setShowOccupationPicker(false);
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                          }}
+                        >
+                          <Text style={{ fontSize: 20, marginRight: 12 }}>{occ.icon}</Text>
+                          <Text style={[styles.optionLabel, { color: colors.text, flex: 1 }]}>{occ.label}</Text>
+                          {form.occupation === occ.label && (
+                            <CheckCircle2 size={18} color={colors.primary} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  <View style={{ padding: 16, marginTop: isOccupationInputFocused ? 0 : 8 }}>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: 8, fontSize: 10 }]}>
+                      {isOccupationInputFocused ? 'TYPE YOUR OCCUPATION' : 'CUSTOM OCCUPATION'}
+                    </Text>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: colors.background,
+                      borderRadius: 16,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: isOccupationInputFocused ? colors.primary : colors.border,
+                      height: 54
+                    }}>
+                      <TextInput
+                        style={[styles.textInput, { color: colors.text, flex: 1, height: '100%' }]}
+                        placeholder="Type your own..."
+                        placeholderTextColor={colors.textSecondary + '60'}
+                        value={customOccupation}
+                        onChangeText={setCustomOccupation}
+                        onFocus={() => setIsOccupationInputFocused(true)}
+                        onBlur={() => setIsOccupationInputFocused(false)}
+                      />
+                      {(isOccupationInputFocused || customOccupation.length > 0) && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (customOccupation.trim()) {
+                              setForm({ ...form, occupation: customOccupation.trim() });
+                              setShowOccupationPicker(false);
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: colors.primary,
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderRadius: 12
+                          }}
+                        >
+                          <Text style={{ color: 'white', fontWeight: 'bold' }}>Apply</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Extra space for scrolling when keyboard is open */}
+                  {isOccupationInputFocused && <View style={{ height: 100 }} />}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.cancelButton, { backgroundColor: colors.background, marginTop: 12 }]}
+                  onPress={() => setShowOccupationPicker(false)}
+                >
+                  <Text style={[styles.cancelText, { color: colors.text }]}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
+
         {/* Image Picker Modal */}
         <Modal
           visible={showImagePicker}
@@ -471,45 +647,45 @@ export default function EditProfileScreen() {
           onRequestClose={() => setShowImagePicker(false)}
         >
           <Pressable style={styles.modalOverlay} onPress={() => setShowImagePicker(false)}>
-             <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
-             <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Change Avatar</Text>
-                  <TouchableOpacity onPress={() => setShowImagePicker(false)}>
-                    <X size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalOptions}>
-                  <OptionItem 
-                    icon={Camera} 
-                    label="Take Photo" 
-                    color={colors.text}
-                    onPress={() => handlePickImage(true)} 
-                  />
-                  <OptionItem 
-                    icon={ImageIcon} 
-                    label="Choose from Gallery" 
-                    color={colors.text}
-                    onPress={() => handlePickImage(false)} 
-                  />
-                  {form.avatarUrl && (
-                    <OptionItem 
-                      icon={Trash2} 
-                      label="Remove Photo" 
-                      color="#FF4B4B"
-                      onPress={handleRemoveImage} 
-                    />
-                  )}
-                </View>
-
-                <TouchableOpacity 
-                  style={[styles.cancelButton, { backgroundColor: colors.background }]} 
-                  onPress={() => setShowImagePicker(false)}
-                >
-                  <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
+            <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Change Avatar</Text>
+                <TouchableOpacity onPress={() => setShowImagePicker(false)}>
+                  <X size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
-             </View>
+              </View>
+
+              <View style={styles.modalOptions}>
+                <OptionItem
+                  icon={Camera}
+                  label="Take Photo"
+                  color={colors.text}
+                  onPress={() => handlePickImage(true)}
+                />
+                <OptionItem
+                  icon={ImageIcon}
+                  label="Choose from Gallery"
+                  color={colors.text}
+                  onPress={() => handlePickImage(false)}
+                />
+                {form.avatarUrl && (
+                  <OptionItem
+                    icon={Trash2}
+                    label="Remove Photo"
+                    color="#FF4B4B"
+                    onPress={handleRemoveImage}
+                  />
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: colors.background }]}
+                onPress={() => setShowImagePicker(false)}
+              >
+                <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Modal>
       </KeyboardAvoidingView>
@@ -534,34 +710,38 @@ function Section({ title, icon: Icon, children }: { title: string; icon: any; ch
   );
 }
 
-function InputItem({ 
-  label, 
-  value, 
-  onChangeText, 
-  placeholder, 
+function InputItem({
+  label,
+  value,
+  onChangeText,
+  placeholder,
   multiline = false,
   icon: Icon,
   keyboardType = 'default',
   editable = true,
-  pointerEvents
-}: { 
-  label: string; 
-  value: string; 
-  onChangeText: (t: string) => void; 
+  pointerEvents,
+  leftElement,
+  rightElement
+}: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
   placeholder: string;
   multiline?: boolean;
   icon?: any;
   keyboardType?: any;
   editable?: boolean;
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+  leftElement?: React.ReactNode;
+  rightElement?: React.ReactNode;
 }) {
   const colors = useThemeColors();
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <View 
+    <View
       style={[
-        styles.inputItem, 
+        styles.inputItem,
         { borderBottomColor: colors.border },
         isFocused && { backgroundColor: colors.primary + '05' }
       ]}
@@ -571,19 +751,24 @@ function InputItem({
         {Icon && <Icon size={12} color={isFocused ? colors.primary : colors.textSecondary} style={{ marginRight: 6 }} />}
         <Text style={[styles.inputLabel, { color: isFocused ? colors.primary : colors.textSecondary }]}>{label}</Text>
       </View>
-      <TextInput
-        style={[styles.textInput, { color: colors.text }, multiline && styles.textArea]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textSecondary + '60'}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        keyboardType={keyboardType}
-        editable={editable}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40 }}>
+        {leftElement}
+        <TextInput
+          style={[styles.textInput, { color: colors.text, flex: 1, paddingVertical: 0 }, multiline && styles.textArea]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textSecondary + '60'}
+          multiline={multiline}
+          numberOfLines={multiline ? 3 : 1}
+          keyboardType={keyboardType}
+          editable={editable}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          textAlignVertical="center"
+        />
+        {rightElement}
+      </View>
     </View>
   );
 }
@@ -792,11 +977,15 @@ const styles = StyleSheet.create({
   textInput: {
     ...Typography.bodyLarge,
     fontSize: 16,
-    paddingVertical: 4,
     fontFamily: 'Inter-Medium',
+    lineHeight: undefined,
+    paddingTop: 0,
+    paddingBottom: 0,
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   textArea: {
-    height: 90,
+    // height: 90,
     textAlignVertical: 'top',
   },
   // Modal Styles

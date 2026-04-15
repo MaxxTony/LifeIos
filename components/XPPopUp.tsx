@@ -1,85 +1,143 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, Text, Dimensions } from 'react-native';
 import Animated, { 
-  FadeInUp, 
-  FadeOutUp, 
-  Layout, 
+  useAnimatedStyle, 
+  useSharedValue, 
   withTiming, 
-  withSequence, 
-  withDelay,
-  useAnimatedStyle,
-  useSharedValue
+  Easing,
+  runOnJS
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { useStore } from '@/store/useStore';
 import { Typography, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
+const { width } = Dimensions.get('window');
+
+/**
+ * Individual Floating XP Item
+ * Handles its own animation lifecycle from entrance to floating exit.
+ */
+const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => void }) => {
+  const colors = useThemeColors();
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(40);
+  const scale = useSharedValue(0.5);
+
+  useEffect(() => {
+    // Entrance & Continuous Float
+    opacity.value = withTiming(1, { duration: 300 });
+    scale.value = withTiming(1, { 
+      duration: 500, 
+      easing: Easing.out(Easing.back(1.5)) 
+    });
+    
+    translateY.value = withTiming(-120, { 
+      duration: 2500, 
+      easing: Easing.linear 
+    }, (finished) => {
+      if (finished) {
+        runOnJS(onFinish)();
+      }
+    });
+
+    // Fade out before the float finishes
+    const fadeOutTimer = setTimeout(() => {
+      opacity.value = withTiming(0, { duration: 500 });
+    }, 1800);
+
+    return () => clearTimeout(fadeOutTimer);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { translateY: translateY.value },
+      { scale: scale.value }
+    ],
+  }));
+
+  return (
+    <Animated.View 
+      style={[
+        styles.xpItem, 
+        animatedStyle, 
+        { 
+          backgroundColor: colors.isDark ? 'rgba(50, 50, 80, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          borderColor: colors.primary,
+          shadowColor: colors.primary,
+        }
+      ]}
+    >
+      <Text style={[styles.xpText, { color: colors.isDark ? '#FFF' : colors.primary }]}>
+        +{amount} XP! 🔥
+      </Text>
+    </Animated.View>
+  );
+};
+
 export const XPPopUp = () => {
   const recentXP = useStore(s => s.recentXP);
   const dismissXP = useStore(s => s.dismissXP);
-  const colors = useThemeColors();
-  
   const [activeXPs, setActiveXPs] = useState<{ id: number; amount: number }[]>([]);
 
   useEffect(() => {
     if (recentXP) {
       const id = recentXP.timestamp;
+      // Add new XP to the list
       setActiveXPs(prev => [...prev, { id, amount: recentXP.amount }]);
-      
-      const timer = setTimeout(() => {
-        setActiveXPs(prev => prev.filter(x => x.id !== id));
-        dismissXP();
-      }, 2000);
-
-      return () => clearTimeout(timer);
+      // Dismiss from store immediately so it can be re-triggered
+      dismissXP();
     }
   }, [recentXP]);
 
+  const removeItem = (id: number) => {
+    setActiveXPs(prev => prev.filter(item => item.id !== id));
+  };
+
   return (
-    <Animated.View 
-      style={styles.container} 
-      pointerEvents="none"
-      layout={Layout.springify()}
-    >
+    <View style={styles.container} pointerEvents="none">
       {activeXPs.map((xp) => (
-        <Animated.View
-          key={xp.id}
-          entering={FadeInUp.duration(600)}
-          exiting={FadeOutUp.duration(600)}
-          style={[styles.xpTextContainer, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
-        >
-          <Animated.Text style={[styles.xpText, { color: colors.primary }]}>
-            +{xp.amount} XP! 🔥
-          </Animated.Text>
-        </Animated.View>
+        <XPFloatingItem 
+          key={xp.id} 
+          amount={xp.amount} 
+          onFinish={() => removeItem(xp.id)} 
+        />
       ))}
-    </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: '30%',
+    top: '45%', // Centered vertically relative to the dashboard area
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 9999,
+    zIndex: 99999,
   },
-  xpTextContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    marginBottom: 10,
+  xpItem: {
+    position: 'absolute',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // High visibility shadow
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10,
+    minWidth: 140,
   },
   xpText: {
     ...Typography.h3,
+    fontSize: 20,
     fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });

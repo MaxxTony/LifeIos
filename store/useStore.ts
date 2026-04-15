@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto'; // FIX C-3: proper UUID generation
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-interface Task {
+export interface Task {
   id: string;
   text: string;
   priority: 'high' | 'medium' | 'low';
@@ -22,7 +22,7 @@ interface Task {
   subtasks?: { id: string; text: string; completed: boolean }[]; // F-4
 }
 
-interface Habit {
+export interface Habit {
   id: string;
   title: string;
   icon: string;
@@ -38,7 +38,7 @@ interface Habit {
   pausedUntil: string | null; // F-2: ISO date string
 }
 
-interface FocusSession {
+export interface FocusSession {
   totalSecondsToday: number;
   isActive: boolean;
   lastStartTime: number | null;
@@ -862,9 +862,9 @@ export const useStore = create<UserState>()(
             // Signal transition
             import('expo-haptics').then(Haptics => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
             import('@/services/notificationService').then(({ notificationService }) => {
-              notificationService.scheduleMissedTaskNotification(
-                newMode === 'work' ? "Work session complete! Time for a break. ☕" : "Break over! Ready to focus? 🔥"
-              );
+              const title = newMode === 'work' ? "Focus Session Complete ☕" : "Break Over 🔥";
+              const body = newMode === 'work' ? "Work session complete! Time for a break." : "Break over! Ready to focus?";
+              notificationService.sendProactiveAI(title, body);
             });
 
             if (newMode === 'work') {
@@ -1026,7 +1026,13 @@ export const useStore = create<UserState>()(
         
         // Push notification
         import('@/services/notificationService').then(({ notificationService }) => {
-          notificationService.scheduleMissedTaskNotification(message); // Re-using for simplicity
+          // Determine friendly title based on trigger context
+          let title = "LifeOS Assistant ✨";
+          if (trigger === 'low_mood') title = "LifeOS Care 🌿";
+          else if (trigger === 'missed_task') title = "LifeOS Insight 🚀";
+          else if (trigger === 'habit_streak') title = "LifeOS Habit 🧘‍♂️";
+
+          notificationService.sendProactiveAI(title, message);
         });
       },
 
@@ -1312,3 +1318,4 @@ export const useStore = create<UserState>()(
     }
   )
 );
+

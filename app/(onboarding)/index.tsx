@@ -13,6 +13,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -452,48 +453,6 @@ export default function OnboardingScreen() {
           ))}
         </Animated.View>
       </View>
-
-      <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.bottomArea}>
-        <DotIndicator current={2} />
-        <GradientButton
-          label={selectedStruggles.length > 0 ? `Continue (${selectedStruggles.length} selected) →` : 'Continue →'}
-          onPress={handleNext}
-        />
-      </Animated.View>
-    </View>,
-
-    // ── Slide 4: Final ───────────────────────────────────────────────────────
-    <View style={[styles.slide, { paddingTop: Platform.OS === 'ios' ? 48 : 32 }]} key="slide-4">
-
-      <Animated.View entering={ZoomIn.delay(80).springify()} style={styles.visualContainer}>
-        <FinalHero />
-      </Animated.View>
-
-      <Animated.View entering={FadeInUp.delay(250).springify()} style={[styles.textBlock, { marginBottom: 20 }]}>
-        <Text style={[styles.subheading, { marginTop: 12, fontSize: 16, color: colors.textSecondary }]}>
-          Your AI-powered OS is ready.{'\n'}Everything you need. Nothing you don't.
-        </Text>
-      </Animated.View>
-
-      <Animated.View entering={FadeInUp.delay(400).springify()} style={[slide4Styles.promiseList, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
-        {[
-          { icon: '🧠', text: 'AI coach that learns you' },
-          { icon: '✅', text: 'Daily tasks, auto-planned' },
-          { icon: '💜', text: 'Mood & habit tracking' },
-        ].map((item, i) => (
-          <Animated.View key={item.text} entering={FadeInUp.delay(500 + i * 80).springify()} style={slide4Styles.promiseRow}>
-            <View style={[slide4Styles.iconBadge, { backgroundColor: colors.primary + '20' }]}>
-              <Text style={{ fontSize: 16 }}>{item.icon}</Text>
-            </View>
-            <Text style={[slide4Styles.promiseText, { color: colors.text }]}>{item.text}</Text>
-            <Text style={[slide4Styles.tick, { color: colors.primary }]}>✓</Text>
-          </Animated.View>
-        ))}
-      </Animated.View>
-
-      <Animated.View entering={FadeInUp.delay(750).springify()} style={slide4Styles.socialProof}>
-        <Text style={[slide4Styles.socialText, { color: colors.primary + 'A0' }]}>Your journey starts today. Let's build something great.</Text>
-      </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(900).springify()} style={styles.bottomArea}>
         <DotIndicator current={3} />

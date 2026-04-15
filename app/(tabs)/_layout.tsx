@@ -10,10 +10,10 @@ import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * Custom Animated Tab Bar for Android
+ * Custom Animated Tab Bar for Android and Legacy iOS
  * FIX M-3: Uses colors.isDark to support both light and dark themes
  */
-function CustomTabBar({ state, descriptors, navigation }: any) {
+function CustomTabBar({ state, descriptors, navigation, solid = false }: any) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
 
@@ -23,12 +23,14 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       styles.tabBarContainer,
       {
         bottom: insets.bottom + 16,
-        backgroundColor: colors.isDark ? 'rgba(18, 18, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: solid
+          ? (colors.isDark ? '#12121A' : '#FFFFFF')
+          : (colors.isDark ? 'rgba(18, 18, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)'),
         borderColor: colors.isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
       }
     ]}>
       {/* FIX M-3: tint responds to theme instead of hardcoded "dark" */}
-      <BlurView intensity={40} tint={colors.isDark ? 'dark' : 'light'} style={styles.tabBarBlur}>
+      <BlurView intensity={solid ? 0 : 40} tint={colors.isDark ? 'dark' : 'light'} style={styles.tabBarBlur}>
         <View style={styles.tabBarItems}>
           {state.routes.map((route: any, index: number) => {
             const { options } = descriptors[route.key];
@@ -132,8 +134,38 @@ function IOSTabs() {
   );
 }
 
+/**
+ * Legacy iOS implementation for devices < iOS 18 (e.g., iPhone SE)
+ * Uses the solid-background premium floating bar.
+ */
+function LegacyIOSTabs() {
+  return (
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} solid={true} />}
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+    </Tabs>
+  );
+}
+
 export default function TabsLayout() {
-  return Platform.OS === 'ios' ? <IOSTabs /> : <AndroidTabs />;
+  const iosVersion = Platform.OS === 'ios' ? parseInt(Platform.Version as string, 10) : 0;
+  const isModernIOS = Platform.OS === 'ios' && iosVersion == 26;
+
+  if (Platform.OS === 'android') {
+    return <AndroidTabs />;
+  }
+
+  if (isModernIOS) {
+    return <IOSTabs />;
+  }
+
+  return <LegacyIOSTabs />;
 }
 
 const styles = StyleSheet.create({
