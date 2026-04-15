@@ -40,7 +40,10 @@ const ACTION_CHIPS = [
 ];
 
 export default function AIChatScreen() {
-  const { userId, userName, proactivePrompt, dismissProactive } = useStore();
+  const userId = useStore(s => s.userId);
+  const userName = useStore(s => s.userName);
+  const proactivePrompt = useStore(s => s.proactivePrompt);
+  const dismissProactive = useStore(s => s.dismissProactive);
   const colors = useThemeColors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -58,10 +61,10 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     if (!currentConversationId && messages.length === 0) {
-      const welcomeContent = proactivePrompt 
-        ? proactivePrompt.message 
+      const welcomeContent = proactivePrompt
+        ? proactivePrompt.message
         : `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`;
-      
+
       setMessages([{
         id: 'welcome',
         role: 'assistant',
@@ -224,7 +227,7 @@ export default function AIChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -15 : 80}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 80}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>

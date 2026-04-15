@@ -7,7 +7,10 @@ import {
   getDocs,
   onSnapshot,
   setDoc,
-  writeBatch
+  writeBatch,
+  query,
+  QueryConstraint,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -29,6 +32,8 @@ export const dbService = {
     const sanitized = Object.fromEntries(
       Object.entries(task).map(([k, v]) => [k, v === undefined ? deleteField() : v])
     );
+    // Overwrite server timestamp for tracking creation/modifications securely
+    if (!sanitized.serverCreatedAt) sanitized.serverCreatedAt = serverTimestamp();
     await setDoc(doc(db, 'users', userId, 'tasks', task.id), sanitized);
   },
 
@@ -38,7 +43,8 @@ export const dbService = {
 
   // Atomic Habit Operations
   saveHabit: async (userId: string, habit: any) => {
-    await setDoc(doc(db, 'users', userId, 'habits', habit.id), habit);
+    const habitData = { ...habit, serverCreatedAt: habit.serverCreatedAt || serverTimestamp() };
+    await setDoc(doc(db, 'users', userId, 'habits', habit.id), habitData);
   },
 
   deleteHabit: async (userId: string, habitId: string) => {
@@ -48,12 +54,13 @@ export const dbService = {
   // Mood History (Atomic per date)
   saveMood: async (userId: string, moodData: any, dateKey: string) => {
     // moodHistory sub-collection is the single source of truth — no currentMood cache on root doc
-    await setDoc(doc(db, 'users', userId, 'moodHistory', dateKey), moodData);
+    const data = { ...moodData, serverCreatedAt: serverTimestamp() };
+    await setDoc(doc(db, 'users', userId, 'moodHistory', dateKey), data);
   },
 
   // Focus History (Atomic per date)
   saveFocusEntry: async (userId: string, dateKey: string, totalSeconds: number) => {
-    await setDoc(doc(db, 'users', userId, 'focusHistory', dateKey), { totalSeconds });
+    await setDoc(doc(db, 'users', userId, 'focusHistory', dateKey), { totalSeconds, serverUpdatedAt: serverTimestamp() });
   },
 
   saveMoodTheme: async (userId: string, theme: string | null) => {
@@ -142,11 +149,14 @@ export const dbService = {
     });
   },
 
-  // Real-time listener for any sub-collection
-  subscribeToCollection: (userId: string, collectionName: string, onUpdate: (docs: any[]) => void) => {
-    const collRef = collection(db, 'users', userId, collectionName);
-    return onSnapshot(collRef, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Real-time listener for any sub-collection with constraint support
+  subscribeToCollection: (userId: string, collectionName: string, onUpdate: (docs: any[]) => void, constraints: QueryConstraint[] = []) => {
+    let collRef: any = collection(db, 'users', userId, collectionName);
+    if (constraints.length > 0) {
+      collRef = query(collRef, ...constraints);
+    }
+    return onSnapshot(collRef, (snapshot: any) => {
+      const docs = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
       onUpdate(docs);
     }, (error) => {
       if (error.code === 'permission-denied') {

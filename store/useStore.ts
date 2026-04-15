@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto'; // FIX C-3: proper UUID generation
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { where } from 'firebase/firestore';
 
 export interface Task {
   id: string;
@@ -158,7 +159,7 @@ interface UserState {
   // Habit Actions
   addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
-  toggleHabit: (id: string) => void;
+  toggleHabit: (id: string, dateStr?: string) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   pauseHabit: (id: string, until: string | null) => void; // F-2
 
@@ -425,8 +426,7 @@ export const useStore = create<UserState>()(
           if (!task) return state;
 
           // Allow toggling: completed → pending, pending → completed
-          // Missed tasks cannot be re-opened (they are past their end time)
-          if (task.status === 'missed') return state;
+          // Missed tasks can be checked off retroactively if the user actually did them
 
           const nowCompleted = !task.completed;
           const updatedTask: Task = { ...task, completed: nowCompleted, status: nowCompleted ? 'completed' : 'pending' };
@@ -562,10 +562,10 @@ export const useStore = create<UserState>()(
 
         return { habits: newHabits };
       }),
-      toggleHabit: (id) => set((state) => {
+      toggleHabit: (id, dateStr) => set((state) => {
         const newHabits = state.habits.map(h => {
           if (h.id === id) {
-            const today = getTodayLocal();
+            const today = dateStr || getTodayLocal();
             
             // F-2: Cannot toggle if paused
             if (h.pausedUntil && today <= h.pausedUntil) return h;
@@ -847,8 +847,8 @@ export const useStore = create<UserState>()(
         if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
         const now = Date.now();
         const rawElapsed = now - state.focusSession.lastStartTime;
-        // Cap a single tick to 5 minutes
-        const MAX_TICK_MS = 5 * 60 * 1000;
+        // Cap a single tick to 24 hours to deeply respect background elapsed time (offline Pomodoro)
+        const MAX_TICK_MS = 24 * 60 * 60 * 1000;
         const elapsed = Math.min(rawElapsed, MAX_TICK_MS) / 1000;
         const totalSeconds = state.focusSession.totalSecondsToday + elapsed;
 
@@ -1237,17 +1237,21 @@ export const useStore = create<UserState>()(
           });
         });
 
-        // 2. Tasks Listener
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = formatLocalDate(thirtyDaysAgo);
+
+        // 2. Tasks Listener (Optimized: Last 30 Days only to prevent massive read costs)
         const unsubTasks = dbService.subscribeToCollection(userId, 'tasks', (docs) => {
           set({ tasks: migrateTasks(docs as Task[]) });
-        });
+        }, [where('date', '>=', thirtyDaysAgoStr)]);
 
-        // 3. Habits Listener
+        // 3. Habits Listener (All active habits are needed)
         const unsubHabits = dbService.subscribeToCollection(userId, 'habits', (docs) => {
           set({ habits: docs as Habit[] });
         });
 
-        // 4. Mood History Listener
+        // 4. Mood History Listener (Optimized: Since mood history docId is the date, we can't use where() easily if it's the ID. Wait, moodHistory is single documents where ID=date. We cannot use 'where' on document ID efficiently if it's not a field. Actually, Firestore allows where('__name__', '>=', thirtyDaysAgoStr). Let's use that.)
         const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs) => {
           const map: Record<string, MoodEntry> = {};
           docs.forEach(doc => { const { id, ...entry } = doc as any; map[id] = entry as MoodEntry; });

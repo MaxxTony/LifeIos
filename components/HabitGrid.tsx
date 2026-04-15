@@ -17,9 +17,9 @@ export function HabitGrid() {
   const colors = useThemeColors();
   const router = useRouter();
 
-  const handleToggle = (id: string) => {
+  const handleToggle = (id: string, dateStr?: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    toggleHabit(id);
+    toggleHabit(id, dateStr);
   };
 
   const getWeekDates = () => {
@@ -36,7 +36,7 @@ export function HabitGrid() {
     });
   };
 
-  const renderDots = (completedDays: string[]) => {
+  const renderDots = (habitId: string, completedDays: string[]) => {
     const weekDates = getWeekDates();
     const today = getTodayLocal();
 
@@ -46,8 +46,14 @@ export function HabitGrid() {
       const isFuture = dateString > today;
 
       return (
-        <View
+        <TouchableOpacity
           key={i}
+          activeOpacity={0.6}
+          hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
+          onPress={() => {
+            if (!isFuture) handleToggle(habitId, dateString);
+          }}
+          disabled={isFuture}
           style={[
             styles.dot,
             { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
@@ -57,7 +63,7 @@ export function HabitGrid() {
           ]}
         >
           {isCompleted && <Ionicons name="checkmark" size={7} color="#FFF" />}
-        </View>
+        </TouchableOpacity>
       );
     });
   };
@@ -124,13 +130,9 @@ export function HabitGrid() {
                     </View>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.dotsContainer}
-                    onPress={() => handleToggle(habit.id)}
-                    activeOpacity={0.7}
-                  >
-                    {renderDots(habit.completedDays)}
-                  </TouchableOpacity>
+                  <View style={styles.dotsContainer}>
+                    {renderDots(habit.id, habit.completedDays)}
+                  </View>
                 </TouchableOpacity>
               </View>
             );

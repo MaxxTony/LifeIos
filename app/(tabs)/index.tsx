@@ -16,8 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Reanimated from 'react-native-reanimated';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
   const hour = new Date().getHours();
@@ -29,29 +30,38 @@ const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy
 
 function SkeletonBlock({ width, height, borderRadius = 12 }: { width: number | string; height: number; borderRadius?: number }) {
   const colors = useThemeColors();
-  const shimmer = useRef(new Animated.Value(0)).current;
+  const opacity = Reanimated.useSharedValue(0.4);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
+    opacity.value = Reanimated.withRepeat(
+      Reanimated.withSequence(
+        Reanimated.withTiming(0.9, { duration: 900 }),
+        Reanimated.withTiming(0.4, { duration: 900 })
+      ),
+      -1, // Infinite loop
+      true // Reverse not needed strictly if we sequence it back and forth, but true works. Actually sequence has 0.9 and 0.4, so false is fine since it seamlessly wraps.
+    );
   }, []);
 
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
+  const animatedStyle = Reanimated.useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+    };
+  });
+
   const base = colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
 
   return (
-    <Animated.View
-      style={{
-        width: width as any,
-        height,
-        borderRadius,
-        backgroundColor: base,
-        opacity,
-      }}
+    <Reanimated.default.View
+      style={[
+        {
+          width: width as any,
+          height,
+          borderRadius,
+          backgroundColor: base,
+        },
+        animatedStyle
+      ]}
     />
   );
 }
