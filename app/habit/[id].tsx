@@ -33,7 +33,11 @@ export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colors = useThemeColors();
-  const { habits, actions: { removeHabit, getStreak, toggleHabit, pauseHabit } } = useStore();
+  const habits = useStore(s => s.habits);
+  const removeHabit = useStore(s => s.actions.removeHabit);
+  const getStreak = useStore(s => s.actions.getStreak);
+  const toggleHabit = useStore(s => s.actions.toggleHabit);
+  const pauseHabit = useStore(s => s.actions.pauseHabit);
   
   const [showPausePicker, setShowPausePicker] = React.useState(false);
   

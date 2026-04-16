@@ -10,13 +10,14 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as TaskManager from 'expo-task-manager';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { AppState, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 // Importing the service registers the background task definition at module load time.
 import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 // C-8: Redundant definition to ensure Expo Router handles background wake-ups correctly.
 TaskManager.defineTask(AI_COACH_TASK, runAICoachTask);
@@ -111,9 +112,21 @@ export default function RootLayout() {
     const missedInterval = setInterval(checkMissedTasks, 60_000);
 
     // Also re-check when app returns to foreground
-    const sub = AppState.addEventListener('change', (next) => {
+    const sub = AppState.addEventListener('change', async (next) => {
       if (appState.current.match(/inactive|background/) && next === 'active') {
+        performDailyReset();
         checkMissedTasks();
+
+        // TEST A-1 & A-3: Foreground Session Validation
+        const { isAuthenticated, userId } = useStore.getState();
+        if (isAuthenticated && authService.currentUser) {
+          const isValid = await authService.validateSession(authService.currentUser);
+          if (!isValid) {
+            console.warn('[LifeOS] Foreground session invalid - logging out.');
+            await authService.logout();
+            setAuth(null, null);
+          }
+        }
       }
       appState.current = next;
     });
@@ -165,6 +178,26 @@ export default function RootLayout() {
     return () => unsubscribe();
   }, [setAuth]);
 
+  // C-5: Automatic Sync on Network Recovery
+  const isOffline = useStore(s => s.syncStatus.isOffline);
+  const retrySync = useStore(s => s.actions.retrySync);
+  const hasHydrated = useStore(s => s._hasHydrated);
+  // Track the previous offline state so we only trigger on a genuine offline→online
+  // transition, not on initial mount or hydration (which would log "Connection restored"
+  // every cold start even when there was never an outage).
+  const prevIsOffline = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    const wasOffline = prevIsOffline.current;
+    prevIsOffline.current = isOffline;
+
+    // Only sync when we just recovered from an actual offline state
+    if (!isOffline && hasHydrated && wasOffline === true) {
+      console.log('[LifeOS] Connection restored. Triggering automatic sync engine...');
+      retrySync();
+    }
+  }, [isOffline, hasHydrated, retrySync]);
+
   useEffect(() => {
     // Listen for foreground notifications
     const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
@@ -209,6 +242,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
         <ThemeProvider value={navTheme}>
+          <OfflineBanner />
           <Stack screenOptions={{
             headerTintColor: accentColor || '#7C5CFF',
             headerShown: false

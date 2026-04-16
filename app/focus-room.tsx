@@ -61,8 +61,15 @@ export default function FocusRoomScreen() {
 
   useEffect(() => {
     const unsubscribe = presenceService.subscribeToFocusRoom((users) => {
-      // Filter out stale users who disconnected without gracefully unmounting (handled mostly by RN, but just in case)
-      setActiveUsers(users);
+      // C-14: Filter out stale users who haven't updated their heartbeat in 2 minutes
+      const now = Date.now();
+      const filtered = users.filter(u => {
+        // serverTimestamp() might return null momentarily or object with .toMillis()
+        const lastActive = u.lastActive?.toMillis ? u.lastActive.toMillis() : (u.lastActive || 0);
+        return (now - lastActive < 120000); // 120s
+      });
+      
+      setActiveUsers(filtered);
       setLoading(false);
     });
 

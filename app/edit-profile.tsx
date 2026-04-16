@@ -37,11 +37,18 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditProfileScreen() {
-  const {
-    userId, userName, bio, location, occupation, avatarUrl,
-    phoneNumber, birthday, pronouns, skills, socialLinks,
-    actions: { updateProfile }
-  } = useStore();
+  const userId = useStore(s => s.userId);
+  const userName = useStore(s => s.userName);
+  const bio = useStore(s => s.bio);
+  const location = useStore(s => s.location);
+  const occupation = useStore(s => s.occupation);
+  const avatarUrl = useStore(s => s.avatarUrl);
+  const phoneNumber = useStore(s => s.phoneNumber);
+  const birthday = useStore(s => s.birthday);
+  const pronouns = useStore(s => s.pronouns);
+  const skills = useStore(s => s.skills);
+  const socialLinks = useStore(s => s.socialLinks);
+  const updateProfile = useStore(s => s.actions.updateProfile);
   const router = useRouter();
   const colors = useThemeColors();
 

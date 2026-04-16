@@ -1,11 +1,13 @@
 import { StateCreator } from 'zustand';
 import { UserState, Task, Habit, MoodEntry, AuthActions } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { fireSync } from '../syncHelper';
 import { migrateTasks } from '../helpers';
 import { where, orderBy, limit } from 'firebase/firestore';
+import Toast from 'react-native-toast-message';
 
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
 const LOGGED_OUT_STATE = {
@@ -51,13 +53,22 @@ const LOGGED_OUT_STATE = {
   completedQuests: [],
   proactivePrompt: null,
   _syncUnsubscribes: [],
+  sessionToken: null,
+  syncStatus: {
+    tasksLoaded: false,
+    habitsLoaded: false,
+    moodLoaded: false,
+    focusLoaded: false,
+    isOffline: false,
+    lastCloudSync: null,
+  },
 };
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
   setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
   completeOnboarding: () => set({ hasCompletedOnboarding: true }),
 
-  setAuth: async (userId, userName) => {
+  setAuth: async (userId, userName, sessionToken) => {
     const unsubs = get()._syncUnsubscribes;
     for (const unsub of unsubs) {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
@@ -73,6 +84,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     set((state) => ({
       userId,
       userName,
+      sessionToken: sessionToken || state.sessionToken,
       isAuthenticated: true,
       _syncUnsubscribes: [],
       _subscriptionGen: state._subscriptionGen + 1,
@@ -97,10 +109,16 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     await dbService.saveUserProfile(userId, safe);
   },
 
-  logout: () => {
+  logout: async () => {
     get()._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
+    // C-1: Clear AsyncStorage immediately to prevent data leak window
+    try {
+      await AsyncStorage.removeItem('lifeos-storage');
+    } catch (err) {
+      console.warn('[LifeOS] Failed to clear storage on logout:', err);
+    }
     set(LOGGED_OUT_STATE);
   },
 
@@ -126,14 +144,36 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const thirtyDaysAgoStr = formatLocalDate(thirtyDaysAgo);
 
     const unsubRoot = dbService.subscribeToUserData(userId, (data) => {
-      if (isStale()) return;
+      // C-1: Session Validation vs Connectivity
+      // If data is null, it means the document DOES NOT EXIST on the server.
+      // However, if we are offline, onSnapshot might still return null if it's the first
+      // load and cache is empty. We should ONLY logout if we are confirmed online.
       if (!data) {
-        // User document was deleted from Firestore — force sign-out immediately.
-        authService.logout();          // clears Firebase Auth session
-        get().actions.setAuth(null, null); // clears Zustand store + redirects via _layout
+        if (!get().syncStatus.isOffline) {
+          console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
+          authService.logout();          
+          get().actions.setAuth(null, null); 
+        } else {
+          console.log('[LifeOS] User doc empty but offline - skipping logout guard.');
+        }
         return;
       }
-      set({
+
+      // TEST A-3: Multiple Simultaneous Logins (Remote Revocation)
+      const currentToken = get().sessionToken;
+      if (data.sessionToken && currentToken && data.sessionToken !== currentToken) {
+        console.warn('[LifeOS] sessionToken mismatch - logging out device.');
+        Toast.show({
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'You have been logged in on another device.'
+        });
+        authService.logout();
+        get().actions.setAuth(null, null);
+        return;
+      }
+
+      set((state) => ({
         userName: data.userName || get().userName,
         moodTheme: data.moodTheme || get().moodTheme,
         focusGoalHours: data.focusGoalHours || get().focusGoalHours,
@@ -147,21 +187,40 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         skills: data.skills !== undefined ? data.skills : get().skills,
         socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
         accentColor: data.accentColor || get().accentColor,
-        hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough
-      });
+        hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
+        syncStatus: {
+          ...state.syncStatus,
+          isOffline: !!data._fromCache, // Handled by metadata in subscribeToUserData
+          lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
+        }
+      }));
     });
 
-    const unsubTasks = dbService.subscribeToCollection(userId, 'tasks', (docs) => {
+    const unsubTasks = dbService.subscribeToCollection(userId, 'tasks', (docs, metadata) => {
       if (isStale()) return;
-      set({ tasks: migrateTasks(docs as Task[]) });
+      set((state) => ({ 
+        tasks: migrateTasks(docs as Task[]),
+        syncStatus: { 
+          ...state.syncStatus, 
+          tasksLoaded: true,
+          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
+        }
+      }));
     }, [where('date', '>=', thirtyDaysAgoStr)]);
 
-    const unsubHabits = dbService.subscribeToCollection(userId, 'habits', (docs) => {
+    const unsubHabits = dbService.subscribeToCollection(userId, 'habits', (docs, metadata) => {
       if (isStale()) return;
-      set({ habits: docs as Habit[] });
+      set((state) => ({ 
+        habits: docs as Habit[],
+        syncStatus: { 
+          ...state.syncStatus, 
+          habitsLoaded: true,
+          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
+        }
+      }));
     }, [orderBy('createdAt', 'desc'), limit(200)]);
 
-    const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs) => {
+    const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs, metadata) => {
       const map: Record<string, MoodEntry> = {};
       docs.forEach(doc => { 
         const { id, ...entry } = doc as { id: string } & MoodEntry; 
@@ -170,19 +229,37 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       const today = getTodayLocal();
       set(state => ({
         moodHistory: { ...state.moodHistory, ...map },
-        mood: map[today]?.mood ?? state.mood
+        mood: map[today]?.mood ?? state.mood,
+        syncStatus: { 
+          ...state.syncStatus, 
+          moodLoaded: true,
+          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
+        }
       }));
     }, [where('__name__', '>=', windowStartStr)]);
 
-    const unsubFocus = dbService.subscribeToCollection(userId, 'focusHistory', (docs) => {
+    const unsubFocus = dbService.subscribeToCollection(userId, 'focusHistory', (docs, metadata) => {
+      if (isStale()) return;
       const map: Record<string, number> = {};
       docs.forEach(doc => { 
         map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0; 
       });
-      set({ focusHistory: map });
+      set((state) => ({ 
+        focusHistory: map,
+        syncStatus: { 
+          ...state.syncStatus, 
+          focusLoaded: true,
+          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
+        }
+      }));
     }, [where('__name__', '>=', windowStartStr)]);
 
-    set({ _syncUnsubscribes: [unsubRoot, unsubTasks, unsubHabits, unsubMood, unsubFocus] });
+    const unsubQuests = dbService.subscribeToCollection(userId, 'dailyQuests', (docs) => {
+      if (isStale()) return;
+      set({ dailyQuests: docs as any[] });
+    });
+
+    set({ _syncUnsubscribes: [unsubRoot, unsubTasks, unsubHabits, unsubMood, unsubFocus, unsubQuests] });
   },
 
   hydrateFromCloud: async () => {
@@ -192,11 +269,11 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         const { data } = await dbService.getUserProfile(userId);
         if (data) {
           await dbService.migrateLegacyData(userId, data);
-          const legacyStruggles = (data as any).struggles;
+          const struggles = (data as any).struggles;
           set({
             userName: data.userName || null,
-            hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (Array.isArray(legacyStruggles) && legacyStruggles.length > 0),
-            onboardingData: { struggles: Array.isArray(legacyStruggles) ? legacyStruggles : [] },
+            hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (Array.isArray(struggles) && struggles.length > 0),
+            onboardingData: { struggles: Array.isArray(struggles) ? struggles : [] },
             moodTheme: data.moodTheme || get().moodTheme,
             focusGoalHours: data.focusGoalHours || 8,
             bio: data.bio || null,
@@ -223,8 +300,32 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const now = Date.now();
     if (now - get()._lastRetryAt < 10000) return;
     set({ syncError: null, _lastRetryAt: now });
-    const { userId } = get();
+    
+    const { userId, pendingActions } = get();
     if (!userId) return;
+
+    // C-5: Process Pending Actions Queue
+    if (pendingActions.length > 0) {
+      console.log(`[LifeOS Sync] Processing ${pendingActions.length} pending actions...`);
+      for (const action of pendingActions) {
+        try {
+          if (action.collection === 'tasks') {
+            if (action.type === 'delete') await dbService.deleteTask(userId, action.id);
+            else await dbService.saveTask(userId, action.payload);
+          } else if (action.collection === 'habits') {
+            if (action.type === 'delete') await dbService.deleteHabit(userId, action.id);
+            else await dbService.saveHabit(userId, action.payload);
+          }
+          // Remove from queue on success
+          set(state => ({
+            pendingActions: state.pendingActions.filter(a => a.id !== action.id)
+          }));
+        } catch (err) {
+          console.warn(`[LifeOS Sync] Retry failed for ${action.id}:`, err);
+        }
+      }
+    }
+
     try {
       get().actions.subscribeToCloud();
     } catch (err: any) {
@@ -233,7 +334,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     }
   },
 
-  setOnboardingData: (data) => set((state) => ({ onboardingData: { ...state.onboardingData, ...data } })),
+  setOnboardingData: (data) => set((state) => {
+    const next = { ...state.onboardingData, ...data };
+    if (state.userId && data.struggles) {
+      fireSync(() => dbService.saveUserProfile(state.userId!, { struggles: data.struggles } as any), 'saveStruggles', state.userId);
+    }
+    return { onboardingData: next };
+  }),
   setThemePreference: (theme) => set({ themePreference: theme }),
   setAccentColor: (color) => set((state) => {
     if (state.userId) fireSync(() => dbService.saveAccentColor(state.userId!, color), 'saveAccentColor', state.userId);

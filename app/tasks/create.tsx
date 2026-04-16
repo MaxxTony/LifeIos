@@ -8,9 +8,9 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Calendar, Clock, Flag, X, Repeat } from 'lucide-react-native';
+import { Calendar, Clock, Flag, X } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Defined at module scope to avoid recreation on every render
@@ -44,7 +44,8 @@ function PriorityChip({
 export default function CreateTaskScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { actions: { addTask } } = useStore();
+  const addTask = useStore(s => s.actions.addTask);
+  const updateTask = useStore(s => s.actions.updateTask);
 
   const [text, setText] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
@@ -56,6 +57,7 @@ export default function CreateTaskScreen() {
 
   // 'start' | 'end' | 'date' | null
   const [pickerMode, setPickerMode] = useState<'start' | 'end' | 'date' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatTime = (d: Date) => {
     if (!d || isNaN(d.getTime())) return 'Not set';
@@ -73,6 +75,9 @@ export default function CreateTaskScreen() {
   const handleSave = () => {
     if (!text.trim()) return;
 
+    setIsSubmitting(true);
+    // C-14: Clear any navigation guards before moving back.
+    // We use a flag or just let the back() handle it.
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const taskId = addTask(
       text.trim(),
@@ -81,7 +86,7 @@ export default function CreateTaskScreen() {
       priority,
       formatLocalDate(date)
     );
-    
+
     // F-3: Set repeat if not none using the direct ID returned from addTask
     if (repeat !== 'none' && taskId) {
       useStore.getState().actions.updateTask(taskId, { repeat });
@@ -89,6 +94,44 @@ export default function CreateTaskScreen() {
 
     router.back();
   };
+
+  // C-14: Prevent accidental exit with unsaved work
+  const isDirty = text.trim().length > 0;
+  const navigation = Platform.OS !== 'web' ? require('@react-navigation/native').useNavigation() : null;
+
+  React.useEffect(() => {
+    if (!navigation) return;
+
+    // C-14 FIX: On native-stack, 'beforeRemove' can conflict with native gestures (like drag-to-dismiss).
+    // We disable the gesture when dirty to avoid the "removed natively but didn't get removed from JS state" error.
+    navigation.setOptions({
+      gestureEnabled: !isDirty,
+    });
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      // If we are intentionally saving or nothing has changed, don't block
+      if (isSubmitting || !isDirty) {
+        return;
+      }
+
+      e.preventDefault();
+
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes. Are you sure you want to discard them and leave?',
+        [
+          { text: "Don't leave", style: 'cancel', onPress: () => { } },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, isDirty]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

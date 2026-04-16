@@ -12,7 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { auth, db, storage } from '../firebase/config';
+import { auth, db, getStorageService } from '../firebase/config';
 
 export interface ChatConversation {
   id: string;
@@ -68,19 +68,22 @@ export const chatService = {
     }
   },
 
-  // FIX M-8: Added limit(100) to prevent fetching unbounded message history
+  // FIX M-8: Added limit(101) to detect when history reaches the view cap
   getMessages: async (userId: string, conversationId: string): Promise<ChatMessage[]> => {
     try {
       const q = query(
         collection(db, 'users', userId, 'conversations', conversationId, 'messages'),
-        orderBy('createdAt', 'asc'),
-        limit(100) // FIX M-8: cap at 100 messages per load
+        orderBy('createdAt', 'desc'), // Fetch newest first to know if we hit the limit
+        limit(101) // Fetch 101 to check if there are more
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
+      const messages = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ChatMessage[];
+
+      // Sort back to chronological for the UI
+      return messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     } catch (error) {
       console.error('Error getting messages:', error);
       return [];
@@ -137,7 +140,8 @@ export const chatService = {
   // Uses explicit gs:// URI to handle new .firebasestorage.app bucket discovery.
   uploadImage: async (userId: string, uri: string): Promise<string> => {
     try {
-      // Verify auth state before attempting upload
+      // P-6 FIX: Ensure auth is ready and services are lazy-loaded
+      await auth.authStateReady();
       const user = auth.currentUser;
       if (!user) {
         throw new Error('Not authenticated with Firebase');
@@ -149,7 +153,8 @@ export const chatService = {
 
       // 2. Create a reference to 'profiles/userId/avatar_timestamp.jpg'
       const timestamp = new Date().getTime();
-      const storageRef = ref(storage, `profiles/${userId}/chats_${timestamp}.jpg`);
+      const storageInstance = getStorageService();
+      const storageRef = ref(storageInstance, `profiles/${userId}/chats_${timestamp}.jpg`);
 
       // 3. Upload the blob
       await uploadBytes(storageRef, blob);

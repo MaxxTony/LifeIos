@@ -1,7 +1,7 @@
 import { useStore } from '@/store/useStore';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/firebase/config';
+import { getFunctionsService, auth } from '@/firebase/config';
 import { aiActionHandler } from './aiActionHandler';
 import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 
@@ -11,25 +11,18 @@ import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 // holds the Gemini key as a server-side secret so it never ships in the
 // client bundle. When false, we fall back to the legacy client-side key
 // path so the app keeps working pre-deploy.
+// C-2: Server-side proxy flag.
 const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 
-// ⚠️  SECURITY: EXPO_PUBLIC_GEMINI_API_KEY is embedded in the JS bundle at
-// build time. Anyone who decompiles the APK/IPA can extract it. This path
-// exists ONLY as a fallback while you finish deploying the Cloud Function.
-// Once functions are deployed and USE_AI_PROXY=true, rotate and delete this
-// key in Google Cloud Console.
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+// ⚠️ SECURITY: Never use EXPO_PUBLIC_ for production API keys. 
+// We use a non-prefixed GEMINI_KEY that won't be bundled by Expo.
+const GEMINI_API_KEY = process.env.GEMINI_KEY || process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
-if (!USE_AI_PROXY && __DEV__) {
-  console.warn(
-    '[LifeOS] AI calls are using the CLIENT-SIDE Gemini key. ' +
-    'Deploy functions/ and set EXPO_PUBLIC_USE_AI_PROXY=true before shipping to production.'
-  );
+if (!USE_AI_PROXY && !__DEV__) {
+  console.error('[LifeOS] CRITICAL: Client-side AI key detected in non-dev build. Proxy is MANDATORY for production.');
 }
 
-// Legacy direct client (fallback path). Only initialised when the proxy flag
-// is off.
-const genAI = (!USE_AI_PROXY && GEMINI_API_KEY) ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+const genAI = (GEMINI_API_KEY && (!USE_AI_PROXY || __DEV__)) ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 /**
  * Generates a comprehensive snapshot of the app's current state
@@ -177,11 +170,28 @@ export const getAIResponse = async (
   // Tool-calling can be added to the Cloud Function in a follow-up; for now
   // the proxy handles plain text + vision, which covers the chat use case.
   if (USE_AI_PROXY) {
+    // auth.authStateReady() resolves once Firebase Auth has finished loading
+    // its persisted state from AsyncStorage. Without this await, the
+    // auth-internal provider used by httpsCallable may not be initialized yet
+    // and will send the request without an Authorization header, causing
+    // the function to throw `unauthenticated` even when the user is logged in.
+    await auth.authStateReady();
+
+    console.log('[AI DEBUG] authStateReady done. currentUser:', auth.currentUser?.uid ?? 'NULL');
+
+    if (!auth.currentUser) {
+      console.warn('[LifeOS] AI call failed: User is not authenticated on the client.');
+      return 'UNAUTHENTICATED';
+    }
+
     try {
+      const idToken = await auth.currentUser.getIdToken(true); // force refresh
+      console.log('[AI DEBUG] Got ID token, length:', idToken.length, 'uid:', auth.currentUser.uid);
+
       const call = httpsCallable<
         { messages: typeof messages; systemInstruction?: string },
         { text: string }
-      >(functions, 'callAI');
+      >(getFunctionsService(), 'callAI');
       const state = useStore.getState();
       const systemInstruction = `You are LifeOS, a premium personal assistant.
       You help users manage tasks, habits, and moods.
@@ -190,6 +200,7 @@ export const getAIResponse = async (
       const result = await call({ messages, systemInstruction });
       return result.data?.text || 'Sorry, I could not generate a response.';
     } catch (err: any) {
+      console.error('[AI DEBUG] callAI error code:', (err as any)?.code, 'message:', (err as any)?.message);
       console.error('callAI proxy error:', err);
       return 'I am sorry, I am having trouble connecting right now. Please try again.';
     }
@@ -287,27 +298,51 @@ export const getAIResponse = async (
 };
 
 export const getFocusQuote = async () => {
-  // In proxy mode, fall back to local static quotes to avoid burning Cloud
-  // Function invocations on cosmetic UI. Swap for a dedicated endpoint later.
-  if (USE_AI_PROXY || !genAI) return null;
+  if (!USE_AI_PROXY && !genAI) return null;
+
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent('Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.');
-    return result?.response.text() || null;
-  } catch {
+    const prompt = 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.';
+    
+    if (USE_AI_PROXY) {
+      await auth.authStateReady();
+      if (!auth.currentUser) return null;
+      await auth.currentUser.getIdToken();
+      const call = httpsCallable<{ messages: { role: string; content: string }[] }, { text: string }>(getFunctionsService(), 'callAI');
+      const result = await call({ messages: [{ role: 'user', content: prompt }] });
+      return result.data?.text || null;
+    } else {
+      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const result = await model.generateContent(prompt);
+      return result?.response.text() || null;
+    }
+  } catch (err) {
+    console.error('[AI] getFocusQuote error:', err);
     return null;
   }
 };
 
 export const getMoodInsight = async (moodData: any[]) => {
   if (moodData.length < 3) return null;
-  if (USE_AI_PROXY || !genAI) return null;
+  if (!USE_AI_PROXY && !genAI) return null;
+
   const summary = JSON.stringify(moodData);
+  const prompt = `Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`;
+
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(`Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`);
-    return result?.response.text() || null;
-  } catch {
+    if (USE_AI_PROXY) {
+      await auth.authStateReady();
+      if (!auth.currentUser) return null;
+      await auth.currentUser.getIdToken();
+      const call = httpsCallable<{ messages: { role: string; content: string }[] }, { text: string }>(getFunctionsService(), 'callAI');
+      const result = await call({ messages: [{ role: 'user', content: prompt }] });
+      return result.data?.text || null;
+    } else {
+      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const result = await model.generateContent(prompt);
+      return result?.response.text() || null;
+    }
+  } catch (err) {
+    console.error('[AI] getMoodInsight error:', err);
     return null;
   }
 };

@@ -99,7 +99,13 @@ export default function AIChatScreen() {
   };
 
   const handleSend = async (textOverride?: string) => {
-    const text = textOverride || input;
+    const isOffline = useStore.getState().syncStatus.isOffline;
+    if (isOffline) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    const text = (textOverride || input).slice(0, 10000);
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
 
     Keyboard.dismiss();
@@ -164,6 +170,18 @@ export default function AIChatScreen() {
         };
       });
       const response = await getAIResponse(aiInputMessages);
+      
+      if (response === 'UNAUTHENTICATED') {
+        const aiMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: 'I need you to sign in again to continue our conversation. Your session may have expired.',
+          createdAt: Date.now()
+        };
+        setMessages(prev => [...prev.filter(m => m.id !== 'welcome'), aiMsg]);
+        setLoading(false);
+        return;
+      }
 
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -243,7 +261,15 @@ export default function AIChatScreen() {
             ]}
             showsVerticalScrollIndicator={false}
           >
-            {messages.map((m) => (
+            {messages.length > 100 && (
+              <View style={[styles.limitIndicator, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
+                <IconSymbol name="info.circle" size={14} color={colors.primary} />
+                <Text style={[styles.limitText, { color: colors.textSecondary }]}>
+                  Showing most recent 100 messages to maintain speed.
+                </Text>
+              </View>
+            )}
+            {messages.slice(messages.length > 100 ? 1 : 0).map((m) => (
               <View key={m.id} style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
                 {m.role === 'assistant' && (
                   <View style={styles.aiAvatar}>
@@ -359,13 +385,13 @@ export default function AIChatScreen() {
                 <TouchableOpacity
                   onPress={() => handleSend()}
                   style={styles.sendBtn}
-                  disabled={uploading || loading}
+                  disabled={uploading || loading || useStore.getState().syncStatus.isOffline}
                   accessibilityLabel="Send message"
                   accessibilityRole="button"
                 >
                   <LinearGradient
                     colors={[colors.primary, colors.secondary]}
-                    style={[styles.sendBtnGradient, (uploading || loading) && { opacity: 0.5 }]}
+                    style={[styles.sendBtnGradient, (uploading || loading || useStore.getState().syncStatus.isOffline) && { opacity: 0.5 }]}
                   >
                     {(uploading || loading)
                       ? <ActivityIndicator size="small" color="#FFF" />
@@ -426,6 +452,20 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
     paddingBottom: Spacing.xl,
+  },
+  limitIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 8,
+  },
+  limitText: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 13,
   },
   messageWrapper: {
     marginBottom: Spacing.lg,

@@ -12,6 +12,8 @@ export interface Task {
   systemComment?: string | null;
   repeat?: 'none' | 'daily' | 'weekly' | 'monthly';
   subtasks?: { id: string; text: string; completed: boolean }[];
+  /** Set to true the first time XP is awarded for completing this task. Prevents duplicate XP on re-toggle. */
+  xpAwarded?: boolean;
 }
 
 export interface Habit {
@@ -27,7 +29,10 @@ export interface Habit {
   completedDays: string[]; // ISO Dates (e.g. "2024-04-10")
   createdAt: number;
   bestStreak: number;
+  currentStreak: number;
   pausedUntil: string | null; // ISO date string
+  /** Tracks which dates XP was already awarded to prevent duplicate XP on re-toggle. Max 90 entries. */
+  xpAwardedDays?: string[];
 }
 
 export interface FocusSession {
@@ -58,6 +63,15 @@ export interface Quest {
   targetCount: number;
   currentCount: number;
   completed: boolean;
+}
+
+export interface SyncStatus {
+  tasksLoaded: boolean;
+  habitsLoaded: boolean;
+  moodLoaded: boolean;
+  focusLoaded: boolean;
+  isOffline: boolean;
+  lastCloudSync: number | null;
 }
 
 export interface UserState {
@@ -121,6 +135,15 @@ export interface UserState {
   hasSeenWalkthrough: boolean;
   _syncUnsubscribes: (() => void)[];
   _subscriptionGen: number;
+  sessionToken: string | null;
+  syncStatus: SyncStatus;
+  pendingActions: {
+    id: string;
+    type: 'create' | 'update' | 'delete';
+    collection: 'tasks' | 'habits' | 'moodHistory' | 'focusHistory' | 'profile';
+    payload: any;
+    timestamp: number;
+  }[];
 
   // Actions grouped by slices
   actions: UserActions;
@@ -130,7 +153,7 @@ export interface UserActions {
   // Auth/Profile
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
-  setAuth: (userId: string | null, userName: string | null) => Promise<void>;
+  setAuth: (userId: string | null, userName: string | null, sessionToken?: string | null) => Promise<void>;
   setOnboardingData: (data: Partial<UserState['onboardingData']>) => void;
   updateProfile: (updates: Partial<{
     userName: string; bio: string; location: string; occupation: string;

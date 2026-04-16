@@ -118,6 +118,18 @@ export default function LoginScreen() {
   const [setupUser, setSetupUser] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [hasPlayServices, setHasPlayServices] = useState(true);
+  const [setupSessionToken, setSetupSessionToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkPlay = async () => {
+      if (Platform.OS === 'android') {
+        const hasPlay = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
+        setHasPlayServices(hasPlay);
+      }
+    };
+    checkPlay();
+  }, []);
 
   const router = useRouter();
   const colors = useThemeColors();
@@ -128,9 +140,16 @@ export default function LoginScreen() {
   };
 
   const onGoogleButtonPress = async () => {
+    if (!hasPlayServices) {
+      Toast.show({ 
+        type: 'error', 
+        text1: 'Google Play Services', 
+        text2: 'Play services not available on this device.' 
+      });
+      return;
+    }
     setLoading('google');
     try {
-      await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
 
@@ -156,7 +175,7 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async (idToken: string) => {
     try {
-      const { user, error } = await authService.loginWithGoogle(idToken);
+      const { user, sessionToken, error } = await authService.loginWithGoogle(idToken);
       if (user) {
         const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
@@ -172,6 +191,7 @@ export default function LoginScreen() {
           // Switch to setup mode to let them confirm/change their name
           setSetupUser(user);
           setFullName(user.displayName || '');
+          setSetupSessionToken(sessionToken || null);
           setSetupMode(true);
           setLoading(null);
           return;
@@ -184,7 +204,7 @@ export default function LoginScreen() {
         }
 
         completeOnboarding();
-        setAuth(user.uid, user.displayName || existingProfile?.userName || 'User');
+        setAuth(user.uid, user.displayName || existingProfile?.userName || 'User', sessionToken);
 
         Toast.show({
           type: 'success',
@@ -243,7 +263,7 @@ export default function LoginScreen() {
 
     setLoading('email');
     try {
-      const { user, error } = isSignUp
+      const { user, sessionToken, error, errorCode } = isSignUp
         ? await authService.signUp(email, password)
         : await authService.login(email, password);
 
@@ -261,7 +281,7 @@ export default function LoginScreen() {
         }
 
         completeOnboarding();
-        setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User');
+        setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User', sessionToken);
 
         Toast.show({
           type: 'success',
@@ -270,6 +290,17 @@ export default function LoginScreen() {
         });
 
         router.replace('/(tabs)');
+      } else if (errorCode === 'auth/network-request-failed') {
+        // Network was unstable — Firebase may still complete the auth in the background.
+        // onAuthStateChanged in _layout.tsx will navigate automatically if it succeeds.
+        // Show a soft info toast instead of a hard error so the user isn't confused when
+        // they then get logged in a moment later.
+        Toast.show({
+          type: 'info',
+          text1: 'Poor Connection',
+          text2: 'Signing in… please wait a moment.',
+          visibilityTime: 5000,
+        });
       } else {
         Toast.show({
           type: 'error',
@@ -299,7 +330,7 @@ export default function LoginScreen() {
       if (setupUser) {
         await dbService.saveUserProfile(setupUser.uid, { userName: fullName.trim() });
         completeOnboarding();
-        setAuth(setupUser.uid, fullName.trim());
+        setAuth(setupUser.uid, fullName.trim(), setupSessionToken);
 
         Toast.show({
           type: 'success',

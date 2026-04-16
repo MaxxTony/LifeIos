@@ -101,7 +101,11 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
 }
 
 export default function AppearanceSettings() {
-  const { themePreference, accentColor, userName, actions: { setThemePreference, setAccentColor } } = useStore();
+  const themePreference = useStore(s => s.themePreference);
+  const accentColor = useStore(s => s.accentColor);
+  const userName = useStore(s => s.userName);
+  const setThemePreference = useStore(s => s.actions.setThemePreference);
+  const setAccentColor = useStore(s => s.actions.setAccentColor);
   const colors = useThemeColors();
   const headerHeight = useHeaderHeight();
 

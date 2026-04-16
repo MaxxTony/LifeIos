@@ -8,71 +8,43 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Plus, Trash2 } from 'lucide-react-native';
-import React, { useRef } from 'react';
-import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useMemo, useCallback } from 'react';
+import { Alert, Dimensions, Platform, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-export default function AllHabitsScreen() {
-  const router = useRouter();
-  const colors = useThemeColors();
-  const { habits, actions: { toggleHabit, getStreak, removeHabit } } = useStore();
-  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
-
-  const handleToggle = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    toggleHabit(id);
-  };
-
-  const handleDelete = (id: string, title: string) => {
-    Alert.alert(
-      'Delete Habit',
-      `Delete "${title}" and all its progress?`,
-      [
-        {
-          text: 'Cancel', style: 'cancel',
-          onPress: () => swipeableRefs.current.get(id)?.close()
-        },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            removeHabit(id);
-          }
-        }
-      ]
-    );
-  };
-
-  const renderRightActions = (id: string, title: string) => (
-    <TouchableOpacity
-      style={[styles.deleteAction, { backgroundColor: colors.danger }]}
-      onPress={() => handleDelete(id, title)}
-    >
-      <Trash2 size={20} color="#FFF" />
-      <Text style={styles.deleteActionText}>Delete</Text>
-    </TouchableOpacity>
-  );
-
-  const getWeekDates = () => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today);
-    monday.setDate(diff);
-
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return formatLocalDate(d);
-    });
-  };
+// P-4: Memoize the habit item to avoid re-renders during focus ticks
+const HabitItem = React.memo(({ 
+  habit, 
+  onToggle, 
+  onDelete, 
+  getStreak, 
+  colors, 
+  router, 
+  swipeableRefs 
+}: any) => {
+  const streak = getStreak(habit.id);
+  const todayStr = getTodayLocal();
+  const isCompletedToday = habit.completedDays.includes(todayStr);
+  const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
 
   const renderDots = (completedDays: string[]) => {
-    const weekDates = getWeekDates();
     const today = getTodayLocal();
+    const weekDates = useMemo(() => {
+      const t = new Date();
+      const day = t.getDay();
+      const diff = t.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(t);
+      monday.setDate(diff);
+
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return formatLocalDate(d);
+      });
+    }, []);
 
     return (
       <View style={styles.dotsRow}>
@@ -101,16 +73,126 @@ export default function AllHabitsScreen() {
     );
   };
 
-  const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
+  const renderRightActions = () => (
+    <TouchableOpacity
+      style={[styles.deleteAction, { backgroundColor: colors.danger }]}
+      onPress={() => onDelete(habit.id, habit.title)}
+    >
+      <Trash2 size={20} color="#FFF" />
+      <Text style={styles.deleteActionText}>Delete</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Swipeable
+      ref={ref => { swipeableRefs.current.set(habit.id, ref); }}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+    >
+      <View
+        style={[
+          styles.habitCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          isCompletedToday && { borderColor: colors.success + '40' }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.habitMain}
+          onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
+          activeOpacity={0.6}
+        >
+          <View style={styles.habitInfo}>
+            <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
+              {habit.icon} {habit.title}
+            </Text>
+            <View style={styles.streakInfo}>
+              <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+              <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
+                {streak} day streak
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.dotsContainer}
+            onPress={() => onToggle(habit.id)}
+            activeOpacity={0.7}
+          >
+            {renderDots(habit.completedDays)}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+    </Swipeable>
+  );
+});
+
+export default function AllHabitsScreen() {
+  const router = useRouter();
+  const colors = useThemeColors();
+
+  // P-2 FIX: Use granular selectors to avoid heavy re-renders from focus timer ticks
+  const habits = useStore(s => s.habits);
+  const toggleHabit = useStore(s => s.actions.toggleHabit);
+  const removeHabit = useStore(s => s.actions.removeHabit);
+  const getStreak = useStore(s => s.actions.getStreak);
+
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
+
+  const handleToggle = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    toggleHabit(id);
+  }, [toggleHabit]);
+
+  const handleDelete = useCallback((id: string, title: string) => {
+    Alert.alert(
+      'Delete Habit',
+      `Delete "${title}" and all its progress?`,
+      [
+        {
+          text: 'Cancel', style: 'cancel',
+          onPress: () => swipeableRefs.current.get(id)?.close()
+        },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            removeHabit(id);
+          }
+        }
+      ]
+    );
+  }, [removeHabit]);
+
+  const renderHeaderLabels = () => {
+    if (habits.length === 0) return null;
+    return (
+      <View style={styles.dotsHeaderLabels}>
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <View key={i} style={styles.dayLabelContainer}>
+            <Text style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={[styles.emptyIconContainer, { backgroundColor: colors.success + '10' }]}>
+        <Ionicons name="leaf-outline" size={32} color={colors.success} />
+      </View>
+      <Text style={[styles.emptyText, { color: colors.text }]}>Plant your first habit</Text>
+      <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Consistency is the bridge between goals and accomplishment. 🌱</Text>
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Background Glows */}
       <View style={[styles.glow, { top: -100, right: -100, backgroundColor: colors.primary + '15' }]} />
       <View style={[styles.glow, { bottom: -150, left: -150, backgroundColor: colors.success + '10' }]} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        {/* Liquid Glass Header */}
         <View style={styles.headerContainer}>
           <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.headerBlur}>
             <View style={styles.headerContent}>
@@ -141,81 +223,28 @@ export default function AllHabitsScreen() {
             </View>
           </BlurView>
         </View>
-        <ScrollView
+
+        {/* P-3 FIX: Transition from ScrollView + map to FlatList for performance */}
+        <FlatList
+          data={habits}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <HabitItem
+              habit={item}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+              getStreak={getStreak}
+              colors={colors}
+              router={router}
+              swipeableRefs={swipeableRefs}
+            />
+          )}
+          ListHeaderComponent={renderHeaderLabels}
+          ListEmptyComponent={renderEmptyState}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           style={{ marginTop: 10 }}
-        >
-          {habits.length > 0 && (
-            <View style={styles.dotsHeaderLabels}>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                <View key={i} style={styles.dayLabelContainer}>
-                  <Text style={[styles.dayLabelText, { color: colors.textSecondary }]}>{d}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.list}>
-            {habits.length > 0 ? habits.map((habit) => {
-              const streak = getStreak(habit.id);
-              const todayStr = getTodayLocal();
-              const isCompletedToday = habit.completedDays.includes(todayStr);
-
-              return (
-                <Swipeable
-                  key={habit.id}
-                  ref={ref => { swipeableRefs.current.set(habit.id, ref); }}
-                  renderRightActions={() => renderRightActions(habit.id, habit.title)}
-                  overshootRight={false}
-                  friction={2}
-                >
-                  <View
-                    style={[
-                      styles.habitCard,
-                      { backgroundColor: colors.card, borderColor: colors.border },
-                      isCompletedToday && { borderColor: colors.success + '40' }
-                    ]}
-                  >
-                    <TouchableOpacity
-                      style={styles.habitMain}
-                      onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
-                      activeOpacity={0.6}
-                    >
-                      <View style={styles.habitInfo}>
-                        <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
-                          {habit.icon} {habit.title}
-                        </Text>
-                        <View style={styles.streakInfo}>
-                          <Ionicons name="flame" size={12} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
-                          <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
-                            {streak} day streak
-                          </Text>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        style={styles.dotsContainer}
-                        onPress={() => handleToggle(habit.id)}
-                        activeOpacity={0.7}
-                      >
-                        {renderDots(habit.completedDays)}
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  </View>
-                </Swipeable>
-              );
-            }) : (
-              <View style={styles.emptyState}>
-                <View style={[styles.emptyIconContainer, { backgroundColor: colors.success + '10' }]}>
-                  <Ionicons name="leaf-outline" size={32} color={colors.success} />
-                </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>Plant your first habit</Text>
-                <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Consistency is the bridge between goals and accomplishment. 🌱</Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        />
       </SafeAreaView>
     </View>
   );
@@ -284,7 +313,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     opacity: 0.6,
   },
-  list: { gap: 12 },
   habitCard: {
     padding: 16,
     borderRadius: 24,
@@ -294,6 +322,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    marginBottom: 12, // Gap replaced by margin since FlatList is used
   },
   habitMain: {
     flexDirection: 'row',
@@ -324,14 +353,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toggleBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   deleteAction: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -339,6 +360,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginLeft: 8,
     gap: 4,
+    marginBottom: 12, // Match habit card margin
   },
   deleteActionText: {
     color: '#FFF',
@@ -353,3 +375,4 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 18, fontWeight: '800' },
   emptySubtext: { fontSize: 13, opacity: 0.7, textAlign: 'center', paddingHorizontal: 40 }
 });
+

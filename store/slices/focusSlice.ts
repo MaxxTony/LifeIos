@@ -10,6 +10,8 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
 
   toggleFocusSession: () => set((state) => {
     const now = Date.now();
+    const perfNow = typeof performance !== 'undefined' ? performance.now() : 0;
+
     if (state.focusSession.isActive) {
       const elapsed = state.focusSession.lastStartTime ? (now - state.focusSession.lastStartTime) / 1000 : 0;
       const totalSeconds = Math.max(0, state.focusSession.totalSecondsToday + elapsed);
@@ -29,7 +31,13 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       }
 
       return {
-        focusSession: { ...state.focusSession, isActive: false, totalSecondsToday: totalSeconds, lastStartTime: null }
+        focusSession: { 
+          ...state.focusSession, 
+          isActive: false, 
+          totalSecondsToday: totalSeconds, 
+          lastStartTime: null,
+          _lastTickPerformanceTime: null 
+        }
       };
     } else {
       if (state.userId && state.userName) {
@@ -40,18 +48,45 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       }
 
       return {
-        focusSession: { ...state.focusSession, isActive: true, lastStartTime: now }
+        focusSession: { 
+          ...state.focusSession, 
+          isActive: true, 
+          lastStartTime: now,
+          _lastTickPerformanceTime: perfNow
+        }
       };
     }
   }),
 
   updateFocusTime: () => set((state) => {
-    if (!state.focusSession.isActive || !state.focusSession.lastStartTime) return state;
+    if (!state.focusSession.isActive) return state;
+    
     const now = Date.now();
-    const rawElapsed = now - state.focusSession.lastStartTime;
-    const MAX_TICK_MS = 24 * 60 * 60 * 1000;
-    const elapsed = Math.min(rawElapsed, MAX_TICK_MS) / 1000;
-    const totalSeconds = state.focusSession.totalSecondsToday + elapsed;
+    const perfNow = typeof performance !== 'undefined' ? performance.now() : 0;
+    
+    let elapsed = 0;
+    const { _lastTickPerformanceTime, lastStartTime } = state.focusSession as any;
+
+    if (_lastTickPerformanceTime) {
+      // M-3 FIX: Use performance.now() for monotonic ticks while app is running.
+      // This is immune to system clock changes (DST jumps).
+      elapsed = (perfNow - _lastTickPerformanceTime) / 1000;
+    } else if (lastStartTime) {
+      // Background reconciliation: use wall-clock time
+      elapsed = (now - lastStartTime) / 1000;
+    }
+
+    // C-11: Drift-aware reconciliation safeguard
+    const MAX_TICK_SECONDS = 30; // Normal ticks are ~1s. 
+    const isBackgroundSync = elapsed > MAX_TICK_SECONDS;
+    
+    // Cap background sync at 24h, cap foreground ticks at 30s
+    const CLAMP_SECONDS = isBackgroundSync ? (24 * 3600) : MAX_TICK_SECONDS;
+    const safeElapsed = Math.min(elapsed, CLAMP_SECONDS);
+
+    if (safeElapsed <= 0) return state;
+
+    const totalSeconds = state.focusSession.totalSecondsToday + safeElapsed;
 
     let newMode = state.focusSession.pomodoroMode;
     let newTimeLeft = state.focusSession.pomodoroTimeLeft - elapsed;
@@ -87,6 +122,7 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
         ...state.focusSession,
         totalSecondsToday: totalSeconds,
         lastStartTime: now,
+        _lastTickPerformanceTime: perfNow,
         pomodoroMode: newMode,
         pomodoroTimeLeft: newTimeLeft,
         isActive: newIsActive

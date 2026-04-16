@@ -1,10 +1,11 @@
-import { storage } from '../firebase/config';
+import { getStorageService } from '../firebase/config';
 import { 
   ref, 
   uploadBytes, 
   getDownloadURL, 
   deleteObject 
 } from 'firebase/storage';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 export const storageService = {
   /**
@@ -21,13 +22,20 @@ export const storageService = {
         await storageService.deleteImage(previousUrl);
       }
 
-      // 1. Fetch the image to convert it into a blob
-      const response = await fetch(uri);
+      // P-5 FIX: Resize and compress image before blob conversion to avoid UI thread lag
+      const manipResult = await manipulateAsync(
+        uri,
+        [{ resize: { width: 800, height: 800 } }],
+        { compress: 0.8, format: SaveFormat.JPEG }
+      );
+
+      // 1. Fetch the manipulated image to convert it into a blob
+      const response = await fetch(manipResult.uri);
       const blob = await response.blob();
 
       // 2. Create a reference to 'profiles/userId/avatar_timestamp.jpg'
       const timestamp = new Date().getTime();
-      const storageRef = ref(storage, `profiles/${userId}/avatar_${timestamp}.jpg`);
+      const storageRef = ref(getStorageService(), `profiles/${userId}/avatar_${timestamp}.jpg`);
 
       // 3. Upload the blob
       await uploadBytes(storageRef, blob);
@@ -47,7 +55,7 @@ export const storageService = {
   deleteImage: async (url: string) => {
     try {
       if (!url || !url.includes('firebasestorage')) return;
-      const fileRef = ref(storage, url);
+      const fileRef = ref(getStorageService(), url);
       await deleteObject(fileRef);
     } catch (error) {
       console.warn('Could not delete image from storage (might already be gone):', error);

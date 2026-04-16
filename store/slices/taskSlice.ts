@@ -37,7 +37,14 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
 
     set((state) => ({ tasks: [...state.tasks, newTask] }));
     if (get().userId) {
-      fireSync(() => dbService.saveTask(get().userId!, newTask), 'addTask', get().userId);
+      fireSync(
+        () => dbService.saveTask(get().userId!, newTask), 
+        'addTask', 
+        get().userId,
+        'tasks',
+        newTask,
+        newTask.id
+      );
       analyticsService.logEvent(get().userId, 'task_added', { priority, hasTime: !!startTime });
     }
     
@@ -55,7 +62,14 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       const newTasks = state.tasks.map(t => t.id === id ? { ...t, ...updates } : t);
       const updatedTask = newTasks.find(t => t.id === id);
       if (state.userId && updatedTask) {
-        fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'updateTask', state.userId);
+        fireSync(
+          () => dbService.saveTask(state.userId!, updatedTask), 
+          'updateTask', 
+          state.userId,
+          'tasks',
+          updatedTask,
+          updatedTask.id
+        );
       }
 
       if (updates.startTime || updates.date || updates.text) {
@@ -81,7 +95,14 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       if (!task) return state;
 
       const nowCompleted = !task.completed;
-      const updatedTask = { ...task, completed: nowCompleted, status: (nowCompleted ? 'completed' : 'pending') as Task['status'] };
+      // XP guard: only award once per task lifetime. xpAwarded stays true even after un-toggle.
+      const shouldAwardXP = nowCompleted && !task.xpAwarded;
+      const updatedTask = {
+        ...task,
+        completed: nowCompleted,
+        status: (nowCompleted ? 'completed' : 'pending') as Task['status'],
+        xpAwarded: task.xpAwarded || shouldAwardXP,
+      };
       if (!nowCompleted) delete updatedTask.systemComment;
       
       let newTasks = state.tasks.map((t) => t.id === id ? updatedTask : t);
@@ -93,9 +114,11 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         else if (task.repeat === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
 
         const nextDateStr = formatLocalDate(nextDate);
-        const exists = state.tasks.some(t => t.text === task.text && t.date === nextDateStr);
-        if (!exists) {
-          const newTask = {
+        
+        // M-2 FIX: Extra-strong check to prevent duplication on rapid toggling
+        const alreadySpawned = newTasks.some(t => t.text === task.text && t.date === nextDateStr);
+        if (!alreadySpawned) {
+          const newTask: Task = {
             ...task,
             id: Crypto.randomUUID(),
             date: nextDateStr,
@@ -112,7 +135,14 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       }
 
       if (state.userId) {
-        fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleTask', state.userId);
+        fireSync(
+          () => dbService.saveTask(state.userId!, updatedTask), 
+          'toggleTask', 
+          state.userId,
+          'tasks',
+          updatedTask,
+          updatedTask.id
+        );
       }
 
       setTimeout(() => {
@@ -125,7 +155,10 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         import('@/services/notificationService').then(({ notificationService }) => {
           notificationService.cancelTaskNotification(id);
         });
-        get().actions.addXP(15);
+        // Only award XP the FIRST time this task is completed (idempotent guard)
+        if (shouldAwardXP) {
+          get().actions.addXP(15);
+        }
         analyticsService.logEvent(state.userId, 'task_completed', { priority: task.priority });
       } else {
         analyticsService.logEvent(state.userId, 'task_uncompleted', { priority: task.priority });
@@ -139,7 +172,14 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
     set((state) => {
       const newTasks = state.tasks.filter((t) => t.id !== id);
       if (state.userId) {
-        fireSync(() => dbService.deleteTask(state.userId!, id), 'removeTask', state.userId);
+        fireSync(
+          () => dbService.deleteTask(state.userId!, id), 
+          'removeTask', 
+          state.userId,
+          'tasks',
+          { id }, // Payload for delete is just ID
+          id
+        );
       }
 
       import('@/services/notificationService').then(({ notificationService }) => {
@@ -187,7 +227,13 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         if (!parsed) return task;
 
         const [taskYear, taskMonth, taskDay] = task.date.split('-').map(Number);
+        // M-7: Build end time relative to the user's CURRENT timezone logic, but
+        // ensure it honors the specific date. 
         const endDateTime = new Date(taskYear, taskMonth - 1, taskDay, parsed.hours, parsed.minutes, 0, 0);
+
+        // Optimization: only process if the day is strictly today or in the past
+        const todayStr = getTodayLocal();
+        if (task.date > todayStr) return task; 
 
         if (now > endDateTime) {
           changed = true;

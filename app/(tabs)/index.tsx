@@ -107,7 +107,12 @@ export default function HomeScreen() {
   const colors = useThemeColors();
   const { dashboardTheme } = colors;
   const greeting = getGreeting();
-  const stats = useProfileStats();
+  // PH-1 PERFORMANCE: Subscribe directly to stable primitives (level, xp) 
+  // instead of useProfileStats() to avoid re-renderingทุก second on timer ticks.
+  const level = useStore(s => s.level);
+  const totalXP = useStore(s => s.totalXP);
+  const xpProgress = (totalXP % 100) / 100;
+
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
   
@@ -197,10 +202,10 @@ export default function HomeScreen() {
                 style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
               >
                 <View style={styles.xpInfo}>
-                  <Text style={[styles.levelLabel, { color: colors.text }]}>LVL {stats.level}</Text>
+                  <Text style={[styles.levelLabel, { color: colors.text }]}>LVL {level}</Text>
                   <View style={styles.xpBarContainer}>
                     <View style={[styles.xpBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                      <View style={[styles.xpBarFill, { width: `${stats.xpProgress * 100}%`, backgroundColor: colors.primary }]} />
+                      <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
                     </View>
                   </View>
                 </View>

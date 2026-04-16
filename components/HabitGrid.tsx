@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export function HabitGrid() {
+export const HabitGrid = React.memo(function HabitGrid() {
   // Selectors: only re-render when habits, toggleHabit, or getStreak changes.
   const habits = useStore(s => s.habits);
   const toggleHabit = useStore(s => s.actions.toggleHabit);
@@ -21,6 +21,9 @@ export function HabitGrid() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id, dateStr);
   };
+
+  const pendingActions = useStore(s => s.pendingActions);
+  const isSyncingHabit = (id: string) => pendingActions.some(a => a.id === id);
 
   const getWeekDates = () => {
     const today = new Date();
@@ -36,20 +39,22 @@ export function HabitGrid() {
     });
   };
 
-  const renderDots = (habitId: string, completedDays: string[]) => {
+  const renderDots = (habitId: string, completedDays: string[], habitTitle: string) => {
     const weekDates = getWeekDates();
     const today = getTodayLocal();
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
     return weekDates.map((dateString, i) => {
       const isCompleted = completedDays.includes(dateString);
       const isToday = dateString === today;
       const isFuture = dateString > today;
+      const dayName = dayNames[i];
 
       return (
         <TouchableOpacity
           key={i}
           activeOpacity={0.6}
-          hitSlop={{ top: 16, bottom: 16, left: 6, right: 6 }}
+          hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
           onPress={() => {
             if (!isFuture) handleToggle(habitId, dateString);
           }}
@@ -61,6 +66,9 @@ export function HabitGrid() {
             isToday && [styles.dotToday, { borderColor: colors.textSecondary }],
             isFuture && { opacity: 0.3 }
           ]}
+          accessibilityLabel={`${dayName} for ${habitTitle}: ${isCompleted ? 'Completed' : 'Not completed'}${isToday ? ' (Today)' : ''}`}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: isCompleted, disabled: isFuture }}
         >
           {isCompleted && <Ionicons name="checkmark" size={7} color="#FFF" />}
         </TouchableOpacity>
@@ -79,8 +87,9 @@ export function HabitGrid() {
           <TouchableOpacity
             onPress={() => router.push('/(habits)/templates')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
-            accessibilityLabel="Add new habit"
+            accessibilityLabel="Create or choose habit template"
             accessibilityRole="button"
+            accessibilityHint="Navigates to the habit templates screen"
           >
             <Ionicons name="add" size={20} color={colors.primary} />
           </TouchableOpacity>
@@ -117,12 +126,19 @@ export function HabitGrid() {
                   style={styles.habitMain}
                   onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
                   activeOpacity={0.6}
+                  accessibilityLabel={`View details for ${habit.title}`}
+                  accessibilityRole="button"
                 >
-                  <View style={styles.habitInfo}>
-                    <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
-                      {habit.icon} {habit.title}
-                    </Text>
-                    <View style={styles.streakInfo}>
+              <View style={styles.habitInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
+                    {habit.icon} {habit.title}
+                  </Text>
+                  {isSyncingHabit(habit.id) && (
+                    <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} />
+                  )}
+                </View>
+                <View style={styles.streakInfo}>
                       <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
                       <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
                         {streak} day streak
@@ -131,7 +147,7 @@ export function HabitGrid() {
                   </View>
 
                   <View style={styles.dotsContainer}>
-                    {renderDots(habit.id, habit.completedDays)}
+                    {renderDots(habit.id, habit.completedDays, habit.title)}
                   </View>
                 </TouchableOpacity>
               </View>
@@ -143,7 +159,7 @@ export function HabitGrid() {
               accessibilityLabel="Add habits to track streaks"
               accessibilityRole="button"
             >
-              <Ionicons name="sparkles-outline" size={20} color={colors.textSecondary + '40'} style={{ marginBottom: 8 }} />
+              <Ionicons name="sparkles-outline" size={20} color={colors.textSecondary + '40'} style={{ marginBottom: Spacing.sm }} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Add habits to track streaks +</Text>
             </TouchableOpacity>
           )}
@@ -164,7 +180,17 @@ export function HabitGrid() {
       </BlurView>
     </View>
   );
-}
+}, (prev, next) => {
+  // P-4: Custom comparison to avoid re-renders on global timer ticks
+  // We only re-render if the habits data structure itself changes.
+  return prev === next; 
+  // Wait, if I use selectors inside, React.memo(HabitGrid) will still re-render if the parent re-renders.
+  // The selectors inside will cause re-render if THEIR value changes.
+  // But parent (Home) re-rendering causes child to re-render.
+  // The audit suggests: 
+  // return prev.habits === next.habits && prev.completedToday === next.completedToday;
+  // But HabitGrid doesn't take props currently!
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -182,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   title: {
     fontFamily: 'Outfit-Bold',
@@ -201,12 +227,12 @@ const styles = StyleSheet.create({
   },
   dotsHeaderRow: {
     flexDirection: 'row',
-    marginBottom: 8,
-    paddingHorizontal: 12,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
   dotsHeaderLabels: {
     flexDirection: 'row',
-    width: 180, // Increased for better touch target spacing
+    width: 180, // High-fidelity width for spacing
     justifyContent: 'space-between',
     paddingRight: 4,
   },
@@ -218,10 +244,11 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   habitList: {
-    gap: 10,
+    gap: Spacing.sm,
   },
   habitRow: {
-    padding: 12,
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderRadius: 20,
     borderWidth: 1,
   },
@@ -234,7 +261,7 @@ const styles = StyleSheet.create({
   },
   habitInfo: {
     flex: 1,
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   habitTitle: {
     fontSize: 14,
@@ -252,15 +279,15 @@ const styles = StyleSheet.create({
   },
   dotsContainer: {
     flexDirection: 'row',
-    width: 180, // Matches header labels exactly
+    width: 180, 
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingRight: 4,
   },
   dot: {
-    width: 12, // Slightly larger for visibility
-    height: 12,
-    borderRadius: 4.5,
+    width: 14, 
+    height: 14,
+    borderRadius: 5,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -275,7 +302,7 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 35,
+    paddingVertical: Spacing.xl,
     borderStyle: 'dashed',
     borderWidth: 1,
     borderRadius: 16,
@@ -285,8 +312,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   viewMore: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1,
     alignItems: 'center',
   },

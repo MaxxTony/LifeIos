@@ -23,8 +23,13 @@ export async function runAICoachTask() {
 
     // B-M1: Verify that the background task is running for the correct user.
     const registeredUserId = await AsyncStorage.getItem(COACH_USER_KEY);
-    if (!state.userId || state.userId !== registeredUserId) {
-      console.log("[AI Coach] Skip: User mismatch or logged out.");
+    
+    // Direct check against ground truth (Firebase Auth)
+    const { authService } = require('./authService');
+    const actualUid = authService.currentUser?.uid;
+
+    if (!state.userId || state.userId !== registeredUserId || state.userId !== actualUid) {
+      console.log("[AI Coach] Skip: User mismatch, logged out, or session mismatched.");
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 

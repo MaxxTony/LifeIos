@@ -8,7 +8,14 @@ export const wireSyncErrorPublisher = (publisher: typeof publishSyncError) => {
   publishSyncError = publisher;
 };
 
-export const fireSync = (fn: () => Promise<unknown>, label: string, userId?: string | null) => {
+export const fireSync = (
+  fn: () => Promise<unknown>, 
+  label: string, 
+  userId?: string | null,
+  collection?: 'tasks' | 'habits' | 'moodHistory' | 'focusHistory' | 'profile',
+  payload?: any,
+  docId?: string
+) => {
   const attempt = async (tryIdx: number): Promise<void> => {
     try {
       await fn();
@@ -23,6 +30,29 @@ export const fireSync = (fn: () => Promise<unknown>, label: string, userId?: str
       
       if (err?.code === 'permission-denied' && !userId) return;
 
+      // C-5: If we hit a final failure and have a payload, queue it for later
+      if (collection && payload && docId) {
+        const { useStore } = require('./useStore');
+        const state = useStore.getState();
+        
+        // Only queue if not already in queue
+        const inQueue = state.pendingActions.some((a: any) => a.id === docId && a.collection === collection);
+        if (!inQueue) {
+          useStore.setState((state: any) => ({
+            pendingActions: [
+              ...state.pendingActions,
+              {
+                id: docId,
+                type: label.startsWith('remove') ? 'delete' : (label.startsWith('add') ? 'create' : 'update'),
+                collection,
+                payload,
+                timestamp: Date.now()
+              }
+            ]
+          }));
+        }
+      }
+
       console.error(`[LifeOS Sync] ${label} failed (final):`, msg);
       publishSyncError?.({ label, message: msg });
       
@@ -30,8 +60,8 @@ export const fireSync = (fn: () => Promise<unknown>, label: string, userId?: str
         .then((Toast) => {
           Toast.default.show({
             type: 'error',
-            text1: 'Some changes didn\'t sync',
-            text2: 'Tap retry from the sync banner on your home screen.',
+            text1: 'Sync pending',
+            text2: 'Changes saved locally and will sync when online.',
             visibilityTime: 4000,
           });
         })

@@ -56,6 +56,11 @@ export function useFocusTimer() {
       if (!s.userId || !s.focusSession.isActive) return;
       
       const totalSeconds = s.focusSession.totalSecondsToday;
+      
+      // C-14: Update heartbeat for focus room presence
+      const { presenceService } = require('@/services/presenceService');
+      presenceService.updateHeartbeat(s.userId).catch(() => {});
+
       if (totalSeconds <= 0) return;
 
       // F-H2: Only write if the user has accumulated at least 30 new focus seconds.

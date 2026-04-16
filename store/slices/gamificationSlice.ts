@@ -8,51 +8,72 @@ import * as Haptics from 'expo-haptics';
 
 export const createGamificationSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], GamificationActions> = (set, get) => ({
   performDailyReset: () => set((state) => {
-    const today = getTodayLocal();
-    if (state.lastResetDate === today) return state;
+    try {
+      const today = getTodayLocal();
+      if (state.lastResetDate === today) return state;
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = formatLocalDate(yesterday);
+      // Guard: already running reset in this tick
+      const lastResetDate = today;
 
-    let newFocusHistory = state.focusHistory;
-    if (state.focusSession.totalSecondsToday > 0) {
-      newFocusHistory = { ...state.focusHistory, [yesterdayStr]: state.focusSession.totalSecondsToday };
-      if (state.userId) {
-        fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync', state.userId);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = formatLocalDate(yesterday);
+
+      let newFocusHistory = state.focusHistory;
+      if (state.focusSession.totalSecondsToday > 0) {
+        newFocusHistory = { ...state.focusHistory, [yesterdayStr]: state.focusSession.totalSecondsToday };
+        if (state.userId) {
+          fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync', state.userId);
+        }
+      }
+
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = formatLocalDate(cutoff);
+
+      const updatedTasks = state.tasks.map(t => {
+        // Mark all PENDING tasks from any day BEFORE today as missed
+        if (t.date < today && t.status === 'pending') {
+          const missedTask = { 
+            ...t, 
+            status: 'missed' as const, 
+            systemComment: t.date === yesterdayStr ? 'You missed this daily task! 😔' : `Missed on ${t.date}.`
+          };
+          if (state.userId) {
+            fireSync(() => dbService.saveTask(state.userId!, missedTask), 'taskResetSync', state.userId);
+          }
+          return missedTask;
+        }
+        return t;
+      });
+
+      // Keep only recent tasks (last 30 days) to prevent store bloat
+      const newTasks = updatedTasks.filter(t => t.date >= cutoffStr);
+
+      console.log(`[LifeOS] Daily reset performed for ${today}. Tasks pruned to last 30 days.`);
+
+      return {
+        lastResetDate,
+        tasks: newTasks,
+        focusSession: { 
+          ...state.focusSession, 
+          totalSecondsToday: 0, 
+          isActive: false, 
+          lastStartTime: null,
+          pomodoroMode: 'work',
+          pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
+        },
+        focusHistory: newFocusHistory
+      };
+    } catch (error) {
+      console.error('[LifeOS] Daily reset failed:', error);
+      return state;
+    } finally {
+      const { userId } = get();
+      if (userId) {
+        fireSync(() => dbService.deleteDailyQuests(userId), 'deleteDailyQuestsSync', userId);
       }
     }
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-    const cutoffStr = formatLocalDate(cutoff);
-
-    if (state.userId) {
-      state.tasks.forEach(t => {
-        if (t.date < today && t.status === 'pending') {
-          fireSync(() => dbService.saveTask(state.userId!, { ...t, status: 'missed', systemComment: 'Daily reset: task missed.' }), 'taskResetSync', state.userId);
-        }
-        if (t.date < cutoffStr) {
-          fireSync(() => dbService.deleteTask(state.userId!, t.id), 'taskCleanup', state.userId);
-        }
-      });
-    }
-
-    const newTasks = state.tasks.filter(t => t.date >= cutoffStr);
-
-    return {
-      lastResetDate: today,
-      tasks: newTasks,
-      focusSession: { 
-        ...state.focusSession, 
-        totalSecondsToday: 0, 
-        isActive: false, 
-        lastStartTime: null,
-        pomodoroMode: 'work',
-        pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
-      },
-      focusHistory: newFocusHistory
-    };
   }),
 
   updateLifeScoreHistory: () => set((state) => {
@@ -86,7 +107,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   }),
 
   generateDailyQuests: () => {
-    const { lastResetDate, dailyQuests } = get();
+    const { lastResetDate, dailyQuests, userId } = get();
     const today = getTodayLocal();
     if (lastResetDate === today && dailyQuests.length > 0) return;
 
@@ -99,22 +120,35 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     }));
 
     set({ dailyQuests: selected, lastResetDate: today });
+
+    // Sync to Firestore
+    if (userId) {
+      selected.forEach(quest => {
+        fireSync(() => dbService.saveDailyQuest(userId, quest), `generateQuestSync_${quest.id}`, userId);
+      });
+    }
   },
 
   completeQuest: (questId: string) => {
-    const { dailyQuests } = get();
+    const { dailyQuests, userId } = get();
     const quest = dailyQuests.find(q => q.id === questId);
     if (!quest || quest.completed) return;
 
     // Use addXP to award the reward
     get().actions.addXP(quest.rewardXP);
 
+    const updatedQuest = { ...quest, completed: true, currentCount: quest.targetCount };
+
     set((state) => ({
       dailyQuests: state.dailyQuests.map(q => 
-        q.id === questId ? { ...q, completed: true, currentCount: q.targetCount } : q
+        q.id === questId ? updatedQuest : q
       ),
       completedQuests: [...state.completedQuests, questId]
     }));
+
+    if (userId) {
+      fireSync(() => dbService.saveDailyQuest(userId, updatedQuest), `completeQuestSync_${questId}`, userId);
+    }
 
     setTimeout(() => {
       import('react-native-toast-message').then(Toast => {
@@ -159,6 +193,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
   checkQuestProgress: (type: 'task' | 'habit' | 'focus' | 'mood', count?: number) => set((state) => {
     let changed = false;
+    const questsToSync: any[] = [];
     const newQuests = state.dailyQuests.map(q => {
       if (q.type !== type || q.completed) return q;
       
@@ -179,12 +214,21 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         if (isFinished) {
           setTimeout(() => get().actions.completeQuest(q.id), 0);
         }
-        return { ...q, currentCount: Math.min(newCount, q.targetCount) };
+        const updated = { ...q, currentCount: Math.min(newCount, q.targetCount) };
+        questsToSync.push(updated);
+        return updated;
       }
       return q;
     });
 
-    if (changed) return { dailyQuests: newQuests };
+    if (changed) {
+      if (state.userId) {
+        questsToSync.forEach(q => {
+          fireSync(() => dbService.saveDailyQuest(state.userId!, q), `questProgressSync_${q.id}`, state.userId!);
+        });
+      }
+      return { dailyQuests: newQuests };
+    }
     return state;
   }),
 

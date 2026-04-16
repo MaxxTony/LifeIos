@@ -82,6 +82,16 @@ export const useStore = create<UserState>()(
         hasSeenWalkthrough: false,
         _syncUnsubscribes: [],
         _subscriptionGen: 0,
+        sessionToken: null,
+        syncStatus: {
+          tasksLoaded: false,
+          habitsLoaded: false,
+          moodLoaded: false,
+          focusLoaded: false,
+          isOffline: false,
+          lastCloudSync: null,
+        },
+        pendingActions: [],
 
         // Actions
         actions: {
@@ -98,7 +108,21 @@ export const useStore = create<UserState>()(
       name: 'lifeos-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => {
-        const { _syncUnsubscribes, _hasHydrated, actions, ...rest } = state;
+        const { 
+          _syncUnsubscribes, 
+          _hasHydrated, 
+          _lastRetryAt,
+          _subscriptionGen,
+          syncError,
+          proactivePrompt,
+          recentXP,
+          streakMilestone,
+          lastMoodLog,
+          actions, 
+          ...rest 
+        } = state;
+        // BUG-C4: NEVER persist _syncUnsubscribes or _subscriptionGen
+        // BUG-C5: DO persist pendingActions (it is included in ...rest)
         return rest;
       },
       onRehydrateStorage: () => (state) => {

@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getDatabase } from 'firebase/database';
-import { getFunctions } from 'firebase/functions';
+import { connectAuthEmulator, getReactNativePersistence, initializeAuth, Auth } from 'firebase/auth';
+import { 
+  initializeFirestore, 
+  persistentLocalCache 
+} from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getDatabase, Database } from 'firebase/database';
+import { connectFunctionsEmulator, getFunctions, Functions } from 'firebase/functions';
 
 // FIX C-1: Credentials moved to .env.local — never commit raw keys to source control
 const firebaseConfig = {
@@ -15,7 +18,6 @@ const firebaseConfig = {
   storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET!,
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
-  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
@@ -26,11 +28,49 @@ const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage)
 });
 
-const db = getFirestore(app);
-const storage = getStorage(app);
-const rtdb = getDatabase(app);
-// C-2: Cloud Functions handle AI calls server-side so API keys never ship
-// in the client bundle. See functions/README.md for deployment.
-const functions = getFunctions(app);
+// N-4: Enable Firestore Offline Persistence (Persistent Cache)
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({}) 
+});
 
-export { auth, db, storage, rtdb, functions };
+// Lazy-loaded services
+let storage: FirebaseStorage;
+let rtdb: Database;
+let functions: Functions;
+
+/**
+ * Lazy-load Firebase Storage
+ */
+const getStorageService = () => {
+  if (!storage) storage = getStorage(app);
+  return storage;
+};
+
+/**
+ * Lazy-load Firebase Realtime Database
+ */
+const getRTDBService = () => {
+  if (!rtdb) rtdb = getDatabase(app);
+  return rtdb;
+};
+
+/**
+ * Lazy-load Firebase Cloud Functions
+ */
+const getFunctionsService = () => {
+  if (!functions) {
+    functions = getFunctions(app, 'us-central1');
+    if (__DEV__ && process.env.EXPO_PUBLIC_USE_EMULATORS === 'true') {
+      connectFunctionsEmulator(functions, 'localhost', 5001);
+    }
+  }
+  return functions;
+};
+
+// S-5: Connect to Auth Emulator if configured
+if (__DEV__ && process.env.EXPO_PUBLIC_USE_EMULATORS === 'true') {
+  console.log('[Firebase] Connecting to local auth emulator...');
+  connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+}
+
+export { auth, db, getStorageService, getRTDBService, getFunctionsService };

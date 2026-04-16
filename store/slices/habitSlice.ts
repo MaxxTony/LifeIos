@@ -14,12 +14,20 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
       reminderTime: habitData.reminderTime ?? null,
       completedDays: [],
       bestStreak: 0,
+      currentStreak: 0,
       createdAt: Date.now(),
       pausedUntil: null
     };
     set((state) => ({ habits: [...state.habits, newHabit] }));
     if (get().userId) {
-      fireSync(() => dbService.saveHabit(get().userId!, newHabit), 'addHabit', get().userId);
+      fireSync(
+        () => dbService.saveHabit(get().userId!, newHabit), 
+        'addHabit', 
+        get().userId,
+        'habits',
+        newHabit,
+        newHabit.id
+      );
       get().actions.refreshHabitNotifications();
       analyticsService.logEvent(get().userId, 'habit_added', { title: newHabit.title });
     }
@@ -28,7 +36,14 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
   removeHabit: (id) => set((state) => {
     const newHabits = state.habits.filter(h => h.id !== id);
     if (state.userId) {
-      fireSync(() => dbService.deleteHabit(state.userId!, id), 'removeHabit', state.userId);
+      fireSync(
+        () => dbService.deleteHabit(state.userId!, id), 
+        'removeHabit', 
+        state.userId,
+        'habits',
+        { id },
+        id
+      );
     }
 
     setTimeout(() => {
@@ -46,14 +61,17 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         const today = dateStr || getTodayLocal();
         if (h.pausedUntil && today <= h.pausedUntil) return h;
 
+        const TWO_YEARS_AGO = formatLocalDate(new Date(Date.now() - 2 * 365 * 86400000));
         const isCompleted = h.completedDays.includes(today);
         let newCompletedDays = isCompleted
           ? h.completedDays.filter(d => d !== today)
           : [...h.completedDays, today];
 
+        // Z-3: Prune stale completions (performance & doc size)
         if (newCompletedDays.length > 500) {
           newCompletedDays = newCompletedDays.sort().slice(-500);
         }
+        newCompletedDays = newCompletedDays.filter(d => d >= TWO_YEARS_AGO);
 
         let currentStreak = 0;
         const todayForStreak = new Date();
@@ -75,14 +93,40 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           }
         }
 
-        const updatedHabit = {
+        // XP guard: only award once per habit per calendar day.
+        // xpAwardedDays is never trimmed when unchecking, so re-completing the same
+        // day never grants a second award.
+        const xpAwardedDays = h.xpAwardedDays || [];
+        const alreadyAwardedToday = xpAwardedDays.includes(today);
+        const shouldAwardXP = !isCompleted && !alreadyAwardedToday;
+
+        let newXpAwardedDays = xpAwardedDays;
+        if (shouldAwardXP) {
+          // Keep the list lean — prune anything older than 90 days
+          const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+          newXpAwardedDays = [...xpAwardedDays, today]
+            .filter(d => d >= cutoff)
+            .sort()
+            .slice(-90);
+        }
+
+        const updatedHabit: Habit = {
           ...h,
           completedDays: newCompletedDays,
-          bestStreak: Math.max(h.bestStreak || 0, currentStreak)
+          currentStreak,
+          bestStreak: Math.max(h.bestStreak || 0, currentStreak),
+          xpAwardedDays: newXpAwardedDays,
         };
 
         if (state.userId) {
-          fireSync(() => dbService.saveHabit(state.userId!, updatedHabit), 'toggleHabit', state.userId);
+          fireSync(
+            () => dbService.toggleHabitDate(state.userId!, id, today, !isCompleted),
+            'toggleHabit',
+            state.userId,
+            'habits',
+            updatedHabit,
+            updatedHabit.id
+          );
         }
 
         let streakMilestone = null;
@@ -91,7 +135,10 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           if (milestones.includes(currentStreak)) {
             streakMilestone = { habitTitle: h.title, streak: currentStreak, timestamp: Date.now() };
           }
-          get().actions.addXP(10);
+          // Only award XP if not already given today (idempotent guard)
+          if (shouldAwardXP) {
+            get().actions.addXP(10);
+          }
           analyticsService.logEvent(state.userId, 'habit_completed', { title: h.title, streak: currentStreak });
         } else {
           analyticsService.logEvent(state.userId, 'habit_uncompleted', { title: h.title });
@@ -133,7 +180,14 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
     const newHabits = state.habits.map(h => h.id === id ? { ...h, ...updates } : h);
     const updatedHabit = newHabits.find(h => h.id === id);
     if (state.userId && updatedHabit) {
-      fireSync(() => dbService.saveHabit(state.userId!, updatedHabit), 'updateHabit', state.userId);
+      fireSync(
+        () => dbService.saveHabit(state.userId!, updatedHabit), 
+        'updateHabit', 
+        state.userId,
+        'habits',
+        updatedHabit,
+        updatedHabit.id
+      );
       get().actions.refreshHabitNotifications();
     }
     return { habits: newHabits };
@@ -152,30 +206,10 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
     const habit = get().habits.find(h => h.id === id);
     if (!habit) return 0;
 
-    const isScheduledDay = (date: Date): boolean => {
-      if (habit.frequency !== 'weekly') return true;
-      return habit.targetDays.includes(date.getDay());
-    };
-
-    let streak = 0;
-    const today = new Date();
-    const todayStr = formatLocalDate(today);
-    const todayDone = habit.completedDays.includes(todayStr);
-    const startOffset = todayDone ? 0 : 1;
-
-    for (let i = startOffset; i < 365; i++) {
-      const checkDate = new Date();
-      checkDate.setDate(today.getDate() - i);
-      if (!isScheduledDay(checkDate)) continue;
-      const dateStr = formatLocalDate(checkDate);
-      if (habit.pausedUntil && dateStr <= habit.pausedUntil) continue;
-      if (habit.completedDays.includes(dateStr)) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-    return streak;
+    // M-4: Return precomputed streak for O(1) performance.
+    // If not yet computed (legacy habit), we return 0 but it will be 
+    // reconciled on the next toggle or daily reset.
+    return habit.currentStreak || 0;
   },
 
   refreshHabitNotifications: async () => {

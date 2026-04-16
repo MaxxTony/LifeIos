@@ -18,6 +18,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as admin from 'firebase-admin';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 admin.initializeApp();
 
@@ -59,6 +60,8 @@ export const callAI = onCall(
     memory: '256MiB',
   },
   async (request) => {
+    console.log('[callAI] request.auth:', JSON.stringify(request.auth ?? null));
+    console.log('[callAI] headers:', JSON.stringify(request.rawRequest?.headers?.authorization ? 'Bearer token present' : 'NO AUTH HEADER'));
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Sign in required.');
     }
@@ -102,3 +105,29 @@ export const callAI = onCall(
     }
   }
 );
+
+// F-7: Scheduled cleanup for unbounded conversation growth
+// Runs every night at midnight to delete messages older than 90 days.
+export const scheduledConversationCleanup = onSchedule('0 0 * * *', async () => {
+  const ninetyDaysAgo = admin.firestore.Timestamp.fromDate(
+    new Date(Date.now() - 90 * 86400000)
+  );
+
+  const db = admin.firestore();
+  const messagesToPrune = await db
+    .collectionGroup('messages')
+    .where('createdAt', '<', ninetyDaysAgo)
+    .limit(500)
+    .get();
+
+  if (messagesToPrune.empty) {
+    console.log('[LifeOS Cleanup] No stale messages to delete.');
+    return;
+  }
+
+  const batch = db.batch();
+  messagesToPrune.docs.forEach((doc) => batch.delete(doc.ref));
+  
+  await batch.commit();
+  console.log(`[LifeOS Cleanup] Deleted ${messagesToPrune.size} stale messages.`);
+});

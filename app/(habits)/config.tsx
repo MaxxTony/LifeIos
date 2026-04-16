@@ -86,6 +86,47 @@ export default function ConfigScreen() {
     });
   };
 
+  // C-14: Prevent accidental exit with unsaved work
+  const isDirty = title.trim().length > 0;
+  const navigation = Platform.OS !== 'web' ? require('@react-navigation/native').useNavigation() : null;
+  React.useEffect(() => {
+    if (!navigation) return;
+
+    // C-14 FIX: On native-stack, 'beforeRemove' can conflict with native gestures (like drag-to-dismiss).
+    // We disable the gesture when dirty to avoid the state mismatch error.
+    navigation.setOptions({
+      gestureEnabled: !isDirty,
+    });
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      // If we are moving forward to 'goal', don't block
+      if (e.data.action.type === 'NAVIGATE' && e.data.action.payload?.name === 'goal') return;
+      
+      // C-14 FIX: If the screen is not focused, it means it's being removed by a parent or a dismissal from a screen above.
+      // We allow this without showing an alert to prevent "ghost alerts" during flow completion.
+      if (!navigation.isFocused()) return;
+      
+      if (!isDirty) return;
+
+      e.preventDefault();
+
+      require('react-native').Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes. Are you sure you want to discard them and leave?',
+        [
+          { text: "Don't leave", style: 'cancel', onPress: () => {} },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, isDirty]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>

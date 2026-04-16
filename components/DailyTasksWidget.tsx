@@ -2,6 +2,7 @@ import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -34,6 +35,10 @@ export function DailyTasksWidget() {
     low: colors.success
   };
 
+  // C-5: Check if task is pending sync
+  const pendingActions = useStore(s => s.pendingActions);
+  const isSyncing = (id: string) => pendingActions.some(a => a.id === id);
+
   return (
     <View style={[styles.container, { borderColor: colors.border }]}>
       <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
@@ -42,87 +47,98 @@ export function DailyTasksWidget() {
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
             style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
-            accessibilityLabel="Add new task"
+            accessibilityLabel="Create new task"
             accessibilityRole="button"
+            accessibilityHint="Navigates to the task creation screen"
           >
             <Plus size={18} color={colors.primary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.list}>
-          {todayTasks.length > 0 ? todayTasks.slice(0, 5).map((task) => (
-            <View
-              key={task.id}
-              style={[
-                styles.taskItem,
-                { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderColor: colors.border },
-                task.completed && styles.taskCompleted
-              ]}
-            >
-              <TouchableOpacity
+          {todayTasks.length > 0 ? todayTasks.slice(0, 5).map((task) => {
+            const syncing = isSyncing(task.id);
+            return (
+              <View
+                key={task.id}
                 style={[
-                  styles.checkbox,
-                  { borderColor: priorityColors[task.priority] },
-                  task.completed && styles.checkboxChecked
+                  styles.taskItem,
+                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderColor: colors.border },
+                  task.completed && styles.taskCompleted
                 ]}
-                onPress={() => {
-                  Haptics.notificationAsync(
-                    task.completed
-                      ? Haptics.NotificationFeedbackType.Warning
-                      : Haptics.NotificationFeedbackType.Success
-                  );
-                  toggleTask(task.id);
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityLabel={task.completed ? `${task.text}, completed` : `Mark ${task.text} as complete`}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: task.completed }}
               >
-                {task.completed && (
-                  <View style={[styles.innerCheck, { backgroundColor: priorityColors[task.priority] }]} />
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.checkbox,
+                    { borderColor: priorityColors[task.priority] },
+                    task.completed && styles.checkboxChecked
+                  ]}
+                  onPress={() => {
+                    Haptics.notificationAsync(
+                      task.completed
+                        ? Haptics.NotificationFeedbackType.Warning
+                        : Haptics.NotificationFeedbackType.Success
+                    );
+                    toggleTask(task.id);
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityLabel={task.completed ? `${task.text}, completed` : `Mark ${task.text} as complete`}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: task.completed }}
+                >
+                  {task.completed && (
+                    <View style={[styles.innerCheck, { backgroundColor: priorityColors[task.priority] }]} />
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.taskInfoRow}
-                onPress={() => router.push(`/tasks/${task.id}`)}
-                activeOpacity={0.7}
-                accessibilityLabel={`View details for ${task.text}`}
-                accessibilityRole="button"
-              >
-                <View style={styles.taskInfo}>
-                  <Text
-                    style={[
-                      styles.taskText,
-                      { color: colors.text },
-                      task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '80' }]
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {task.text}
-                  </Text>
-                  <View style={styles.taskMeta}>
-                    <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                      <Flag size={10} color={priorityColors[task.priority]} />
-                      <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
-                        {(task.priority || 'medium').toUpperCase()}
+                <TouchableOpacity
+                  style={styles.taskInfoRow}
+                  onPress={() => router.push(`/tasks/${task.id}`)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`View details for ${task.text}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.taskInfo}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text
+                        style={[
+                          styles.taskText,
+                          { color: colors.text },
+                          task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '80' }]
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {task.text}
                       </Text>
+                      {syncing && (
+                        <View style={{ marginBottom: 4 }}>
+                          <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} />
+                        </View>
+                      )}
                     </View>
-                    {task.startTime && (
-                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-                        <Clock size={10} color={colors.textSecondary} />
-                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
+                    <View style={styles.taskMeta}>
+                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                        <Flag size={10} color={priorityColors[task.priority]} />
+                        <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
+                          {(task.priority || 'medium').toUpperCase()}
+                        </Text>
                       </View>
-                    )}
-                    {task.status === 'missed' && (
-                      <Text style={[styles.missedTag, { color: colors.danger, backgroundColor: colors.danger + '15' }]}>Missed</Text>
-                    )}
+                      {task.startTime && (
+                        <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
+                          <Clock size={10} color={colors.textSecondary} />
+                          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
+                        </View>
+                      )}
+                      {task.status === 'missed' && (
+                        <Text style={[styles.missedTag, { color: colors.danger, backgroundColor: colors.danger + '15' }]}>Missed</Text>
+                      )}
+                    </View>
                   </View>
-                </View>
-                <ChevronRight size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          )) : (
+                  <ChevronRight size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            );
+          }) : (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tasks for today. Start fresh? ✨</Text>
             </View>
@@ -133,6 +149,8 @@ export function DailyTasksWidget() {
           <TouchableOpacity
             onPress={() => router.push('/all-tasks')}
             style={styles.viewMore}
+            accessibilityLabel="View all daily tasks"
+            accessibilityRole="button"
           >
             <Text style={[styles.viewMoreText, { color: colors.primary }]}>
               +{todayTasks.length - 5} more daily tasks
@@ -153,13 +171,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   blur: {
-    padding: 20,
+    padding: Spacing.md,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: Spacing.md,
   },
   title: {
     fontFamily: 'Outfit-Bold',
@@ -169,33 +187,33 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   addBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
   },
   list: {
-    gap: 12,
+    gap: Spacing.sm,
   },
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 18,
     borderWidth: 1,
   },
   taskCompleted: {
     opacity: 0.7,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
-    marginRight: 16,
+    marginRight: Spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -226,7 +244,7 @@ const styles = StyleSheet.create({
   },
   taskMeta: {
     flexDirection: 'row',
-    gap: 10,
+    gap: Spacing.sm,
     alignItems: 'center',
   },
   metaItem: {
@@ -249,7 +267,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   emptyState: {
-    paddingVertical: 20,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
   },
   emptyText: {
@@ -257,8 +275,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   viewMore: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
