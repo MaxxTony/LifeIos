@@ -156,13 +156,25 @@ export const dbService = {
     }
   },
 
-  // Real-time listener for user root document (profile/settings)
-  subscribeToUserData: (userId: string, onUpdate: (data: Partial<UserState>) => void) => {
+  // Real-time listener for user root document (profile/settings).
+  //
+  // Calls onUpdate(data) whenever the document changes.
+  // Calls onUpdate(null) ONLY if the document was previously observed to exist
+  // and then disappears — i.e. it was deleted server-side. Snapshots where the
+  // document has never existed (new users whose profile hasn't been written yet)
+  // are silently ignored so Google/email sign-up doesn't trigger a false logout.
+  subscribeToUserData: (userId: string, onUpdate: (data: Partial<UserState> | null) => void) => {
     const docRef = doc(db, 'users', userId);
+    let hasExisted = false;
     return onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
+        hasExisted = true;
         onUpdate(docSnap.data() as Partial<UserState>);
+      } else if (hasExisted) {
+        // Document existed previously — it was deleted, force sign-out.
+        onUpdate(null);
       }
+      // else: doc never existed yet (new user being set up) — do nothing.
     }, (error) => {
       if (error.code === 'permission-denied') {
         process.env.NODE_ENV === 'development' && console.warn('Firestore root subscription closed: Permission denied (likely logout)');

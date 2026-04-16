@@ -31,11 +31,13 @@ export default function RootLayout() {
   const themePreference = useStore(s => s.themePreference);
   const accentColor = useStore(s => s.accentColor);
   const _hasHydrated = useStore(s => s._hasHydrated);
+  const isAuthenticated = useStore(s => s.isAuthenticated);
   const performDailyReset = useStore(s => s.actions.performDailyReset);
   const focusIsActive = useStore(s => s.focusSession.isActive);
   const checkMissedTasks = useStore(s => s.actions.checkMissedTasks);
   const systemColorScheme = useColorScheme();
   const appState = useRef(AppState.currentState);
+  const wasAuthenticated = useRef(false);
   const router = useRouter();
 
   // Start the global focus timer
@@ -49,6 +51,19 @@ export default function RootLayout() {
       deactivateKeepAwake();
     }
   }, [focusIsActive]);
+
+  // Redirect to login when the user is deleted server-side or their session is invalidated.
+  // We only redirect if the user was previously authenticated (avoids spurious redirects
+  // on initial load before Firebase resolves the session).
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    if (isAuthenticated) {
+      wasAuthenticated.current = true;
+    } else if (wasAuthenticated.current) {
+      wasAuthenticated.current = false;
+      router.replace('/(auth)/login');
+    }
+  }, [isAuthenticated, _hasHydrated]);
 
   const themeMode = themePreference === 'system'
     ? (systemColorScheme === 'dark' ? 'dark' : 'light')

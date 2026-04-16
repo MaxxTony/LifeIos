@@ -7,25 +7,77 @@ import { fireSync } from '../syncHelper';
 import { migrateTasks } from '../helpers';
 import { where, orderBy, limit } from 'firebase/firestore';
 
+// Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
+const LOGGED_OUT_STATE = {
+  isAuthenticated: false,
+  userId: null,
+  userName: null,
+  tasks: [],
+  habits: [],
+  mood: null,
+  moodHistory: {},
+  focusSession: {
+    totalSecondsToday: 0,
+    isActive: false,
+    lastStartTime: null,
+    isPomodoro: false,
+    pomodoroMode: 'work' as const,
+    pomodoroWorkDuration: 25 * 60,
+    pomodoroBreakDuration: 5 * 60,
+    pomodoroTimeLeft: 25 * 60,
+  },
+  focusHistory: {},
+  focusGoalHours: 8,
+  lastResetDate: null,
+  bio: null,
+  location: null,
+  occupation: null,
+  avatarUrl: null,
+  phoneNumber: null,
+  birthday: null,
+  pronouns: null,
+  skills: null,
+  socialLinks: {},
+  moodTheme: null,
+  accentColor: null,
+  onboardingData: { struggles: [] },
+  recentXP: null,
+  streakMilestone: null,
+  lastMoodLog: null,
+  lifeScoreHistory: {},
+  totalXP: 0,
+  level: 1,
+  dailyQuests: [],
+  completedQuests: [],
+  proactivePrompt: null,
+  _syncUnsubscribes: [],
+};
+
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
   setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
   completeOnboarding: () => set({ hasCompletedOnboarding: true }),
-  
+
   setAuth: async (userId, userName) => {
     const unsubs = get()._syncUnsubscribes;
     for (const unsub of unsubs) {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     }
+    if (!userId) {
+      // User signed out or was deleted server-side — clear all persisted user data.
+      set((state) => ({
+        ...LOGGED_OUT_STATE,
+        _subscriptionGen: state._subscriptionGen + 1,
+      }));
+      return;
+    }
     set((state) => ({
       userId,
       userName,
-      isAuthenticated: !!userId,
+      isAuthenticated: true,
       _syncUnsubscribes: [],
       _subscriptionGen: state._subscriptionGen + 1,
     }));
-    if (userId) {
-      get().actions.subscribeToCloud();
-    }
+    get().actions.subscribeToCloud();
   },
 
   updateProfile: async (updates) => {
@@ -49,41 +101,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     get()._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
-    set({
-      isAuthenticated: false,
-      userId: null,
-      userName: null,
-      tasks: [],
-      habits: [],
-      mood: null,
-      moodHistory: {},
-      focusSession: { 
-        totalSecondsToday: 0, 
-        isActive: false, 
-        lastStartTime: null,
-        isPomodoro: false,
-        pomodoroMode: 'work',
-        pomodoroWorkDuration: 25 * 60,
-        pomodoroBreakDuration: 5 * 60,
-        pomodoroTimeLeft: 25 * 60
-      },
-      focusHistory: {},
-      focusGoalHours: 8,
-      lastResetDate: null,
-      bio: null,
-      location: null,
-      occupation: null,
-      avatarUrl: null,
-      phoneNumber: null,
-      birthday: null,
-      pronouns: null,
-      skills: null,
-      socialLinks: {},
-      moodTheme: null,
-      accentColor: null,
-      onboardingData: { struggles: [] },
-      _syncUnsubscribes: [],
-    });
+    set(LOGGED_OUT_STATE);
   },
 
   subscribeToCloud: () => {
@@ -108,7 +126,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const thirtyDaysAgoStr = formatLocalDate(thirtyDaysAgo);
 
     const unsubRoot = dbService.subscribeToUserData(userId, (data) => {
-      if (isStale() || !data) return;
+      if (isStale()) return;
+      if (!data) {
+        // User document was deleted from Firestore — force sign-out immediately.
+        authService.logout();          // clears Firebase Auth session
+        get().actions.setAuth(null, null); // clears Zustand store + redirects via _layout
+        return;
+      }
       set({
         userName: data.userName || get().userName,
         moodTheme: data.moodTheme || get().moodTheme,
