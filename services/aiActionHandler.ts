@@ -8,7 +8,7 @@ export const aiActionHandler = {
   handleAddTask: (params: { text: string; priority?: 'high' | 'medium' | 'low'; startTime?: string; endTime?: string }) => {
     const store = useStore.getState();
     try {
-      store.addTask(
+      store.actions.addTask(
         params.text,
         params.startTime,
         params.endTime,
@@ -28,7 +28,7 @@ export const aiActionHandler = {
   handleAddHabit: (params: { title: string; category?: string; frequency?: 'daily' | 'weekly' | 'monthly' }) => {
     const store = useStore.getState();
     try {
-      store.addHabit({
+      store.actions.addHabit({
         title: params.title,
         category: params.category || 'General',
         frequency: params.frequency || 'daily',
@@ -51,7 +51,7 @@ export const aiActionHandler = {
   handleSetMood: (params: { mood: number; note?: string; emotions?: string[]; activities?: string[] }) => {
     const store = useStore.getState();
     try {
-      store.setMood(params.mood, {
+      store.actions.setMood(params.mood, {
         note: params.note,
         emotions: params.emotions,
         activities: params.activities
@@ -67,7 +67,7 @@ export const aiActionHandler = {
     const store = useStore.getState();
     try {
       const { id, ...updates } = params;
-      store.updateTask(id, updates);
+      store.actions.updateTask(id, updates);
       return { success: true, message: `Updated task ${id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to update task: ${error.message}` };
@@ -77,7 +77,7 @@ export const aiActionHandler = {
   handleRemoveTask: (params: { id: string }) => {
     const store = useStore.getState();
     try {
-      store.removeTask(params.id);
+      store.actions.removeTask(params.id);
       return { success: true, message: `Removed task ${params.id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to remove task: ${error.message}` };
@@ -88,7 +88,7 @@ export const aiActionHandler = {
     const store = useStore.getState();
     try {
       const { id, ...updates } = params;
-      store.updateHabit(id, updates);
+      store.actions.updateHabit(id, updates);
       return { success: true, message: `Updated habit ${id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to update habit: ${error.message}` };
@@ -98,7 +98,7 @@ export const aiActionHandler = {
   handleRemoveHabit: (params: { id: string }) => {
     const store = useStore.getState();
     try {
-      store.removeHabit(params.id);
+      store.actions.removeHabit(params.id);
       return { success: true, message: `Removed habit ${params.id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to remove habit: ${error.message}` };

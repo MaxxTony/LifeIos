@@ -9,7 +9,7 @@ import { BlurView } from 'expo-blur';
 
 export const MoodFeedbackOverlay = () => {
   const lastMoodLog = useStore(s => s.lastMoodLog);
-  const dismissMoodLog = useStore(s => s.dismissMoodLog);
+  const dismissMoodLog = useStore(s => s.actions.dismissMoodLog);
   const colors = useThemeColors();
   const [visible, setVisible] = useState(false);
 
@@ -50,36 +50,54 @@ export const MoodFeedbackOverlay = () => {
   };
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.centeredView}>
+    <View style={styles.fullScreenOverlay} pointerEvents="box-none">
+      <Animated.View 
+        entering={FadeIn}
+        exiting={FadeOut}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      >
         <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={colors.isDark ? 'dark' : 'light'} />
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
+      </Animated.View>
+
+      <TouchableOpacity 
+        style={StyleSheet.absoluteFill} 
+        onPress={handleClose} 
+        activeOpacity={1}
+        accessible={false}
+      />
+      
+      <Animated.View 
+        entering={ZoomIn} 
+        exiting={ZoomOut}
+        style={[styles.modalView, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: iconColor + '15' }]}>
+          <Ionicons name={icon as any} size={32} color={iconColor} />
+        </View>
         
-        <Animated.View 
-          entering={ZoomIn} 
-          exiting={ZoomOut}
-          style={[styles.modalView, { backgroundColor: colors.card, borderColor: colors.border }]}
+        <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.modalText, { color: colors.textSecondary }]}>{prompt}</Text>
+        
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={handleClose}
         >
-          <View style={[styles.iconCircle, { backgroundColor: iconColor + '15' }]}>
-            <Ionicons name={icon as any} size={32} color={iconColor} />
-          </View>
-          
-          <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
-          <Text style={[styles.modalText, { color: colors.textSecondary }]}>{prompt}</Text>
-          
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={handleClose}
-          >
-            <Text style={styles.textStyle}>Got it</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
+          <Text style={styles.textStyle}>Got it</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   centeredView: {
     flex: 1,
     justifyContent: 'center',

@@ -40,7 +40,7 @@ export default function EditProfileScreen() {
   const {
     userId, userName, bio, location, occupation, avatarUrl,
     phoneNumber, birthday, pronouns, skills, socialLinks,
-    updateProfile
+    actions: { updateProfile }
   } = useStore();
   const router = useRouter();
   const colors = useThemeColors();
@@ -246,7 +246,7 @@ export default function EditProfileScreen() {
             <ChevronLeft color={colors.text} size={24} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>Edit Profile</Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveHeaderButton}>
+          <TouchableOpacity onPress={handleSave} disabled={saving} style={[styles.saveHeaderButton, saving && { opacity: 0.5 }]}>
             {saving ? (
               <Text style={[styles.saveText, { color: colors.primary, opacity: 0.5 }]}>...</Text>
             ) : (

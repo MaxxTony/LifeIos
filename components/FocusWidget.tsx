@@ -1,6 +1,7 @@
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -15,8 +16,8 @@ export function FocusWidget() {
   // but we scope to only focus-related fields to avoid other store changes causing renders.
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
-  const setFocusGoal = useStore(s => s.setFocusGoal);
-  const toggleFocusSession = useStore(s => s.toggleFocusSession);
+  const setFocusGoal = useStore(s => s.actions.setFocusGoal);
+  const toggleFocusSession = useStore(s => s.actions.toggleFocusSession);
   const pulse = useSharedValue(1);
 
   useEffect(() => {
@@ -58,7 +59,8 @@ export function FocusWidget() {
   };
 
   const calculatePercentage = () => {
-    const goalSeconds = focusGoalHours * 3600;
+    // U-M4: Clamp to 0.1 hours (6 mins) minimum to avoid division by zero.
+    const goalSeconds = Math.max(0.1, focusGoalHours) * 3600;
     return Math.min(100, Math.floor((focusSession.totalSecondsToday / goalSeconds) * 100));
   };
 
@@ -92,15 +94,27 @@ export function FocusWidget() {
         <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>Daily Focus</Text>
-            <TouchableOpacity
-              onPress={cycleGoal}
-              accessibilityLabel={`Focus goal: ${focusGoalHours} hours. Tap to change.`}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.percentage, { color: colors.primary }]}>
-                {calculatePercentage()}% · {focusGoalHours}h Goal
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => router.push('/focus-room')}
+                accessibilityLabel="Enter live Monk Mode room"
+                accessibilityRole="button"
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.primaryTransparent }}
+              >
+                <Ionicons name="flame" size={14} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontFamily: 'Outfit-Medium', fontSize: 12, marginLeft: 4 }}>Monk Mode</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={cycleGoal}
+                accessibilityLabel={`Focus goal: ${focusGoalHours} hours. Tap to change.`}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.percentage, { color: colors.primary }]}>
+                  {calculatePercentage()}%
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -129,7 +143,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    height: 180,
+    height: 200,
   },
   blur: {
     flex: 1,
@@ -140,6 +154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 15
   },
   title: {
     fontFamily: 'Outfit-Bold',

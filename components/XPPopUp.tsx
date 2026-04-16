@@ -78,7 +78,7 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
 
 export const XPPopUp = () => {
   const recentXP = useStore(s => s.recentXP);
-  const dismissXP = useStore(s => s.dismissXP);
+  const dismissXP = useStore(s => s.actions.dismissXP);
   const [activeXPs, setActiveXPs] = useState<{ id: number; amount: number }[]>([]);
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export const XPPopUp = () => {
   };
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={styles.container} pointerEvents="box-none">
       {activeXPs.map((xp) => (
         <XPFloatingItem 
           key={xp.id} 

@@ -14,7 +14,7 @@ export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colors = useThemeColors();
-  const { tasks, toggleTask, removeTask, updateSubtask, toggleSubtask, updateTask } = useStore();
+  const { tasks, actions: { toggleTask, removeTask, updateSubtask, toggleSubtask, updateTask } } = useStore();
 
   const [newSubtaskText, setNewSubtaskText] = React.useState('');
 

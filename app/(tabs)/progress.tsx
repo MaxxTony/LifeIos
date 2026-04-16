@@ -41,7 +41,7 @@ export default function ProgressScreen() {
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const moodHistory = useStore(s => s.moodHistory);
   const lifeScoreHistory = useStore(s => s.lifeScoreHistory);
-  const updateLifeScoreHistory = useStore(s => s.updateLifeScoreHistory);
+  const updateLifeScoreHistory = useStore(s => s.actions.updateLifeScoreHistory);
   const colors = useThemeColors();
 
   useEffect(() => {
@@ -242,7 +242,25 @@ export default function ProgressScreen() {
               <View style={[styles.xpProgressBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                 <LinearGradient colors={[colors.primary, colors.secondary]} start={{x:0,y:0}} end={{x:1,y:0}} style={[styles.xpProgressBarFill, { width: `${xpProgress * 100}%` } ]} />
               </View>
-              <Text style={[styles.xpHint, { color: colors.textSecondary }]}>Complete tasks and habits to earn XP.</Text>
+              
+              <View style={styles.masteryGuide}>
+                <View style={styles.guideItem}>
+                  <Target size={12} color={colors.secondary} />
+                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Task: +15 XP</Text>
+                </View>
+                <View style={styles.guideItem}>
+                  <Zap size={12} color={colors.danger} />
+                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Habit: +10 XP</Text>
+                </View>
+                <View style={styles.guideItem}>
+                  <Brain size={12} color={colors.success} />
+                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Focus Hour: +20 XP</Text>
+                </View>
+                <View style={styles.guideItem}>
+                  <Award size={12} color={colors.primary} />
+                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Quest: +30-100 XP</Text>
+                </View>
+              </View>
             </PremiumCard>
 
             <View style={styles.section}>
@@ -398,7 +416,21 @@ const styles = StyleSheet.create({
   xpSub: { fontSize: 10, fontWeight: '600' },
   xpProgressBarBg: { height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
   xpProgressBarFill: { height: '100%', borderRadius: 5 },
-  xpHint: { fontSize: 10, fontStyle: 'italic' },
+  masteryGuide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    gap: 12,
+  },
+  guideItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  guideText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   metricsGrid: { flexDirection: 'row', gap: Spacing.sm },
   metricItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md },
   metricIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },

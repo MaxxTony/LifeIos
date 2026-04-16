@@ -16,7 +16,7 @@ import { useEffect } from 'react';
 export default function MoodLogScreen() {
   const router = useRouter();
   const { date } = useLocalSearchParams<{ date?: string }>();
-  const { moodHistory, setMood } = useStore();
+  const { moodHistory, actions: { setMood } } = useStore();
   const colors = useThemeColors();
 
   const [selectedMood, setSelectedMood] = useState<number | null>(null);

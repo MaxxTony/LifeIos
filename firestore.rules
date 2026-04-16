@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// LifeOS Firestore Security Rules
+// ================================
+// Deploy with:  firebase deploy --only firestore:rules
+// Test with the emulator before shipping:  firebase emulators:exec --only firestore "npm test"
+//
+// Model: every user owns /users/{userId} and everything beneath it.
+// No cross-user reads, no unauthenticated reads, no root collection writes.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers -------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Reject any write that tries to mutate the uid field away from the
+    // authenticated user. Defence-in-depth against impersonation attempts.
+    function ownsPayload(userId) {
+      return !('userId' in request.resource.data)
+        || request.resource.data.userId == userId;
+    }
+
+    // ---- User document + all sub-collections ---------------------------
+    match /users/{userId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId) && ownsPayload(userId);
+      allow update: if isOwner(userId) && ownsPayload(userId);
+      allow delete: if isOwner(userId);
+
+      // Any sub-collection under the user doc (tasks, habits, moodHistory,
+      // focusHistory, conversations, lifeScoreHistory, …) inherits the
+      // owner-only rule. Add explicit sub-collection blocks here if a
+      // collection ever needs different permissions.
+      match /{subCollection}/{docId} {
+        allow read, write: if isOwner(userId);
+
+        // Messages under conversations are two levels deep.
+        match /{nested=**} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+    }
+
+    // ---- Default deny --------------------------------------------------
+    // Anything not explicitly matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -19,7 +19,7 @@ const THEMES = [
 
 export default function MoodThemesScreen() {
   const router = useRouter();
-  const { moodTheme, setMoodTheme } = useStore();
+  const { moodTheme, actions: { setMoodTheme } } = useStore();
   const [selected, setSelected] = useState(moodTheme);
   const colors = useThemeColors();
 
@@ -76,7 +76,7 @@ export default function MoodThemesScreen() {
                  <View style={styles.previewRow}>
                    {[1, 2, 3, 4, 5].map((lvl) => (
                       <View key={lvl} style={styles.previewEmoji}>
-                        <MoodEmoji level={lvl} themeOverride={theme.id} size={54} />
+                        <MoodEmoji level={lvl} themeOverride={theme.id} size={48} />
                       </View>
                    ))}
                  </View>
@@ -132,8 +132,17 @@ const styles = StyleSheet.create({
   themeInfo: { marginBottom: 16 },
   themeName: { fontSize: 18, fontFamily: 'Outfit-Bold' },
   themeDesc: { fontSize: 12, marginTop: 2 },
-  previewRow: { flexDirection: 'row', gap: 14 },
-  previewEmoji: { width: 54, height: 54 },
+  previewRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  previewEmoji: { 
+    width: 48, 
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   checkBadge: { position: 'absolute', top: 20, right: 20 },
   footer: { padding: Spacing.md },
   applyBtn: { borderRadius: BorderRadius.lg, overflow: 'hidden' },

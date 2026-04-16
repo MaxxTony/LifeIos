@@ -6,9 +6,11 @@ export const useProfileStats = () => {
   // focusSecondsToday is a primitive so it doesn't re-render on tick until value changes.
   const habits = useStore(s => s.habits);
   const focusHistory = useStore(s => s.focusHistory);
-  const getStreak = useStore(s => s.getStreak);
+  const getStreak = useStore(s => s.actions.getStreak);
   const moodHistory = useStore(s => s.moodHistory);
   const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
+  const userLevel = useStore(s => s.level);
+  const totalXP = useStore(s => s.totalXP);
 
   const stats = useMemo(() => {
     // 1. Lifetime Totals
@@ -19,14 +21,8 @@ export const useProfileStats = () => {
     const totalHabitCompletions = (habits || []).reduce((acc, h) => acc + (h.completedDays?.length || 0), 0);
     const totalMoodLogs = Object.keys(moodHistory || {}).length;
 
-    // 2. XP Calculation
-    // Logic: 10 XP per habit completion, 20 XP per focus hour
-    const habitXP = totalHabitCompletions * 10;
-    const focusXP = Math.floor(totalFocusHours * 20);
-    const totalXP = habitXP + focusXP;
-
-    // 3. Level Logic (100 XP per level)
-    const level = Math.floor(totalXP / 100) + 1;
+    // 2. XP & Level Logic (Now persistent from store)
+    const level = userLevel;
     const xpInCurrentLevel = totalXP % 100;
     const xpNeeded = 100 - xpInCurrentLevel;
     const xpProgress = xpInCurrentLevel / 100;

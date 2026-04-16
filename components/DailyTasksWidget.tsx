@@ -13,7 +13,7 @@ export function DailyTasksWidget() {
   const colors = useThemeColors();
   // Selectors: only re-render when tasks or toggleTask changes, not on focus ticks.
   const tasks = useStore(s => s.tasks);
-  const toggleTask = useStore(s => s.toggleTask);
+  const toggleTask = useStore(s => s.actions.toggleTask);
 
   const today = getTodayLocal();
 

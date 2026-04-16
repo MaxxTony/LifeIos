@@ -9,11 +9,17 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as TaskManager from 'expo-task-manager';
 import { useEffect, useRef } from 'react';
 import { AppState, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+// Importing the service registers the background task definition at module load time.
+import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
+
+// C-8: Redundant definition to ensure Expo Router handles background wake-ups correctly.
+TaskManager.defineTask(AI_COACH_TASK, runAICoachTask);
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -21,13 +27,13 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   // Granular selectors: each field re-renders the layout only when it changes.
   // focusSession.isActive is selected as a primitive to avoid re-renders every tick.
-  const setAuth = useStore(s => s.setAuth);
+  const setAuth = useStore(s => s.actions.setAuth);
   const themePreference = useStore(s => s.themePreference);
   const accentColor = useStore(s => s.accentColor);
   const _hasHydrated = useStore(s => s._hasHydrated);
-  const performDailyReset = useStore(s => s.performDailyReset);
+  const performDailyReset = useStore(s => s.actions.performDailyReset);
   const focusIsActive = useStore(s => s.focusSession.isActive);
-  const checkMissedTasks = useStore(s => s.checkMissedTasks);
+  const checkMissedTasks = useStore(s => s.actions.checkMissedTasks);
   const systemColorScheme = useColorScheme();
   const appState = useRef(AppState.currentState);
   const router = useRouter();
@@ -106,13 +112,16 @@ export default function RootLayout() {
   // Phase 2: Re-engagement & Proactive Logic
   useEffect(() => {
     if (_hasHydrated) {
-      const { setLastActive } = useStore.getState();
+      const { setLastActive } = useStore.getState().actions;
       setLastActive();
-      
+
       // Schedule comeback notifications for when user closes app
       import('@/services/notificationService').then(({ notificationService }) => {
         notificationService.scheduleComebackNotifications();
       });
+
+      // Phase 4: Register Background AI Coach
+      registerAICoachTask();
     }
   }, [_hasHydrated]);
 

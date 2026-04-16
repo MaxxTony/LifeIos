@@ -15,10 +15,11 @@ import { useProfileStats } from '@/hooks/useProfileStats';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Reanimated from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
   const hour = new Date().getHours();
@@ -30,20 +31,20 @@ const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy
 
 function SkeletonBlock({ width, height, borderRadius = 12 }: { width: number | string; height: number; borderRadius?: number }) {
   const colors = useThemeColors();
-  const opacity = Reanimated.useSharedValue(0.4);
+  const opacity = useSharedValue(0.4);
 
   useEffect(() => {
-    opacity.value = Reanimated.withRepeat(
-      Reanimated.withSequence(
-        Reanimated.withTiming(0.9, { duration: 900 }),
-        Reanimated.withTiming(0.4, { duration: 900 })
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.9, { duration: 900 }),
+        withTiming(0.4, { duration: 900 })
       ),
       -1, // Infinite loop
       true // Reverse not needed strictly if we sequence it back and forth, but true works. Actually sequence has 0.9 and 0.4, so false is fine since it seamlessly wraps.
     );
   }, []);
 
-  const animatedStyle = Reanimated.useAnimatedStyle(() => {
+  const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: opacity.value,
     };
@@ -52,7 +53,7 @@ function SkeletonBlock({ width, height, borderRadius = 12 }: { width: number | s
   const base = colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
 
   return (
-    <Reanimated.default.View
+    <Animated.View
       style={[
         {
           width: width as any,
@@ -108,7 +109,7 @@ export default function HomeScreen() {
   const greeting = getGreeting();
   const stats = useProfileStats();
   const router = useRouter();
-  const generateDailyQuests = useStore(s => s.generateDailyQuests);
+  const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
   
   useEffect(() => {
     if (isHydrated) {
@@ -116,12 +117,51 @@ export default function HomeScreen() {
     }
   }, [isHydrated]);
 
-  if (!isHydrated) return <HomeSkeleton />;
+  // C-13: Watchdog — if persisted storage is corrupt or the rehydrate promise
+  // never resolves, users were stuck on the skeleton forever. After 10s we
+  // show a recovery screen that offers a retry and a "reset local data" fallback.
+  const [hydrationStuck, setHydrationStuck] = useState(false);
+  useEffect(() => {
+    if (isHydrated) return;
+    const t = setTimeout(() => setHydrationStuck(true), 10000);
+    return () => clearTimeout(t);
+  }, [isHydrated]);
+
+  if (!isHydrated) {
+    if (hydrationStuck) {
+      return (
+        <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: Spacing.xl }]}>
+          <Text style={{ ...Typography.h2, color: colors.text, textAlign: 'center', marginBottom: 12 }}>
+            Taking longer than usual
+          </Text>
+          <Text style={{ ...Typography.body, color: colors.textSecondary, textAlign: 'center', marginBottom: 24 }}>
+            We couldn't load your local data. Try again, or reset if the problem persists.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: colors.primary, padding: 14, borderRadius: BorderRadius.full, alignItems: 'center', marginBottom: 12 }}
+            onPress={() => setHydrationStuck(false)}
+          >
+            <Text style={{ color: '#FFF', fontFamily: 'Outfit-Bold', fontSize: 16 }}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ padding: 14, borderRadius: BorderRadius.full, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
+            onPress={async () => {
+              try { await AsyncStorage.removeItem('lifeos-storage'); } catch (_) {}
+              useStore.setState({ _hasHydrated: true });
+            }}
+          >
+            <Text style={{ color: colors.text, fontFamily: 'Outfit-Bold', fontSize: 16 }}>Reset local data</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return <HomeSkeleton />;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background with a subtle gradient/texture feel */}
-      <View style={StyleSheet.absoluteFill}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <LinearGradient
           colors={dashboardTheme.bg}
           style={StyleSheet.absoluteFill}
@@ -131,11 +171,12 @@ export default function HomeScreen() {
       </View>
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
+        <Animated.ScrollView
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          scrollEventThrottle={16}
         >
-          {/* Header */}
+          {/* Header Content (previously ListHeaderComponent) */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <View style={styles.greetingRow}>
@@ -150,7 +191,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* A-3: XP Indicator / Progress Bar - Moved to Top Row */}
               <TouchableOpacity 
                 activeOpacity={0.7}
                 onPress={() => router.push('/(tabs)/profile')}
@@ -172,27 +212,37 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <View style={styles.content}>
+          {/* Dashboard Widgets */}
+          <View style={{ marginBottom: Spacing.lg }}>
             <QuestDashboard />
+          </View>
+          <View style={{ marginBottom: Spacing.lg }}>
             <FocusWidget />
+          </View>
+          <View style={{ marginBottom: Spacing.lg }}>
             <DailyTasksWidget />
+          </View>
+          <View style={{ marginBottom: Spacing.lg }}>
             <HabitGrid />
+          </View>
+          <View style={{ marginBottom: Spacing.lg }}>
             <MoodTrend />
           </View>
-
-          {/* AI Call to Action */}
-          <View style={styles.aiSection}>
+          <View style={[styles.aiSection, { marginBottom: Spacing.lg }]}>
             <DashboardAIButton />
           </View>
 
+          {/* Footer Spacer */}
           <View style={{ height: 40 }} />
-          
-          {/* Rewards Layer */}
+        </Animated.ScrollView>
+        
+        {/* Rewards Layer (Persistent) */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <OnboardingWalkthrough />
           <StreakCelebration />
           <XPPopUp />
           <MoodFeedbackOverlay />
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -206,9 +256,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
     paddingBottom: 100,
-  },
-  content: {
-    gap: Spacing.lg,
   },
   glowBackground: {
     position: 'absolute',
@@ -243,13 +290,6 @@ const styles = StyleSheet.create({
     ...Typography.h1Hero,
     fontSize: 38, // Slightly reduced from 44 to handle long names
     lineHeight: 46,
-  },
-  stack: {
-    gap: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  cardContainer: {
-    width: '100%',
   },
   aiSection: {
     alignItems: 'center',

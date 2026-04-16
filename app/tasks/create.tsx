@@ -44,7 +44,7 @@ function PriorityChip({
 export default function CreateTaskScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { addTask } = useStore();
+  const { actions: { addTask } } = useStore();
 
   const [text, setText] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
@@ -84,7 +84,7 @@ export default function CreateTaskScreen() {
     
     // F-3: Set repeat if not none using the direct ID returned from addTask
     if (repeat !== 'none' && taskId) {
-      useStore.getState().updateTask(taskId, { repeat });
+      useStore.getState().actions.updateTask(taskId, { repeat });
     }
 
     router.back();

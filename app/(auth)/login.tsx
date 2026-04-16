@@ -51,7 +51,7 @@ function LoginHero() {
       <Animated.View style={[heroStyles.ring, { borderColor: colors.primary + '88' }, r1Style]} />
       <Animated.View style={[heroStyles.glow, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
       <Animated.View style={[heroStyles.iconWrap, iconStyle]}>
-        <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} />
+        <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} resizeMode="contain" />
       </Animated.View>
     </View>
   );
@@ -121,7 +121,7 @@ export default function LoginScreen() {
 
   const router = useRouter();
   const colors = useThemeColors();
-  const { setAuth, onboardingData } = useStore();
+  const { actions: { setAuth, completeOnboarding }, onboardingData } = useStore();
 
   const handleForgotPassword = () => {
     router.push('/(auth)/forgot-password');
@@ -183,7 +183,7 @@ export default function LoginScreen() {
           }
         }
 
-        useStore.getState().completeOnboarding();
+        completeOnboarding();
         setAuth(user.uid, user.displayName || existingProfile?.userName || 'User');
 
         Toast.show({
@@ -260,7 +260,7 @@ export default function LoginScreen() {
           });
         }
 
-        useStore.getState().completeOnboarding();
+        completeOnboarding();
         setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User');
 
         Toast.show({
@@ -298,7 +298,7 @@ export default function LoginScreen() {
     try {
       if (setupUser) {
         await dbService.saveUserProfile(setupUser.uid, { userName: fullName.trim() });
-        useStore.getState().completeOnboarding();
+        completeOnboarding();
         setAuth(setupUser.uid, fullName.trim());
 
         Toast.show({

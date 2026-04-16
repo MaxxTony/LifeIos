@@ -18,7 +18,7 @@ const { width } = Dimensions.get('window');
 export default function AllHabitsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { habits, toggleHabit, getStreak, removeHabit } = useStore();
+  const { habits, actions: { toggleHabit, getStreak, removeHabit } } = useStore();
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   const handleToggle = (id: string) => {

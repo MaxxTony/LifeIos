@@ -16,7 +16,7 @@ export default function EditTaskScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colors = useThemeColors();
-  const { tasks, updateTask } = useStore();
+  const { tasks, actions: { updateTask } } = useStore();
 
   const task = tasks.find(t => t.id === id);
 
@@ -129,7 +129,7 @@ export default function EditTaskScreen() {
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Task</Text>
-          <TouchableOpacity onPress={handleSave} disabled={!text.trim()} style={styles.headerSave}>
+          <TouchableOpacity onPress={handleSave} disabled={!text.trim()} style={[styles.headerSave, !text.trim() && { opacity: 0.5 }]}>
              <Text style={[styles.saveLink, { color: colors.primary }, !text.trim() && { opacity: 0.5 }]}>Save</Text>
           </TouchableOpacity>
         </View>

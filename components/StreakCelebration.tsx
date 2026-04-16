@@ -6,7 +6,7 @@ import { useStore } from '@/store/useStore';
 
 export const StreakCelebration = () => {
   const streakMilestone = useStore(s => s.streakMilestone);
-  const dismissMilestone = useStore(s => s.dismissMilestone);
+  const dismissMilestone = useStore(s => s.actions.dismissMilestone);
   const explosionRef = useRef<ConfettiCannon>(null);
 
   useEffect(() => {

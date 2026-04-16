@@ -19,8 +19,8 @@ export default function FocusDetailScreen() {
   // updateFocusTime is NOT needed here; the global timer in _layout.tsx handles it.
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
-  const toggleFocusSession = useStore(s => s.toggleFocusSession);
-  const togglePomodoro = useStore(s => s.togglePomodoro);
+  const toggleFocusSession = useStore(s => s.actions.toggleFocusSession);
+  const togglePomodoro = useStore(s => s.actions.togglePomodoro);
   const colors = useThemeColors();
   
   const [mounted, setMounted] = useState(false);

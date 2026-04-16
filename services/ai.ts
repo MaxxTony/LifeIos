@@ -1,27 +1,35 @@
 import { useStore } from '@/store/useStore';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/firebase/config';
 import { aiActionHandler } from './aiActionHandler';
 import { getTodayLocal } from '@/utils/dateUtils'; // FIX M-1: use local date
 
-// ⚠️  SECURITY WARNING — M-9
-// EXPO_PUBLIC_ variables are embedded in the JS bundle at build time.
-// Anyone who decompiles the APK/IPA can extract this key and run AI queries on your bill.
-//
-// PRODUCTION FIX: Route all AI calls through a Firebase Cloud Function (or your own
-// backend). The Cloud Function holds the key server-side and the client calls it via
-// HTTPS. Example:
-//   https.onCall(async (data, ctx) => {
-//     if (!ctx.auth) throw new functions.https.HttpsError('unauthenticated', '...');
-//     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-//     ...
-//   });
-//
-// Until that backend proxy is in place, rotate this key frequently in Google Cloud Console
-// and restrict it by Android package / iOS bundle ID in the API credentials settings.
+// C-2: Server-side proxy flag.
+// When EXPO_PUBLIC_USE_AI_PROXY=true, all AI calls route through the
+// `callAI` Firebase Cloud Function (see functions/README.md). The function
+// holds the Gemini key as a server-side secret so it never ships in the
+// client bundle. When false, we fall back to the legacy client-side key
+// path so the app keeps working pre-deploy.
+const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
+
+// ⚠️  SECURITY: EXPO_PUBLIC_GEMINI_API_KEY is embedded in the JS bundle at
+// build time. Anyone who decompiles the APK/IPA can extract it. This path
+// exists ONLY as a fallback while you finish deploying the Cloud Function.
+// Once functions are deployed and USE_AI_PROXY=true, rotate and delete this
+// key in Google Cloud Console.
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
-// Initialize Gemini
-const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+if (!USE_AI_PROXY && __DEV__) {
+  console.warn(
+    '[LifeOS] AI calls are using the CLIENT-SIDE Gemini key. ' +
+    'Deploy functions/ and set EXPO_PUBLIC_USE_AI_PROXY=true before shipping to production.'
+  );
+}
+
+// Legacy direct client (fallback path). Only initialised when the proxy flag
+// is off.
+const genAI = (!USE_AI_PROXY && GEMINI_API_KEY) ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 /**
  * Generates a comprehensive snapshot of the app's current state
@@ -55,7 +63,7 @@ const getCurrentAppContext = () => {
       title: h.title,
       frequency: h.frequency,
       isCompletedToday: h.completedDays.includes(today),
-      streak: state.getStreak(h.id)
+      streak: state.actions.getStreak(h.id)
     }))
   };
 
@@ -165,6 +173,28 @@ const tools = [
 export const getAIResponse = async (
   messages: { role: 'user' | 'assistant' | 'system', content: string, image?: { base64: string, mimeType: string } }[]
 ) => {
+  // C-2: Server-side proxy path — no API key on device, no tool-calling yet.
+  // Tool-calling can be added to the Cloud Function in a follow-up; for now
+  // the proxy handles plain text + vision, which covers the chat use case.
+  if (USE_AI_PROXY) {
+    try {
+      const call = httpsCallable<
+        { messages: typeof messages; systemInstruction?: string },
+        { text: string }
+      >(functions, 'callAI');
+      const state = useStore.getState();
+      const systemInstruction = `You are LifeOS, a premium personal assistant.
+      You help users manage tasks, habits, and moods.
+      Be supportive, proactive, and concise.
+      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
+      const result = await call({ messages, systemInstruction });
+      return result.data?.text || 'Sorry, I could not generate a response.';
+    } catch (err: any) {
+      console.error('callAI proxy error:', err);
+      return 'I am sorry, I am having trouble connecting right now. Please try again.';
+    }
+  }
+
   if (!genAI) {
     console.warn('Gemini API key missing. Please add EXPO_PUBLIC_GEMINI_API_KEY to your .env.local file.');
     return 'AI is not configured. Please check your environment setup.';
@@ -222,33 +252,28 @@ export const getAIResponse = async (
     // Handle potential tool calls
     const calls = response.functionCalls();
     if (calls && calls.length > 0) {
-      const toolResults: any = {};
+      const toolResults = [];
 
       for (const call of calls) {
-        if (call.name === 'addTask') {
-          toolResults[call.name] = aiActionHandler.handleAddTask(call.args as any);
-        } else if (call.name === 'addHabit') {
-          toolResults[call.name] = aiActionHandler.handleAddHabit(call.args as any);
-        } else if (call.name === 'setMood') {
-          toolResults[call.name] = aiActionHandler.handleSetMood(call.args as any);
-        } else if (call.name === 'updateTask') {
-          toolResults[call.name] = aiActionHandler.handleUpdateTask(call.args as any);
-        } else if (call.name === 'removeTask') {
-          toolResults[call.name] = aiActionHandler.handleRemoveTask(call.args as any);
-        } else if (call.name === 'updateHabit') {
-          toolResults[call.name] = aiActionHandler.handleUpdateHabit(call.args as any);
-        } else if (call.name === 'removeHabit') {
-          toolResults[call.name] = aiActionHandler.handleRemoveHabit(call.args as any);
-        }
+        let res = null;
+        if (call.name === 'addTask') res = aiActionHandler.handleAddTask(call.args as any);
+        else if (call.name === 'addHabit') res = aiActionHandler.handleAddHabit(call.args as any);
+        else if (call.name === 'setMood') res = aiActionHandler.handleSetMood(call.args as any);
+        else if (call.name === 'updateTask') res = aiActionHandler.handleUpdateTask(call.args as any);
+        else if (call.name === 'removeTask') res = aiActionHandler.handleRemoveTask(call.args as any);
+        else if (call.name === 'updateHabit') res = aiActionHandler.handleUpdateHabit(call.args as any);
+        else if (call.name === 'removeHabit') res = aiActionHandler.handleRemoveHabit(call.args as any);
+
+        toolResults.push({
+          name: call.name,
+          response: res || { success: false, message: 'Unknown tool' }
+        });
       }
 
-      // FIX M-2: Send ALL tool results back, not just calls[0]
+      // FIX M-2: Send ALL tool results back
       const result2 = await chat.sendMessage(
-        calls.map(call => ({
-          functionResponse: {
-            name: call.name,
-            response: toolResults[call.name] || { success: false, message: 'Unknown tool' }
-          }
+        toolResults.map(tr => ({
+          functionResponse: tr
         }))
       );
       return result2.response.text();
@@ -262,9 +287,12 @@ export const getAIResponse = async (
 };
 
 export const getFocusQuote = async () => {
+  // In proxy mode, fall back to local static quotes to avoid burning Cloud
+  // Function invocations on cosmetic UI. Swap for a dedicated endpoint later.
+  if (USE_AI_PROXY || !genAI) return null;
   try {
-    const model = genAI?.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model?.generateContent('Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.');
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent('Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.');
     return result?.response.text() || null;
   } catch {
     return null;
@@ -273,10 +301,11 @@ export const getFocusQuote = async () => {
 
 export const getMoodInsight = async (moodData: any[]) => {
   if (moodData.length < 3) return null;
+  if (USE_AI_PROXY || !genAI) return null;
   const summary = JSON.stringify(moodData);
   try {
-    const model = genAI?.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model?.generateContent(`Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(`Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`);
     return result?.response.text() || null;
   } catch {
     return null;

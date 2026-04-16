@@ -43,7 +43,7 @@ export default function AIChatScreen() {
   const userId = useStore(s => s.userId);
   const userName = useStore(s => s.userName);
   const proactivePrompt = useStore(s => s.proactivePrompt);
-  const dismissProactive = useStore(s => s.dismissProactive);
+  const dismissProactive = useStore(s => s.actions.dismissProactive);
   const colors = useThemeColors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');

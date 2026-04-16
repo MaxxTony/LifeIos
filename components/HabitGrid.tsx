@@ -12,8 +12,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 export function HabitGrid() {
   // Selectors: only re-render when habits, toggleHabit, or getStreak changes.
   const habits = useStore(s => s.habits);
-  const toggleHabit = useStore(s => s.toggleHabit);
-  const getStreak = useStore(s => s.getStreak);
+  const toggleHabit = useStore(s => s.actions.toggleHabit);
+  const getStreak = useStore(s => s.actions.getStreak);
   const colors = useThemeColors();
   const router = useRouter();
 
@@ -49,7 +49,7 @@ export function HabitGrid() {
         <TouchableOpacity
           key={i}
           activeOpacity={0.6}
-          hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
+          hitSlop={{ top: 16, bottom: 16, left: 6, right: 6 }}
           onPress={() => {
             if (!isFuture) handleToggle(habitId, dateString);
           }}
@@ -192,9 +192,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   addBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 44, // WCAG Standard
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   },
   dotsHeaderLabels: {
     flexDirection: 'row',
-    width: 150, // Increased for more space
+    width: 180, // Increased for better touch target spacing
     justifyContent: 'space-between',
     paddingRight: 4,
   },
@@ -252,15 +252,15 @@ const styles = StyleSheet.create({
   },
   dotsContainer: {
     flexDirection: 'row',
-    width: 150, // Matches header labels exactly
+    width: 180, // Matches header labels exactly
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingRight: 4,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 3.5,
+    width: 12, // Slightly larger for visibility
+    height: 12,
+    borderRadius: 4.5,
     justifyContent: 'center',
     alignItems: 'center',
   },

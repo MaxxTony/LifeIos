@@ -125,7 +125,7 @@ function PulsingOrb() {
         <Image
           source={require('../../assets/images/splash-icon.png')}
           style={orbStyles.iconImage}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </Animated.View>
     </View>
@@ -244,7 +244,7 @@ function FinalHero() {
       <Animated.View style={[heroStyles.ring, { borderColor: colors.primary }, r1Style]} />
       <Animated.View style={[heroStyles.glow, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
       <Animated.View style={[heroStyles.iconWrap, iconStyle]}>
-        <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} resizeMode="cover" />
+        <Image source={require('../../assets/images/splash-icon.png')} style={heroStyles.icon} resizeMode="contain" />
       </Animated.View>
     </View>
   );
@@ -342,7 +342,7 @@ export default function OnboardingScreen() {
   const [selectedStruggles, setSelectedStruggles] = useState<string[]>([]);
   const router = useRouter();
   const colors = useThemeColors();
-  const { setOnboardingData, completeOnboarding } = useStore();
+  const { onboardingData, actions: { setOnboardingData, completeOnboarding } } = useStore();
 
   const slideOpacity = useSharedValue(1);
 
@@ -396,7 +396,7 @@ export default function OnboardingScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.bottomArea}>
-        <DotIndicator current={0} />
+        <DotIndicator current={currentSlide} />
         <GradientButton label="Get Started →" onPress={handleNext} />
       </Animated.View>
     </View>,
@@ -427,7 +427,7 @@ export default function OnboardingScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(500).springify()} style={styles.bottomArea}>
-        <DotIndicator current={1} />
+        <DotIndicator current={currentSlide} />
         <GradientButton label="Sounds Good →" onPress={handleNext} />
       </Animated.View>
     </View>,
@@ -455,7 +455,51 @@ export default function OnboardingScreen() {
       </View>
 
       <Animated.View entering={FadeInUp.delay(900).springify()} style={styles.bottomArea}>
-        <DotIndicator current={3} />
+        <DotIndicator current={currentSlide} />
+        {/* C-14: Require at least one struggle so AI personalization has signal. */}
+        <GradientButton
+          label="Continue →"
+          onPress={handleNext}
+          disabled={selectedStruggles.length === 0}
+        />
+      </Animated.View>
+    </View>,
+
+    // ── Slide 4: Ready ───────────────────────────────────────────────────
+    <View style={styles.slide} key="slide-4">
+      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
+      </TouchableOpacity>
+
+      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
+        <FinalHero />
+      </Animated.View>
+
+      <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.textBlock}>
+        <Text style={[styles.heading, { color: colors.text }]}>You're all</Text>
+        <Text style={[styles.heading, { color: colors.primary }]}>set to go!</Text>
+        <Text style={[styles.subheading, { color: colors.textSecondary }]}>
+          Your journey to a better version of{'\n'}yourself starts right now.
+        </Text>
+      </Animated.View>
+
+      <Animated.View entering={FadeInUp.delay(400).springify()} style={[slide4Styles.promiseList, { backgroundColor: colors.primary + '08', borderColor: colors.primary + '20' }]}>
+        <View style={slide4Styles.promiseRow}>
+          <View style={[slide4Styles.iconBadge, { backgroundColor: colors.primary + '20' }]}>
+            <Text style={slide4Styles.tick}>🛡️</Text>
+          </View>
+          <Text style={[slide4Styles.promiseText, { color: colors.text }]}>100% Privacy & Data Ownership</Text>
+        </View>
+        <View style={slide4Styles.promiseRow}>
+          <View style={[slide4Styles.iconBadge, { backgroundColor: colors.primary + '20' }]}>
+            <Text style={slide4Styles.tick}>🧠</Text>
+          </View>
+          <Text style={[slide4Styles.promiseText, { color: colors.text }]}>Personalized AI Coaching</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.View entering={FadeInUp.delay(600).springify()} style={styles.bottomArea}>
+        <DotIndicator current={currentSlide} />
         <GradientButton label="Begin My Journey →" onPress={handleNext} />
       </Animated.View>
     </View>,
@@ -482,16 +526,22 @@ export default function OnboardingScreen() {
 }
 
 // ─── Gradient Button ──────────────────────────────────────────────────────────
-function GradientButton({ label, onPress }: { label: string; onPress: () => void }) {
+function GradientButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   const colors = useThemeColors();
   const scale = useSharedValue(1);
   const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const press = () => {
+    if (disabled) return;
     scale.value = withSequence(withTiming(0.96, { duration: 80 }), withSpring(1, { damping: 8 }));
     onPress();
   };
   return (
-    <TouchableOpacity onPress={press} activeOpacity={1} style={{ width: '100%' }}>
+    <TouchableOpacity
+      onPress={press}
+      activeOpacity={disabled ? 1 : 0.9}
+      disabled={disabled}
+      style={{ width: '100%', opacity: disabled ? 0.5 : 1 }}
+    >
       <Animated.View style={[btnStyle, { borderRadius: 16, overflow: 'hidden' }]}>
         <LinearGradient
           colors={colors.gradient}

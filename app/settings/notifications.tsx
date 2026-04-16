@@ -6,7 +6,8 @@ import React from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 export default function NotificationsSettings() {
-  const { notificationSettings, updateNotificationSettings } = useStore();
+  const notificationSettings = useStore(s => s.notificationSettings);
+  const updateNotificationSettings = useStore(s => s.actions.updateNotificationSettings);
   const colors = useThemeColors();
 
   const toggle = (key: keyof typeof notificationSettings) => {

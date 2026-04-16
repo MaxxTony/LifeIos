@@ -53,7 +53,7 @@ const STEPS = [
 export function OnboardingWalkthrough() {
   const colors = useThemeColors();
   const hasSeenWalkthrough = useStore(s => s.hasSeenWalkthrough);
-  const setHasSeenWalkthrough = useStore(s => s.setHasSeenWalkthrough);
+  const setHasSeenWalkthrough = useStore(s => s.actions.setHasSeenWalkthrough);
   
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -62,9 +62,15 @@ export function OnboardingWalkthrough() {
   const slideAnim = React.useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
+    let timeoutId: any;
     if (!hasSeenWalkthrough) {
-      setTimeout(() => setVisible(true), 1200);
+      timeoutId = setTimeout(() => {
+        setVisible(true);
+      }, 1200);
+    } else {
+      setVisible(false);
     }
+    return () => clearTimeout(timeoutId);
   }, [hasSeenWalkthrough]);
 
   useEffect(() => {

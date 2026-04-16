@@ -155,7 +155,9 @@ function LegacyIOSTabs() {
 
 export default function TabsLayout() {
   const iosVersion = Platform.OS === 'ios' ? parseInt(Platform.Version as string, 10) : 0;
-  const isModernIOS = Platform.OS === 'ios' && iosVersion == 26;
+  // C-15: Gate modern tab UI on iOS 26+ (not exactly 26) so the app ships the
+  // right chrome on iOS 27, 28, ... rather than silently falling back.
+  const isModernIOS = Platform.OS === 'ios' && iosVersion >= 26;
 
   if (Platform.OS === 'android') {
     return <AndroidTabs />;

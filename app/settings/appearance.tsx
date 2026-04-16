@@ -101,7 +101,7 @@ function ThemeCard({ theme, isActive, onSelect }: any) {
 }
 
 export default function AppearanceSettings() {
-  const { themePreference, accentColor, setThemePreference, setAccentColor, userName } = useStore();
+  const { themePreference, accentColor, userName, actions: { setThemePreference, setAccentColor } } = useStore();
   const colors = useThemeColors();
   const headerHeight = useHeaderHeight();
 
@@ -112,6 +112,13 @@ export default function AppearanceSettings() {
   useEffect(() => {
     blob1Scale.value = withRepeat(withTiming(1.3, { duration: 6000 }), -1, true);
     blob2Scale.value = withDelay(1000, withRepeat(withTiming(1.4, { duration: 8000 }), -1, true));
+    
+    return () => {
+      // U-H1: Setting a value stops any running withRepeat animations on unmount.
+      // This prevents background CPU drain when the user leaves this screen.
+      blob1Scale.value = 0;
+      blob2Scale.value = 0;
+    };
   }, []);
 
   const blob1Style = useAnimatedStyle(() => ({ transform: [{ scale: blob1Scale.value }] }));

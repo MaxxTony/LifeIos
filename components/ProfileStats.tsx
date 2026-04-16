@@ -12,7 +12,7 @@ export function ProfileStats() {
   const tasks = useStore(s => s.tasks);
   const habits = useStore(s => s.habits);
   const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
-  const getStreak = useStore(s => s.getStreak);
+  const getStreak = useStore(s => s.actions.getStreak);
   const colors = useThemeColors();
 
   const completedTasksToday = tasks.filter(t => t.completed).length;

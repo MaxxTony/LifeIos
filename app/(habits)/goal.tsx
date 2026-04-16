@@ -21,7 +21,7 @@ export default function GoalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useThemeColors();
-  const { addHabit, updateHabit } = useStore();
+  const { actions: { addHabit, updateHabit } } = useStore();
 
   const isEditMode = !!params.habitId;
   const [selectedGoal, setSelectedGoal] = useState(() => {

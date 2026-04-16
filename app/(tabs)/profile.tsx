@@ -23,7 +23,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
-  const logout = useStore(s => s.logout);
+  const logout = useStore(s => s.actions.logout);
   const themePreference = useStore(s => s.themePreference);
   const colors = useThemeColors();
   const router = useRouter();
