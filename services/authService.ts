@@ -1,13 +1,14 @@
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  User,
-  sendPasswordResetEmail,
+import {
   GoogleAuthProvider,
   signInWithCredential,
-  deleteUser
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  reload,
+  deleteUser,
+  User,
 } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import * as Crypto from 'expo-crypto';
@@ -44,8 +45,6 @@ export const authService = {
     await dbService.saveUserProfile(userId, { sessionToken: token } as any);
     return token;
   },
-
-
 
   // Email/Password Signup
   signUp: async (email: string, pass: string) => {
@@ -89,26 +88,23 @@ export const authService = {
     }
   },
 
-  // Validate session (Check if user still exists on server)
+  // Validate session (check if user still exists on server)
   validateSession: async (user: User) => {
     try {
-      await user.reload();
+      await reload(user);
       return true;
     } catch (error: any) {
-      // If user is not found or disabled, they were likely deleted from the console
       if (
-        error.code === 'auth/user-not-found' || 
+        error.code === 'auth/user-not-found' ||
         error.code === 'auth/user-disabled' ||
         error.code === 'auth/user-token-expired'
       ) {
         return false;
       }
-      // If it's a network error, we trust the cached session and return true to avoid false logouts
-      // This is critical for users in subways, elevators, or areas with poor reception.
+      // Network error — trust the cached session to avoid false logouts
       if (error.code === 'auth/network-request-failed') {
         return true;
       }
-      // For any other unknown error, we err on the side of caution and keep the session to prevent UX failure
       return true;
     }
   },
@@ -119,13 +115,13 @@ export const authService = {
       const user = auth.currentUser;
       if (!user) throw new Error('No authenticated user found');
       await deleteUser(user);
-       return { error: null };
-     } catch (error: any) {
-       console.error('Account deletion error:', error);
-       return { error: mapAuthErrorToMessage(error.code) || error.message };
-     }
-   }
- };
+      return { error: null };
+    } catch (error: any) {
+      console.error('Account deletion error:', error);
+      return { error: mapAuthErrorToMessage(error.code) || error.message };
+    }
+  },
+};
 
 const mapAuthErrorToMessage = (code: string): string => {
   switch (code) {

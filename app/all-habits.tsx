@@ -12,6 +12,7 @@ import React, { useRef, useMemo, useCallback } from 'react';
 import { Alert, Dimensions, Platform, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 
 const { width } = Dimensions.get('window');
 
@@ -77,6 +78,8 @@ const HabitItem = React.memo(({
     <TouchableOpacity
       style={[styles.deleteAction, { backgroundColor: colors.danger }]}
       onPress={() => onDelete(habit.id, habit.title)}
+      accessibilityLabel={`Delete ${habit.title}`}
+      accessibilityRole="button"
     >
       <Trash2 size={20} color="#FFF" />
       <Text style={styles.deleteActionText}>Delete</Text>
@@ -101,6 +104,8 @@ const HabitItem = React.memo(({
           style={styles.habitMain}
           onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
           activeOpacity={0.6}
+          accessibilityLabel={`View details for ${habit.title}, current streak ${streak} days`}
+          accessibilityRole="button"
         >
           <View style={styles.habitInfo}>
             <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]}>
@@ -118,6 +123,9 @@ const HabitItem = React.memo(({
             style={styles.dotsContainer}
             onPress={() => onToggle(habit.id)}
             activeOpacity={0.7}
+            accessibilityLabel={isCompletedToday ? "Mark habit as incomplete for today" : "Mark habit as complete for today"}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isCompletedToday }}
           >
             {renderDots(habit.completedDays)}
           </TouchableOpacity>
@@ -127,12 +135,29 @@ const HabitItem = React.memo(({
   );
 });
 
+function HabitsSkeleton() {
+  const colors = useThemeColors();
+  return (
+    <View style={{ gap: Spacing.md }}>
+      {[240, 200, 220].map((w, i) => (
+        <View key={i} style={[styles.habitCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SkeletonBlock width="40%" height={16} borderRadius={8} />
+          <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SkeletonBlock width="30%" height={12} borderRadius={4} />
+            <SkeletonBlock width="120" height={14} borderRadius={6} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function AllHabitsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
 
-  // P-2 FIX: Use granular selectors to avoid heavy re-renders from focus timer ticks
   const habits = useStore(s => s.habits);
+  const habitsLoaded = useStore(s => s.syncStatus.habitsLoaded);
   const toggleHabit = useStore(s => s.actions.toggleHabit);
   const removeHabit = useStore(s => s.actions.removeHabit);
   const getStreak = useStore(s => s.actions.getStreak);
@@ -165,7 +190,7 @@ export default function AllHabitsScreen() {
   }, [removeHabit]);
 
   const renderHeaderLabels = () => {
-    if (habits.length === 0) return null;
+    if (habits.length === 0 || !habitsLoaded) return null;
     return (
       <View style={styles.dotsHeaderLabels}>
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
@@ -200,6 +225,8 @@ export default function AllHabitsScreen() {
                 onPress={() => router.back()}
                 style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                 activeOpacity={0.7}
+                accessibilityLabel="Back"
+                accessibilityRole="button"
               >
                 <ChevronLeft size={22} color={colors.text} />
               </TouchableOpacity>
@@ -210,6 +237,8 @@ export default function AllHabitsScreen() {
                 onPress={() => router.push('/(habits)/templates')}
                 style={styles.plusBtnContainer}
                 activeOpacity={0.8}
+                accessibilityLabel="Add new habit"
+                accessibilityRole="button"
               >
                 <LinearGradient
                   colors={[colors.primary, colors.secondary]}
@@ -224,27 +253,32 @@ export default function AllHabitsScreen() {
           </BlurView>
         </View>
 
-        {/* P-3 FIX: Transition from ScrollView + map to FlatList for performance */}
-        <FlatList
-          data={habits}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <HabitItem
-              habit={item}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
-              getStreak={getStreak}
-              colors={colors}
-              router={router}
-              swipeableRefs={swipeableRefs}
-            />
-          )}
-          ListHeaderComponent={renderHeaderLabels}
-          ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          style={{ marginTop: 10 }}
-        />
+        {!habitsLoaded ? (
+          <View style={{ padding: Spacing.md, marginTop: 10 }}>
+            <HabitsSkeleton />
+          </View>
+        ) : (
+          <FlatList
+            data={habits}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <HabitItem
+                habit={item}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
+                getStreak={getStreak}
+                colors={colors}
+                router={router}
+                swipeableRefs={swipeableRefs}
+              />
+            )}
+            ListHeaderComponent={renderHeaderLabels}
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            style={{ marginTop: 10 }}
+          />
+        )}
       </SafeAreaView>
     </View>
   );
@@ -301,7 +335,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     width: 150,
     marginBottom: 8,
-    marginRight: 17, // Align with dots inside the padded habit card
+    marginRight: 17, 
   },
   dayLabelContainer: {
     flex: 1,
@@ -322,7 +356,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
-    marginBottom: 12, // Gap replaced by margin since FlatList is used
+    marginBottom: 12, 
   },
   habitMain: {
     flexDirection: 'row',
@@ -360,7 +394,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginLeft: 8,
     gap: 4,
-    marginBottom: 12, // Match habit card margin
+    marginBottom: 12, 
   },
   deleteActionText: {
     color: '#FFF',
@@ -375,4 +409,3 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 18, fontWeight: '800' },
   emptySubtext: { fontSize: 13, opacity: 0.7, textAlign: 'center', paddingHorizontal: 40 }
 });
-

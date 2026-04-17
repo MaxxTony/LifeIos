@@ -1,22 +1,23 @@
 import {
   collection,
-  deleteDoc,
-  deleteField,
   doc,
+  setDoc,
   getDoc,
   getDocs,
-  onSnapshot,
-  setDoc,
-  writeBatch,
+  deleteDoc,
+  updateDoc,
+  addDoc,
   query,
-  QueryConstraint,
+  onSnapshot,
   serverTimestamp,
-  DocumentData,
-  QuerySnapshot,
-  SnapshotMetadata,
   arrayUnion,
   arrayRemove,
-  updateDoc
+  deleteField,
+  writeBatch,
+  CollectionReference,
+  Query,
+  DocumentData,
+  SnapshotMetadata,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Task, Habit, MoodEntry, UserState } from '../store/types';
@@ -50,12 +51,11 @@ export const dbService = {
 
   // Atomic Task Operations
   saveTask: async (userId: string, task: Task) => {
-    // F-8: Use serverTimestamp for all createdAt fields to ensure sorting consistency
     const taskData = sanitizeData({
       ...task,
       createdAt: task.createdAt || serverTimestamp(),
       serverCreatedAt: serverTimestamp(),
-      lastUpdatedAt: serverTimestamp()
+      lastUpdatedAt: serverTimestamp(),
     });
     await setDoc(doc(db, 'users', userId, 'tasks', task.id), taskData);
   },
@@ -66,7 +66,6 @@ export const dbService = {
 
   // Atomic Habit Operations
   saveHabit: async (userId: string, habit: Habit) => {
-    // F-1: Defensive pruning to ensure 1MB limit is never hit
     let prunedCompletions = habit.completedDays || [];
     if (prunedCompletions.length > 500) {
       prunedCompletions = prunedCompletions.sort().slice(-500);
@@ -77,7 +76,7 @@ export const dbService = {
       completedDays: prunedCompletions,
       createdAt: habit.createdAt || serverTimestamp(),
       serverCreatedAt: serverTimestamp(),
-      lastUpdatedAt: serverTimestamp()
+      lastUpdatedAt: serverTimestamp(),
     });
     await setDoc(doc(db, 'users', userId, 'habits', habit.id), habitData);
   },
@@ -86,21 +85,20 @@ export const dbService = {
     await deleteDoc(doc(db, 'users', userId, 'habits', habitId));
   },
 
-  // Atomic Habit Completion (fixes race conditions on multi-device)
+  // Atomic Habit Completion
   toggleHabitDate: async (userId: string, habitId: string, dateStr: string, isCompleted: boolean) => {
-    const habitRef = doc(db, 'users', userId, 'habits', habitId);
-    await updateDoc(habitRef, {
+    await updateDoc(doc(db, 'users', userId, 'habits', habitId), {
       completedDays: isCompleted ? arrayUnion(dateStr) : arrayRemove(dateStr),
-      lastUpdatedAt: serverTimestamp()
+      lastUpdatedAt: serverTimestamp(),
     });
   },
 
-  // Mood History (Atomic per date)
+  // Mood History
   saveMood: async (userId: string, moodData: MoodEntry, dateKey: string) => {
-    const data = sanitizeData({ 
-      ...moodData, 
+    const data = sanitizeData({
+      ...moodData,
       createdAt: moodData.timestamp || serverTimestamp(),
-      serverCreatedAt: serverTimestamp() 
+      serverCreatedAt: serverTimestamp(),
     });
     await setDoc(doc(db, 'users', userId, 'moodHistory', dateKey), data);
   },
@@ -114,17 +112,17 @@ export const dbService = {
     const collRef = collection(db, 'users', userId, 'dailyQuests');
     const snap = await getDocs(collRef);
     if (snap.empty) return;
-    
+
     const batch = writeBatch(db);
     snap.docs.forEach(d => batch.delete(d.ref));
     await batch.commit();
   },
 
-  // Focus History (Atomic per date)
+  // Focus History
   saveFocusEntry: async (userId: string, dateKey: string, totalSeconds: number) => {
     const data = sanitizeData({
       totalSeconds,
-      serverUpdatedAt: serverTimestamp()
+      serverUpdatedAt: serverTimestamp(),
     });
     await setDoc(doc(db, 'users', userId, 'focusHistory', dateKey), data);
   },
@@ -142,16 +140,12 @@ export const dbService = {
     await setDoc(doc(db, 'users', userId), { accentColor: color }, { merge: true });
   },
 
-  /**
-   * DATA MIGRATION Logic
-   * Checks for legacy array-based data on the root document and moves it to sub-collections.
-   */
+  // DATA MIGRATION Logic
   migrateLegacyData: async (userId: string, legacyData: Partial<UserState> & { tasks?: any[]; habits?: any[]; moodHistory?: any; focusHistory?: any }) => {
     const batch = writeBatch(db);
     const updates: any = {};
     let hasMigration = false;
 
-    // 1. Migrate Tasks
     if (Array.isArray(legacyData.tasks)) {
       legacyData.tasks.forEach((task: any) => {
         const taskRef = doc(db, 'users', userId, 'tasks', task.id);
@@ -161,7 +155,6 @@ export const dbService = {
       hasMigration = true;
     }
 
-    // 2. Migrate Habits
     if (Array.isArray(legacyData.habits)) {
       legacyData.habits.forEach((habit: any) => {
         const habitRef = doc(db, 'users', userId, 'habits', habit.id);
@@ -171,7 +164,6 @@ export const dbService = {
       hasMigration = true;
     }
 
-    // 3. Migrate Mood History
     if (legacyData.moodHistory && typeof legacyData.moodHistory === 'object') {
       Object.entries(legacyData.moodHistory).forEach(([dateKey, entry]: [string, any]) => {
         const moodRef = doc(db, 'users', userId, 'moodHistory', dateKey);
@@ -181,7 +173,6 @@ export const dbService = {
       hasMigration = true;
     }
 
-    // 4. Migrate Focus History
     if (legacyData.focusHistory && typeof legacyData.focusHistory === 'object') {
       Object.entries(legacyData.focusHistory).forEach(([dateKey, seconds]: [string, any]) => {
         const focusRef = doc(db, 'users', userId, 'focusHistory', dateKey);
@@ -199,57 +190,56 @@ export const dbService = {
     }
   },
 
-  // Real-time listener for user root document (profile/settings).
-  //
-  // Calls onUpdate(data) whenever the document changes.
-  // Calls onUpdate(null) ONLY if the document was previously observed to exist
-  // and then disappears — i.e. it was deleted server-side. Snapshots where the
-  // document has never existed (new users whose profile hasn't been written yet)
-  // are silently ignored so Google/email sign-up doesn't trigger a false logout.
+  // Real-time listener for user root document
   subscribeToUserData: (userId: string, onUpdate: (data: (Partial<UserState> & { _fromCache?: boolean }) | null) => void) => {
     const docRef = doc(db, 'users', userId);
     let hasExisted = false;
-    return onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        hasExisted = true;
-        const data = docSnap.data() as Partial<UserState>;
-        onUpdate({ ...data, _fromCache: docSnap.metadata.fromCache });
-      } else if (hasExisted) {
-        // Document existed previously — it was deleted, force sign-out.
-        onUpdate(null);
+    return onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          hasExisted = true;
+          const data = snap.data() as Partial<UserState>;
+          onUpdate({ ...data, _fromCache: snap.metadata.fromCache });
+        } else if (hasExisted) {
+          onUpdate(null);
+        }
+      },
+      (error: any) => {
+        if (error.code === 'permission-denied') {
+          process.env.NODE_ENV === 'development' && console.warn('Firestore root subscription closed: Permission denied');
+        } else {
+          console.error('Firestore root subscription error:', error);
+        }
       }
-      // else: doc never existed yet (new user being set up) — do nothing.
-    }, (error) => {
-      if (error.code === 'permission-denied') {
-        process.env.NODE_ENV === 'development' && console.warn('Firestore root subscription closed: Permission denied (likely logout)');
-      } else {
-        console.error('Firestore root subscription error:', error);
-      }
-    });
+    );
   },
 
-  // Real-time listener for any sub-collection with constraint support
+  // Real-time listener for sub-collections
   subscribeToCollection: (
-    userId: string, 
-    collectionName: string, 
-    onUpdate: (docs: DocumentData[], metadata: SnapshotMetadata) => void, 
-    constraints: QueryConstraint[] = []
+    userId: string,
+    collectionName: string,
+    onUpdate: (docs: DocumentData[], metadata: SnapshotMetadata) => void,
+    queryFn?: (ref: CollectionReference<DocumentData>) => Query<DocumentData>
   ) => {
-    let collRef: any = collection(db, 'users', userId, collectionName);
-    if (constraints.length > 0) {
-      collRef = query(collRef, ...constraints);
-    }
-    return onSnapshot(collRef, (querySnap: QuerySnapshot) => {
-      onUpdate(
-        querySnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        querySnap.metadata
-      );
-    }, (error) => {
-      if (error.code === 'permission-denied') {
-        process.env.NODE_ENV === 'development' && console.warn(`Firestore ${collectionName} subscription closed: Permission denied (logout)`);
-      } else {
-        console.error(`Firestore ${collectionName} subscription error:`, error);
+    const collRef = collection(db, 'users', userId, collectionName);
+    const finalRef = queryFn ? queryFn(collRef) : collRef;
+
+    return onSnapshot(
+      finalRef,
+      (querySnap) => {
+        onUpdate(
+          querySnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          querySnap.metadata
+        );
+      },
+      (error: any) => {
+        if (error.code === 'permission-denied') {
+          process.env.NODE_ENV === 'development' && console.warn(`Firestore ${collectionName} subscription closed: Permission denied`);
+        } else {
+          console.error(`Firestore ${collectionName} subscription error:`, error);
+        }
       }
-    });
-  }
+    );
+  },
 };

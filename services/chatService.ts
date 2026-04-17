@@ -1,18 +1,18 @@
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
+  addDoc,
   getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
   updateDoc,
-  writeBatch
+  deleteDoc,
+  query,
+  orderBy,
+  limit,
+  serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { auth, db, getStorageService } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../firebase/config';
 
 export interface ChatConversation {
   id: string;
@@ -30,24 +30,6 @@ export interface ChatMessage {
   createdAt?: number | any;
 }
 
-// The "XHR Trick" is the most robust way to get a native-backed Blob in React Native.
-// This bypasses the broken JavaScript Blob constructor and works perfectly with Firebase.
-const uriToBlob = (uri: string): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.onload = function () {
-      resolve(xhr.response);
-    };
-    xhr.onerror = function (e) {
-      console.error('uriToBlob Error:', e);
-      reject(new Error('Failed to convert URI to Blob.'));
-    };
-    xhr.responseType = 'blob';
-    xhr.open('GET', uri, true);
-    xhr.send(null);
-  });
-};
-
 export const chatService = {
   // Get most recent conversations for a user (capped at 50)
   getConversations: async (userId: string): Promise<ChatConversation[]> => {
@@ -58,30 +40,23 @@ export const chatService = {
         limit(50)
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ChatConversation[];
+      return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatConversation[];
     } catch (error) {
       console.error('Error getting conversations:', error);
       return [];
     }
   },
 
-  // FIX M-8: Added limit(101) to detect when history reaches the view cap
+  // Get messages for a conversation
   getMessages: async (userId: string, conversationId: string): Promise<ChatMessage[]> => {
     try {
       const q = query(
         collection(db, 'users', userId, 'conversations', conversationId, 'messages'),
-        orderBy('createdAt', 'desc'), // Fetch newest first to know if we hit the limit
-        limit(101) // Fetch 101 to check if there are more
+        orderBy('createdAt', 'desc'),
+        limit(101)
       );
       const querySnapshot = await getDocs(q);
-      const messages = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ChatMessage[];
-
+      const messages = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatMessage[];
       // Sort back to chronological for the UI
       return messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     } catch (error) {
@@ -119,12 +94,15 @@ export const chatService = {
     imageUrl?: string
   ) => {
     try {
-      await addDoc(collection(db, 'users', userId, 'conversations', conversationId, 'messages'), {
-        role,
-        content,
-        imageUrl: imageUrl || null,
-        createdAt: serverTimestamp(),
-      });
+      await addDoc(
+        collection(db, 'users', userId, 'conversations', conversationId, 'messages'),
+        {
+          role,
+          content,
+          imageUrl: imageUrl || null,
+          createdAt: serverTimestamp(),
+        }
+      );
 
       await updateDoc(doc(db, 'users', userId, 'conversations', conversationId), {
         lastMessage: imageUrl ? 'Sent an image' : content,
@@ -132,48 +110,35 @@ export const chatService = {
       });
     } catch (error) {
       console.error('Error adding message:', error);
-      throw error; // Propagate so callers can surface failures to the user
+      throw error;
     }
   },
 
-  // Upload image to Firebase Storage via XHR blob conversion (required for React Native).
-  // Uses explicit gs:// URI to handle new .firebasestorage.app bucket discovery.
+  // Upload image to Firebase Storage
   uploadImage: async (userId: string, uri: string): Promise<string> => {
     try {
-      // P-6 FIX: Ensure auth is ready and services are lazy-loaded
-      await auth.authStateReady();
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error('Not authenticated with Firebase');
-      }
+      if (!user) throw new Error('Not authenticated with Firebase');
 
-      // 1. Fetch the image to convert it into a blob
+      const timestamp = new Date().getTime();
+      const storageRef = ref(storage, `profiles/${userId}/chats_${timestamp}.jpg`);
+
+      // Fetch the local URI as a blob and upload
       const response = await fetch(uri);
       const blob = await response.blob();
-
-      // 2. Create a reference to 'profiles/userId/avatar_timestamp.jpg'
-      const timestamp = new Date().getTime();
-      const storageInstance = getStorageService();
-      const storageRef = ref(storageInstance, `profiles/${userId}/chats_${timestamp}.jpg`);
-
-      // 3. Upload the blob
       await uploadBytes(storageRef, blob);
-      // 4. Get and return the download URL
+
       const downloadUrl = await getDownloadURL(storageRef);
       return downloadUrl;
-
-
     } catch (error: any) {
       console.error('Image upload failed:', error);
       throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
     }
   },
 
-  // FIX M-14: Delete sub-collection messages before deleting the conversation
-  // Firestore does NOT cascade-delete sub-collections automatically
+  // Delete conversation and its messages
   deleteConversation: async (userId: string, conversationId: string) => {
     try {
-      // Step 1: Delete all messages in the sub-collection via batch
       const messagesRef = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
       const messagesSnap = await getDocs(messagesRef);
 
@@ -183,11 +148,10 @@ export const chatService = {
         await batch.commit();
       }
 
-      // Step 2: Delete the parent conversation document
       await deleteDoc(doc(db, 'users', userId, 'conversations', conversationId));
     } catch (error) {
       console.error('Error deleting conversation:', error);
       throw error;
     }
-  }
+  },
 };

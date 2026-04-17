@@ -1,3 +1,4 @@
+
 import { useFocusTimer } from '@/hooks/useFocusTimer';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
@@ -10,14 +11,18 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as TaskManager from 'expo-task-manager';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 // Importing the service registers the background task definition at module load time.
-import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
+import { initCrashAnalytics } from '@/services/crashAnalytics';
+
+
+initCrashAnalytics();
 
 // C-8: Redundant definition to ensure Expo Router handles background wake-ups correctly.
 TaskManager.defineTask(AI_COACH_TASK, runAICoachTask);

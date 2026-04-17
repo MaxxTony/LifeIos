@@ -37,6 +37,8 @@ export function DashboardAIButton() {
         activeOpacity={0.9}
         onPress={() => router.push('/ai-chat')}
         style={[styles.buttonWrap, { borderColor: colors.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}
+        accessibilityLabel="Consult LifeOS AI Assistant"
+        accessibilityRole="button"
       >
         <LinearGradient
           colors={colors.gradient}

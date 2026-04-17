@@ -55,7 +55,14 @@
           "iosUrlScheme": "com.googleusercontent.apps.191144362794-jlfstgpenl1tkn2ofdunsd1kb64m2nfs"
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "lifeos",
+          "project": "react-native"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -213,6 +213,13 @@ export default function LoginScreen() {
         });
 
         router.replace('/(tabs)');
+      } else if (error?.includes('Network') || error?.includes('network')) {
+        Toast.show({
+          type: 'info',
+          text1: 'Poor Connection',
+          text2: 'Signing in… please wait a moment.',
+          visibilityTime: 5000,
+        });
       } else {
         Toast.show({
           type: 'error',
@@ -341,7 +348,16 @@ export default function LoginScreen() {
         router.replace('/(tabs)');
       }
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: 'Setup Error', text2: err.message });
+      if (err.message?.includes('Network') || err.message?.includes('network')) {
+        Toast.show({
+          type: 'info',
+          text1: 'Poor Connection',
+          text2: 'Finalizing setup… please wait.',
+          visibilityTime: 5000,
+        });
+      } else {
+        Toast.show({ type: 'error', text1: 'Setup Error', text2: err.message });
+      }
     } finally {
       setLoading(null);
     }

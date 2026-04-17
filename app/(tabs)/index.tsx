@@ -200,6 +200,8 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
                 onPress={() => router.push('/(tabs)/profile')}
                 style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
+                accessibilityLabel={`Level ${level}, ${Math.round(xpProgress * 100)}% to next level. Tap to view profile.`}
+                accessibilityRole="button"
               >
                 <View style={styles.xpInfo}>
                   <Text style={[styles.levelLabel, { color: colors.text }]}>LVL {level}</Text>

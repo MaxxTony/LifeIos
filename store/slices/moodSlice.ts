@@ -22,6 +22,7 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
       if (state.userId) {
         fireSync(() => dbService.saveMood(state.userId!, cleanEntry, dateKey), 'saveMood', state.userId);
         analyticsService.logEvent(state.userId, 'mood_logged', { mood });
+        get().actions.addXP(5); // Small reward for self-awareness
       }
 
       const today = getTodayLocal();

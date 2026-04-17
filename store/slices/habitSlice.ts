@@ -103,7 +103,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         let newXpAwardedDays = xpAwardedDays;
         if (shouldAwardXP) {
           // Keep the list lean — prune anything older than 90 days
-          const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+          const cutoff = formatLocalDate(new Date(Date.now() - 90 * 86400000));
           newXpAwardedDays = [...xpAwardedDays, today]
             .filter(d => d >= cutoff)
             .sort()

@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as any;
 
@@ -38,14 +39,31 @@ function getDateLabel(dateStr: string, today: string, tomorrow: string, weekEnd:
   return 'Later';
 }
 
+function TasksSkeleton() {
+  const colors = useThemeColors();
+  return (
+    <View style={{ gap: Spacing.md }}>
+      {[200, 150, 180].map((w, i) => (
+        <View key={i} style={[styles.taskCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SkeletonBlock width="60%" height={14} borderRadius={6} />
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <SkeletonBlock width="100%" height={12} borderRadius={4} />
+            <SkeletonBlock width="80%" height={12} borderRadius={4} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function AllTasksScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const tasks = useStore(s => s.tasks);
+  const tasksLoaded = useStore(s => s.syncStatus.tasksLoaded);
   const toggleTask = useStore(s => s.actions.toggleTask);
 
   const today = getTodayLocal();
-
   const priorityWeight = { high: 1, medium: 2, low: 3 };
 
   const priorityColors = {
@@ -54,32 +72,23 @@ export default function AllTasksScreen() {
     low: colors.success
   };
 
-  // Compute date anchors once
   const { tomorrow, weekEnd } = useMemo(() => {
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-
     const weekEndDate = new Date();
-    // End of this week = next Sunday (or Saturday depending on locale)
-    // Using 6 days ahead as a simple "this week" window
     weekEndDate.setDate(weekEndDate.getDate() + 6);
-
     return {
       tomorrow: formatLocalDate(tomorrowDate),
       weekEnd: formatLocalDate(weekEndDate),
     };
   }, [today]);
 
-  // Group all tasks into sections, sorted within each group by priority then time
   const sections = useMemo<Section[]>(() => {
     const sorted = [...tasks].sort((a, b) => {
-      // Primary: date ascending
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      // Secondary: priority
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
       }
-      // Tertiary: start time
       return (a.dueTime || 0) - (b.dueTime || 0);
     });
 
@@ -92,10 +101,9 @@ export default function AllTasksScreen() {
 
     for (const task of sorted) {
       const label = getDateLabel(task.date, today, tomorrow, weekEnd);
-      sectionMap[label].push(task as Task);
+      if (sectionMap[label]) sectionMap[label].push(task as Task);
     }
 
-    // Only return sections that have tasks
     return Object.entries(sectionMap)
       .filter(([, t]) => t.length > 0)
       .map(([label, t]) => ({ label, data: t }));
@@ -105,12 +113,10 @@ export default function AllTasksScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Background Glows */}
       <View style={[styles.glow, { top: -100, right: -100, backgroundColor: colors.primary + '15' }]} />
       <View style={[styles.glow, { bottom: -150, left: -150, backgroundColor: colors.secondary + '10' }]} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        {/* Header */}
         <View style={styles.headerContainer}>
           <BlurView intensity={20} tint={colors.isDark ? 'dark' : 'light'} style={styles.headerBlur}>
             <View style={styles.headerContent}>
@@ -118,13 +124,15 @@ export default function AllTasksScreen() {
                 onPress={() => router.back()}
                 style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                 activeOpacity={0.7}
+                accessibilityLabel="Back"
+                accessibilityRole="button"
               >
                 <ChevronLeft size={22} color={colors.text} />
               </TouchableOpacity>
 
               <View style={styles.headerCenter}>
                 <Text style={[styles.headerTitle, { color: colors.text }]}>All Tasks</Text>
-                {totalCount > 0 && (
+                {totalCount > 0 && tasksLoaded && (
                   <Text style={[styles.headerCount, { color: colors.textSecondary }]}>{totalCount} task{totalCount !== 1 ? 's' : ''}</Text>
                 )}
               </View>
@@ -133,6 +141,8 @@ export default function AllTasksScreen() {
                 onPress={() => router.push('/tasks/create')}
                 style={styles.plusBtnContainer}
                 activeOpacity={0.8}
+                accessibilityLabel="Create task"
+                accessibilityRole="button"
               >
                 <LinearGradient
                   colors={[colors.primary, colors.secondary]}
@@ -147,106 +157,110 @@ export default function AllTasksScreen() {
           </BlurView>
         </View>
 
-        <AnimatedSectionList
-          sections={sections}
-          keyExtractor={(item: Task) => item.id}
-          renderItem={({ item: task }: { item: Task }) => (
-            <TouchableOpacity
-              onPress={() => router.push(`/tasks/${task.id}`)}
-              activeOpacity={0.7}
-              style={[
-                styles.taskCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-                task.completed && styles.taskCompleted,
-                task.status === 'missed' && { borderColor: colors.danger + '30' },
-              ]}
-            >
-              <View style={styles.taskCardContent}>
-                <TouchableOpacity
-                  style={[
-                    styles.checkbox,
-                    { borderColor: task.status === 'missed' ? colors.danger : priorityColors[task.priority] },
-                    task.completed && [styles.checkboxChecked, { backgroundColor: priorityColors[task.priority] }],
-                  ]}
-                  onPress={() => {
-                    if (task.status === 'missed') return;
-                    Haptics.notificationAsync(
-                      task.completed
-                        ? Haptics.NotificationFeedbackType.Warning
-                        : Haptics.NotificationFeedbackType.Success
-                    );
-                    toggleTask(task.id);
-                  }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  {task.completed && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                  {task.status === 'missed' && !task.completed && (
-                    <Ionicons name="close" size={12} color={colors.danger} />
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.taskInfo}>
-                  <Text
+        {!tasksLoaded ? (
+          <View style={{ padding: Spacing.md }}><TasksSkeleton /></View>
+        ) : (
+          <AnimatedSectionList
+            sections={sections}
+            keyExtractor={(item: Task) => item.id}
+            renderItem={({ item: task }: { item: Task }) => (
+              <TouchableOpacity
+                onPress={() => router.push(`/tasks/${task.id}`)}
+                activeOpacity={0.7}
+                style={[
+                  styles.taskCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                  task.completed && styles.taskCompleted,
+                  task.status === 'missed' && { borderColor: colors.danger + '30' },
+                ]}
+                accessibilityLabel={`Task: ${task.text}, Priority: ${task.priority}`}
+                accessibilityRole="button"
+              >
+                <View style={styles.taskCardContent}>
+                  <TouchableOpacity
                     style={[
-                      styles.taskText,
-                      { color: colors.text },
-                      task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '70' }],
-                      task.status === 'missed' && { color: colors.textSecondary + '70' },
+                      styles.checkbox,
+                      { borderColor: task.status === 'missed' ? colors.danger : priorityColors[task.priority] },
+                      task.completed && [styles.checkboxChecked, { backgroundColor: priorityColors[task.priority] }],
                     ]}
-                    numberOfLines={1}
+                    onPress={() => {
+                      if (task.status === 'missed') return;
+                      Haptics.notificationAsync(
+                        task.completed
+                          ? Haptics.NotificationFeedbackType.Warning
+                          : Haptics.NotificationFeedbackType.Success
+                      );
+                      toggleTask(task.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={task.completed ? "Mark incomplete" : "Mark complete"}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: task.completed }}
                   >
-                    {task.text}
-                  </Text>
-                  <View style={styles.taskMeta}>
-                    <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-                      <Flag size={10} color={priorityColors[task.priority]} />
-                      <Text style={[styles.metaText, { color: priorityColors[task.priority] }]}>
-                        {task.priority.toUpperCase()}
-                      </Text>
-                    </View>
-                    {task.startTime && (
+                    {task.completed && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                    {task.status === 'missed' && !task.completed && (
+                      <Ionicons name="close" size={12} color={colors.danger} />
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.taskInfo}>
+                    <Text
+                      style={[
+                        styles.taskText,
+                        { color: colors.text },
+                        task.completed && [styles.taskTextCompleted, { color: colors.textSecondary + '70' }],
+                        task.status === 'missed' && { color: colors.textSecondary + '70' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {task.text}
+                    </Text>
+                    <View style={styles.taskMeta}>
                       <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-                        <Clock size={10} color={colors.textSecondary} />
-                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
+                        <Flag size={10} color={priorityColors[task.priority]} />
+                        <Text style={[styles.metaText, { color: priorityColors[task.priority] }]}>
+                          {task.priority.toUpperCase()}
+                        </Text>
                       </View>
-                    )}
-                    {task.status === 'missed' && (
-                      <View style={[styles.metaItem, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}>
-                        <Text style={[styles.metaText, { color: colors.danger }]}>MISSED</Text>
-                      </View>
-                    )}
+                      {task.startTime && (
+                        <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                          <Clock size={10} color={colors.textSecondary} />
+                          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
+                  <ChevronRight size={18} color={colors.textSecondary} opacity={0.5} />
                 </View>
-                <ChevronRight size={18} color={colors.textSecondary} opacity={0.5} />
+              </TouchableOpacity>
+            )}
+            renderSectionHeader={({ section: { label, data } }: { section: Section }) => (
+              <View style={styles.sectionHeader}>
+                <Text style={[
+                  styles.sectionLabel,
+                  { color: label === 'Today' ? colors.primary : colors.textSecondary }
+                ]}>
+                  {label}
+                </Text>
+                <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
+                  {data.length}
+                </Text>
               </View>
-            </TouchableOpacity>
-          )}
-          renderSectionHeader={({ section: { label, data } }: { section: Section }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={[
-                styles.sectionLabel,
-                { color: label === 'Today' ? colors.primary : colors.textSecondary }
-              ]}>
-                {label}
-              </Text>
-              <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-                {data.length}
-              </Text>
-            </View>
-          )}
-          contentContainerStyle={styles.scrollContent}
-          stickySectionHeadersEnabled={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '10' }]}>
-                <Ionicons name="sparkles" size={32} color={colors.primary} />
+            )}
+            contentContainerStyle={styles.scrollContent}
+            stickySectionHeadersEnabled={false}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '10' }]}>
+                  <Ionicons name="sparkles" size={32} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyText, { color: colors.text }]}>No tasks yet</Text>
+                <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap + to schedule your first task ✨</Text>
               </View>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No tasks yet</Text>
-              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap + to schedule your first task ✨</Text>
-            </View>
-          }
-        />
+            }
+          />
+        )}
       </SafeAreaView>
     </View>
   );
@@ -332,6 +346,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    marginBottom: 12,
   },
   taskCardContent: { flexDirection: 'row', alignItems: 'center' },
   taskCompleted: { opacity: 0.65 },

@@ -6,8 +6,8 @@ import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { fireSync } from '../syncHelper';
 import { migrateTasks } from '../helpers';
-import { where, orderBy, limit } from 'firebase/firestore';
 import Toast from 'react-native-toast-message';
+import { query, where, orderBy, limit, documentId } from 'firebase/firestore';
 
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
 const LOGGED_OUT_STATE = {
@@ -126,6 +126,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const userId = get().userId;
     if (!userId) return;
 
+    // Clear existing subs
     get()._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
@@ -142,24 +143,30 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = formatLocalDate(thirtyDaysAgo);
+    const syncStartedAt = Date.now();
 
+    const checkOfflineStatus = (fromCache: boolean) => {
+      if (!fromCache) return false;
+      const now = Date.now();
+      const { lastCloudSync } = get().syncStatus;
+      // Ignore "offline" (cache) status within first 5s of sync session to avoid startup flicker
+      if (now - syncStartedAt < 5000) return false;
+      // If we had a successful cloud sync in the last 30s, trust the connection is likely still okay
+      if (lastCloudSync && now - lastCloudSync < 30000) return false;
+      return true;
+    };
+
+    // Root Profile Subscription
     const unsubRoot = dbService.subscribeToUserData(userId, (data) => {
-      // C-1: Session Validation vs Connectivity
-      // If data is null, it means the document DOES NOT EXIST on the server.
-      // However, if we are offline, onSnapshot might still return null if it's the first
-      // load and cache is empty. We should ONLY logout if we are confirmed online.
       if (!data) {
         if (!get().syncStatus.isOffline) {
           console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
           authService.logout();          
           get().actions.setAuth(null, null); 
-        } else {
-          console.log('[LifeOS] User doc empty but offline - skipping logout guard.');
         }
         return;
       }
 
-      // TEST A-3: Multiple Simultaneous Logins (Remote Revocation)
       const currentToken = get().sessionToken;
       if (data.sessionToken && currentToken && data.sessionToken !== currentToken) {
         console.warn('[LifeOS] sessionToken mismatch - logging out device.');
@@ -190,70 +197,95 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
         syncStatus: {
           ...state.syncStatus,
-          isOffline: !!data._fromCache, // Handled by metadata in subscribeToUserData
+          isOffline: checkOfflineStatus(!!data._fromCache),
           lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
         }
       }));
     });
 
-    const unsubTasks = dbService.subscribeToCollection(userId, 'tasks', (docs, metadata) => {
-      if (isStale()) return;
-      set((state) => ({ 
-        tasks: migrateTasks(docs as Task[]),
-        syncStatus: { 
-          ...state.syncStatus, 
-          tasksLoaded: true,
-          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
-        }
-      }));
-    }, [where('date', '>=', thirtyDaysAgoStr)]);
+    // Tasks Subscription
+    const unsubTasks = dbService.subscribeToCollection(
+      userId, 
+      'tasks', 
+      (docs, metadata) => {
+        if (isStale()) return;
+        set((state) => ({ 
+          tasks: migrateTasks(docs as Task[]),
+          syncStatus: { 
+            ...state.syncStatus, 
+            tasksLoaded: true,
+            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+          }
+        }));
+      }, 
+      (ref) => query(ref, where('date', '>=', thirtyDaysAgoStr))
+    );
 
-    const unsubHabits = dbService.subscribeToCollection(userId, 'habits', (docs, metadata) => {
-      if (isStale()) return;
-      set((state) => ({ 
-        habits: docs as Habit[],
-        syncStatus: { 
-          ...state.syncStatus, 
-          habitsLoaded: true,
-          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
-        }
-      }));
-    }, [orderBy('createdAt', 'desc'), limit(200)]);
+    // Habits Subscription
+    const unsubHabits = dbService.subscribeToCollection(
+      userId, 
+      'habits', 
+      (docs, metadata) => {
+        if (isStale()) return;
+        set((state) => ({ 
+          habits: docs as Habit[],
+          syncStatus: { 
+            ...state.syncStatus, 
+            habitsLoaded: true,
+            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+          }
+        }));
+      }, 
+      (ref) => query(ref, orderBy('createdAt', 'desc'), limit(200))
+    );
 
-    const unsubMood = dbService.subscribeToCollection(userId, 'moodHistory', (docs, metadata) => {
-      const map: Record<string, MoodEntry> = {};
-      docs.forEach(doc => { 
-        const { id, ...entry } = doc as { id: string } & MoodEntry; 
-        map[id] = entry; 
-      });
-      const today = getTodayLocal();
-      set(state => ({
-        moodHistory: { ...state.moodHistory, ...map },
-        mood: map[today]?.mood ?? state.mood,
-        syncStatus: { 
-          ...state.syncStatus, 
-          moodLoaded: true,
-          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
-        }
-      }));
-    }, [where('__name__', '>=', windowStartStr)]);
+    // Mood History Subscription
+    const unsubMood = dbService.subscribeToCollection(
+      userId, 
+      'moodHistory', 
+      (docs, metadata) => {
+        const map: Record<string, MoodEntry> = {};
+        docs.forEach(doc => { 
+          const { id, ...entry } = doc as { id: string } & MoodEntry; 
+          map[id] = entry; 
+        });
+        const today = getTodayLocal();
+        set(state => ({
+          moodHistory: { ...state.moodHistory, ...map },
+          mood: map[today]?.mood ?? state.mood,
+          syncStatus: { 
+            ...state.syncStatus, 
+            moodLoaded: true,
+            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+          }
+        }));
+      }, 
+      (ref) => query(ref, where(documentId(), '>=', windowStartStr))
+    );
 
-    const unsubFocus = dbService.subscribeToCollection(userId, 'focusHistory', (docs, metadata) => {
-      if (isStale()) return;
-      const map: Record<string, number> = {};
-      docs.forEach(doc => { 
-        map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0; 
-      });
-      set((state) => ({ 
-        focusHistory: map,
-        syncStatus: { 
-          ...state.syncStatus, 
-          focusLoaded: true,
-          isOffline: metadata?.fromCache ?? state.syncStatus.isOffline
-        }
-      }));
-    }, [where('__name__', '>=', windowStartStr)]);
+    // Focus History Subscription
+    const unsubFocus = dbService.subscribeToCollection(
+      userId,
+      'focusHistory',
+      (docs, metadata) => {
+        if (isStale()) return;
+        const map: Record<string, number> = {};
+        docs.forEach(doc => {
+          map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0;
+        });
+        set((state) => ({
+          focusHistory: map,
+          syncStatus: {
+            ...state.syncStatus,
+            focusLoaded: true,
+            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+          }
+        }));
+      },
+      (ref) => query(ref, where(documentId(), '>=', windowStartStr))
+    );
 
+    // Quests Subscription
     const unsubQuests = dbService.subscribeToCollection(userId, 'dailyQuests', (docs) => {
       if (isStale()) return;
       set({ dailyQuests: docs as any[] });
@@ -316,7 +348,6 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             if (action.type === 'delete') await dbService.deleteHabit(userId, action.id);
             else await dbService.saveHabit(userId, action.payload);
           }
-          // Remove from queue on success
           set(state => ({
             pendingActions: state.pendingActions.filter(a => a.id !== action.id)
           }));

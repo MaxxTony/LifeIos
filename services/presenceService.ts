@@ -1,11 +1,19 @@
-import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
-import { getRTDBService } from '../firebase/config';
+import {
+  ref,
+  set,
+  remove,
+  onDisconnect,
+  serverTimestamp,
+  onValue,
+  DataSnapshot,
+} from 'firebase/database';
+import { rtdb } from '../firebase/config';
 
 export const presenceService = {
   joinFocusRoom: async (userId: string, userName: string) => {
     if (!userId) return;
-    const userRef = ref(getRTDBService(), `focusRoom/${userId}`);
-    
+    const userRef = ref(rtdb, `focusRoom/${userId}`);
+
     // Auto-remove on app termination or disconnect
     await onDisconnect(userRef).remove();
 
@@ -14,28 +22,30 @@ export const presenceService = {
       userName,
       joinedAt: serverTimestamp(),
       lastActive: serverTimestamp(),
-      status: 'focusing'
+      status: 'focusing',
     });
   },
 
   updateHeartbeat: async (userId: string) => {
     if (!userId) return;
-    const userRef = ref(getRTDBService(), `focusRoom/${userId}/lastActive`);
-    await set(userRef, serverTimestamp());
+    const lastActiveRef = ref(rtdb, `focusRoom/${userId}/lastActive`);
+    await set(lastActiveRef, serverTimestamp());
   },
 
   leaveFocusRoom: async (userId: string) => {
     if (!userId) return;
-    const userRef = ref(getRTDBService(), `focusRoom/${userId}`);
-    await set(userRef, null);
-    
+    const userRef = ref(rtdb, `focusRoom/${userId}`);
+    await remove(userRef);
+
     // Cancel the pending disconnect hook since we manually disconnected
     onDisconnect(userRef).cancel().catch(() => {});
   },
 
   subscribeToFocusRoom: (callback: (users: any[]) => void) => {
-    const roomRef = ref(getRTDBService(), 'focusRoom');
-    return onValue(roomRef, (snapshot) => {
+    const roomRef = ref(rtdb, 'focusRoom');
+
+    // onValue returns an unsubscribe function directly
+    const unsubscribe = onValue(roomRef, (snapshot: DataSnapshot) => {
       const data = snapshot.val();
       if (!data) {
         callback([]);
@@ -43,9 +53,11 @@ export const presenceService = {
       }
       const activeUsers = Object.keys(data).map(uid => ({
         id: uid,
-        ...data[uid]
+        ...data[uid],
       }));
       callback(activeUsers);
     });
-  }
+
+    return unsubscribe;
+  },
 };

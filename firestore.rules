@@ -39,14 +39,14 @@ service cloud.firestore {
       match /tasks/{taskId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['id', 'text', 'priority', 'date', 'completed', 'status', 'createdAt', 'startTime', 'endTime', 'dueTime', 'repeat', 'subtasks', 'systemComment', 'serverCreatedAt'])
+          && request.resource.data.keys().hasOnly(['id', 'text', 'priority', 'date', 'completed', 'status', 'createdAt', 'startTime', 'endTime', 'dueTime', 'repeat', 'subtasks', 'systemComment', 'serverCreatedAt', 'xpAwarded'])
           && request.resource.data.text is string && request.resource.data.text.size() < 1000;
       }
 
       match /habits/{habitId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['id', 'title', 'frequency', 'targetDays', 'reminderTime', 'completedDays', 'bestStreak', 'createdAt', 'pausedUntil', 'serverCreatedAt', 'lastUpdatedAt'])
+          && request.resource.data.keys().hasOnly(['id', 'title', 'frequency', 'targetDays', 'reminderTime', 'completedDays', 'bestStreak', 'currentStreak', 'xpAwardedDays', 'createdAt', 'pausedUntil', 'serverCreatedAt', 'lastUpdatedAt'])
           && request.resource.data.title is string && request.resource.data.title.size() < 200
           && request.resource.data.completedDays is list && request.resource.data.completedDays.size() <= 600;
       }
