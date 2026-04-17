@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
   Easing
 } from 'react-native-reanimated';
-import { Colors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const BARS = 5;
 
@@ -23,6 +23,7 @@ export const VoiceWaves = ({ isActive }: { isActive: boolean }) => {
 };
 
 const WaveBar = ({ index, isActive }: { index: number; isActive: boolean }) => {
+  const { primary } = useThemeColors();
   const height = useSharedValue(4);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ const WaveBar = ({ index, isActive }: { index: number; isActive: boolean }) => {
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: height.value,
+    backgroundColor: primary,
   }));
 
   return <Animated.View style={[styles.bar, animatedStyle]} />;
@@ -60,7 +62,6 @@ const styles = StyleSheet.create({
   },
   bar: {
     width: 3,
-    backgroundColor: Colors.dark.primary,
     borderRadius: 2,
   },
 });

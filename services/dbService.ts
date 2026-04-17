@@ -60,6 +60,28 @@ export const dbService = {
     await setDoc(doc(db, 'users', userId, 'tasks', task.id), taskData);
   },
 
+  saveTasksBatch: async (userId: string, tasks: Task[]) => {
+    if (tasks.length === 0) return;
+    
+    // Chunk into 499 to stay safely within Firestore Limits (max 500)
+    for (let i = 0; i < tasks.length; i += 499) {
+      const batch = writeBatch(db);
+      const chunk = tasks.slice(i, i + 499);
+      
+      chunk.forEach(task => {
+        const taskData = sanitizeData({
+          ...task,
+          createdAt: task.createdAt || serverTimestamp(),
+          serverCreatedAt: serverTimestamp(),
+          lastUpdatedAt: serverTimestamp(),
+        });
+        batch.set(doc(db, 'users', userId, 'tasks', task.id), taskData);
+      });
+      
+      await batch.commit();
+    }
+  },
+
   deleteTask: async (userId: string, taskId: string) => {
     await deleteDoc(doc(db, 'users', userId, 'tasks', taskId));
   },
@@ -67,8 +89,8 @@ export const dbService = {
   // Atomic Habit Operations
   saveHabit: async (userId: string, habit: Habit) => {
     let prunedCompletions = habit.completedDays || [];
-    if (prunedCompletions.length > 500) {
-      prunedCompletions = prunedCompletions.sort().slice(-500);
+    if (prunedCompletions.length > 2000) {
+      prunedCompletions = prunedCompletions.sort().slice(-2000);
     }
 
     const habitData = sanitizeData({
@@ -86,9 +108,9 @@ export const dbService = {
   },
 
   // Atomic Habit Completion
-  toggleHabitDate: async (userId: string, habitId: string, dateStr: string, isCompleted: boolean) => {
+  toggleHabitDate: async (userId: string, habitId: string, completedDays: string[]) => {
     await updateDoc(doc(db, 'users', userId, 'habits', habitId), {
-      completedDays: isCompleted ? arrayUnion(dateStr) : arrayRemove(dateStr),
+      completedDays,
       lastUpdatedAt: serverTimestamp(),
     });
   },
@@ -113,9 +135,14 @@ export const dbService = {
     const snap = await getDocs(collRef);
     if (snap.empty) return;
 
-    const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.delete(d.ref));
-    await batch.commit();
+    // F-3 FIX: Chunked batch deletion to prevent Firestore limit crash (max 500 ops)
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += 499) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + 499);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
   },
 
   // Focus History

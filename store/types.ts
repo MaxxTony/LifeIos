@@ -63,6 +63,7 @@ export interface Quest {
   targetCount: number;
   currentCount: number;
   completed: boolean;
+  date: string; // ISO date (YYYY-MM-DD)
 }
 
 export interface SyncStatus {

@@ -33,10 +33,18 @@ export async function runAICoachTask() {
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 
-    // Prepare a summarized payload of the user's last 7 days
+    // Prepare a summarized payload of only the last 7 days to keep token costs low
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const lastWeekStr = lastWeek.toISOString().split('T')[0];
+ 
+    const truncatedFocus = Object.fromEntries(
+      Object.entries(focusHistory).filter(([date]) => date >= lastWeekStr)
+    );
+ 
     const payload = JSON.stringify({
-      habits: habits.map(h => ({ title: h.title, streak: h.bestStreak })),
-      focusHistory,
+      habits: habits.slice(0, 10).map(h => ({ title: h.title, streak: h.bestStreak })),
+      focusHistory: truncatedFocus,
       tasks: tasks.slice(-20).map(t => ({ text: t.text, completed: t.completed, missed: t.status === 'missed' }))
     });
 

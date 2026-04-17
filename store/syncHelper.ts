@@ -32,15 +32,16 @@ export const fireSync = (
 
       // C-5: If we hit a final failure and have a payload, queue it for later
       if (collection && payload && docId) {
-        const { useStore } = require('./useStore');
-        const state = useStore.getState();
+        // C-5 FIX: Lazy-load store to prevent circular dependency crash during boot
+        const store = require('./useStore').useStore;
+        const state = store.getState();
         
         // Only queue if not already in queue
-        const inQueue = state.pendingActions.some((a: any) => a.id === docId && a.collection === collection);
+        const inQueue = (state.pendingActions || []).some((a: any) => a.id === docId && a.collection === collection);
         if (!inQueue) {
-          useStore.setState((state: any) => ({
+          store.setState((state: any) => ({
             pendingActions: [
-              ...state.pendingActions,
+              ...(state.pendingActions || []),
               {
                 id: docId,
                 type: label.startsWith('remove') ? 'delete' : (label.startsWith('add') ? 'create' : 'update'),

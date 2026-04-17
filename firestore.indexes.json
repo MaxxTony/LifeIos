@@ -1,4 +1,16 @@
 {
   "indexes": [],
-  "fieldOverrides": []
+  "fieldOverrides": [],
+  "collectionGroupIndexes": [
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ]
 }

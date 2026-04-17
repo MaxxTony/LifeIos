@@ -23,10 +23,12 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
         });
         analyticsService.logEvent(state.userId, 'focus_session_stop', { duration: elapsed });
         
-        // Award XP for focus time (20 XP per hour)
-        const earnedXP = Math.floor((elapsed / 3600) * 20);
-        if (earnedXP > 0) {
-          get().actions.addXP(earnedXP);
+        // Award XP incrementally (1 XP per 3 min) to match updateFocusTime
+        const oldEarnedXP = Math.floor(state.focusSession.totalSecondsToday / 180);
+        const newEarnedXP = Math.floor(totalSeconds / 180);
+        const earnedDelta = newEarnedXP - oldEarnedXP;
+        if (earnedDelta > 0) {
+          get().actions.addXP(earnedDelta);
         }
       }
 
@@ -87,6 +89,19 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
     if (safeElapsed <= 0) return state;
 
     const totalSeconds = state.focusSession.totalSecondsToday + safeElapsed;
+ 
+    // C-11: Periodic Checkpoint (Every minute) to prevent data loss if app is killed
+    const currentMinute = Math.floor(totalSeconds / 60);
+    const lastMinute = Math.floor(state.focusSession.totalSecondsToday / 60);
+    if (currentMinute > lastMinute && state.userId) {
+      fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'focusCheckpoint', state.userId);
+    }
+
+    // XP Logic: Award 1 XP per 3 minutes (180s) of focus. 
+    // Total is 20 XP per hour (3600s / 180s = 20).
+    const oldEarnedXP = Math.floor(state.focusSession.totalSecondsToday / 180);
+    const newEarnedXP = Math.floor(totalSeconds / 180);
+    const earnedDelta = newEarnedXP - oldEarnedXP;
 
     let newMode = state.focusSession.pomodoroMode;
     let newTimeLeft = state.focusSession.pomodoroTimeLeft - elapsed;
@@ -113,6 +128,9 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
 
     setTimeout(() => {
       const { actions } = get();
+      if (earnedDelta > 0) {
+        actions.addXP(earnedDelta);
+      }
       actions.checkQuestProgress('focus', totalSeconds);
       actions.updateLifeScoreHistory();
     }, 0);

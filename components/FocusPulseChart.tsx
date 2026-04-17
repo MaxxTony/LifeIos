@@ -12,14 +12,22 @@ interface FocusPulseChartProps {
 export function FocusPulseChart({ data, goal }: FocusPulseChartProps) {
   const colors = useThemeColors();
   const chartHeight = 110;
+
+  if (!data || data.length === 0) {
+    return <View style={[styles.container, { height: chartHeight + 25 }]} />;
+  }
   // Account for card padding (Spacing.md * 2) and container padding (Spacing.md * 2)
   const chartWidth = Dimensions.get('window').width - (Spacing.md * 4) - 10; 
   const barWidth = 18;
   const paddingHorizontal = 10;
   const usableWidth = chartWidth - (paddingHorizontal * 2);
-  const gap = (usableWidth - (barWidth * data.length)) / (data.length - 1);
+  const gap = data.length > 1 
+    ? (usableWidth - (barWidth * data.length)) / (data.length - 1)
+    : 0;
   
-  const maxHours = Math.max(...data.map(d => d.hours), goal, 2);
+  const maxHours = data.length > 0 
+    ? Math.max(...data.map(d => d.hours), goal, 2)
+    : goal || 8;
   const scale = chartHeight / maxHours;
 
   const yGridLines = [0.5, 1].map(p => maxHours * p);

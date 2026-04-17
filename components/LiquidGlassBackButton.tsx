@@ -1,24 +1,35 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Colors, BorderRadius } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { IconSymbol } from './ui/icon-symbol';
 import { useRouter } from 'expo-router';
 
 export function LiquidGlassBackButton() {
   const router = useRouter();
+  const { text, isDark } = useThemeColors();
 
   return (
     <TouchableOpacity 
       onPress={() => router.back()}
-      style={styles.container}
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'
+        }
+      ]}
       activeOpacity={0.7}
     >
-      <BlurView intensity={30} tint="dark" style={styles.blur}>
+      <BlurView 
+        intensity={30} 
+        tint={isDark ? "dark" : "light"} 
+        style={styles.blur}
+      >
         <IconSymbol 
           name="chevron.left" 
           size={24} 
-          color={Colors.dark.text} 
+          color={text} 
         />
       </BlurView>
     </TouchableOpacity>
@@ -31,9 +42,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     marginLeft: Platform.OS === 'ios' ? 0 : 8,
   },
   blur: {

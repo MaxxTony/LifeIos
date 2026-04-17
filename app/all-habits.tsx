@@ -31,21 +31,22 @@ const HabitItem = React.memo(({
   const isCompletedToday = habit.completedDays.includes(todayStr);
   const streakColor = colors.isDark ? '#FF8C42' : '#EA580C';
 
+  const weekDates = useMemo(() => {
+    const t = new Date();
+    const day = t.getDay();
+    const diff = t.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(t);
+    monday.setDate(diff);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return formatLocalDate(d);
+    });
+  }, []);
+
   const renderDots = (completedDays: string[]) => {
     const today = getTodayLocal();
-    const weekDates = useMemo(() => {
-      const t = new Date();
-      const day = t.getDay();
-      const diff = t.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(t);
-      monday.setDate(diff);
-
-      return Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        return formatLocalDate(d);
-      });
-    }, []);
 
     return (
       <View style={styles.dotsRow}>
@@ -277,6 +278,11 @@ export default function AllHabitsScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             style={{ marginTop: 10 }}
+            // Optimization props for large lists
+            initialNumToRender={8}
+            windowSize={5}
+            maxToRenderPerBatch={5}
+            removeClippedSubviews={Platform.OS === 'android'}
           />
         )}
       </SafeAreaView>

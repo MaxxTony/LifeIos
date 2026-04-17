@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface SkeletonProps {
@@ -23,6 +23,7 @@ export function SkeletonBlock({ width, height, borderRadius = 12, style }: Skele
       -1,
       true
     );
+    return () => cancelAnimation(opacity);
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({

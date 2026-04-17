@@ -32,7 +32,7 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
 
       setTimeout(() => {
         const { actions } = get();
-        actions.checkQuestProgress('mood');
+        actions.checkQuestProgress('mood', !!extras?.note ? 2 : 1);
         actions.updateLifeScoreHistory();
         if (mood <= 2) {
           actions.triggerProactivePrompt(

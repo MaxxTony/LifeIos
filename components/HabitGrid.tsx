@@ -9,43 +9,38 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export const HabitGrid = React.memo(function HabitGrid() {
-  // Selectors: only re-render when habits, toggleHabit, or getStreak changes.
-  const habits = useStore(s => s.habits);
-  const toggleHabit = useStore(s => s.actions.toggleHabit);
-  const getStreak = useStore(s => s.actions.getStreak);
-  const colors = useThemeColors();
+interface HabitItemProps {
+  habit: any;
+  streak: number;
+  isCompletedToday: boolean;
+  isSyncing: boolean;
+  colors: any;
+  onToggle: (id: string, dateStr: string) => void;
+}
+
+const HabitItem = React.memo(({ habit, streak, isCompletedToday, isSyncing, colors, onToggle }: HabitItemProps) => {
   const router = useRouter();
+  const streakColor = colors.secondary;
 
-  const handleToggle = (id: string, dateStr?: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    toggleHabit(id, dateStr);
-  };
-
-  const pendingActions = useStore(s => s.pendingActions);
-  const isSyncingHabit = (id: string) => pendingActions.some(a => a.id === id);
-
-  const getWeekDates = () => {
-    const today = new Date();
-    const day = today.getDay(); // 0 is Sunday, 1 is Monday...
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today);
+  const renderDots = () => {
+    const today = getTodayLocal();
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    // Calculate week dates locally to keep them stable
+    const todayObj = new Date();
+    const day = todayObj.getDay();
+    const diff = todayObj.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(todayObj);
     monday.setDate(diff);
 
-    return Array.from({ length: 7 }, (_, i) => {
+    const weekDates = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       return formatLocalDate(d);
     });
-  };
-
-  const renderDots = (habitId: string, completedDays: string[], habitTitle: string) => {
-    const weekDates = getWeekDates();
-    const today = getTodayLocal();
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
     return weekDates.map((dateString, i) => {
-      const isCompleted = completedDays.includes(dateString);
+      const isCompleted = habit.completedDays.includes(dateString);
       const isToday = dateString === today;
       const isFuture = dateString > today;
       const dayName = dayNames[i];
@@ -56,7 +51,7 @@ export const HabitGrid = React.memo(function HabitGrid() {
           activeOpacity={0.6}
           hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
           onPress={() => {
-            if (!isFuture) handleToggle(habitId, dateString);
+            if (!isFuture) onToggle(habit.id, dateString);
           }}
           disabled={isFuture}
           style={[
@@ -66,7 +61,7 @@ export const HabitGrid = React.memo(function HabitGrid() {
             isToday && [styles.dotToday, { borderColor: colors.textSecondary }],
             isFuture && { opacity: 0.3 }
           ]}
-          accessibilityLabel={`${dayName} for ${habitTitle}: ${isCompleted ? 'Completed' : 'Not completed'}${isToday ? ' (Today)' : ''}`}
+          accessibilityLabel={`${dayName} for ${habit.title}: ${isCompleted ? 'Completed' : 'Not completed'}${isToday ? ' (Today)' : ''}`}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: isCompleted, disabled: isFuture }}
         >
@@ -76,8 +71,66 @@ export const HabitGrid = React.memo(function HabitGrid() {
     });
   };
 
+  return (
+    <View
+      style={[
+        styles.habitRow,
+        { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)', borderColor: colors.border },
+        isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '08', borderColor: colors.success + '40' }]
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.habitMain}
+        onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
+        activeOpacity={0.6}
+        accessibilityLabel={`View details for ${habit.title}`}
+        accessibilityRole="button"
+      >
+        <View style={styles.habitInfo}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
+              {habit.icon} {habit.title}
+            </Text>
+            {isSyncing && (
+              <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} />
+            )}
+          </View>
+          <View style={styles.streakInfo}>
+            <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
+            <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
+              {streak} day streak
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dotsContainer}>
+          {renderDots()}
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+export const HabitGrid = React.memo(function HabitGrid() {
+  const habits = useStore(s => s.habits);
+  const toggleHabit = useStore(s => s.actions.toggleHabit);
+  const getStreak = useStore(s => s.actions.getStreak);
+  const pendingActions = useStore(s => s.pendingActions);
+  const colors = useThemeColors();
+  const router = useRouter();
+
+  // FIX P-4: Use useRef for stable callback
+  const habitsRef = React.useRef(habits);
+  React.useEffect(() => {
+    habitsRef.current = habits;
+  }, [habits]);
+
+  const handleToggle = React.useCallback((id: string, dateStr: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    toggleHabit(id, dateStr);
+  }, [toggleHabit]);
+
   const getDayLabels = () => ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-  const streakColor = colors.secondary;
 
   return (
     <View style={[styles.container, { borderColor: colors.border }]}>
@@ -106,51 +159,23 @@ export const HabitGrid = React.memo(function HabitGrid() {
           </View>
         )}
 
-
         <View style={styles.habitList}>
           {habits.length > 0 ? habits.slice(0, 5).map((habit) => {
             const streak = getStreak(habit.id);
             const todayStr = getTodayLocal();
             const isCompletedToday = habit.completedDays.includes(todayStr);
+            const isSyncing = pendingActions.some(a => a.id === habit.id);
 
             return (
-              <View
+              <HabitItem
                 key={habit.id}
-                style={[
-                  styles.habitRow,
-                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)', borderColor: colors.border },
-                  isCompletedToday && [styles.habitRowCompleted, { backgroundColor: colors.success + '08', borderColor: colors.success + '40' }]
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.habitMain}
-                  onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
-                  activeOpacity={0.6}
-                  accessibilityLabel={`View details for ${habit.title}`}
-                  accessibilityRole="button"
-                >
-              <View style={styles.habitInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.habitTitle, { color: colors.text }, isCompletedToday && { color: colors.success }]} numberOfLines={1}>
-                    {habit.icon} {habit.title}
-                  </Text>
-                  {isSyncingHabit(habit.id) && (
-                    <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} />
-                  )}
-                </View>
-                <View style={styles.streakInfo}>
-                      <Ionicons name="flame" size={10} color={streak > 0 ? streakColor : colors.textSecondary + '40'} />
-                      <Text style={[styles.habitStreak, { color: colors.textSecondary }, streak > 0 && { color: streakColor }]}>
-                        {streak} day streak
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.dotsContainer}>
-                    {renderDots(habit.id, habit.completedDays, habit.title)}
-                  </View>
-                </TouchableOpacity>
-              </View>
+                habit={habit}
+                streak={streak}
+                isCompletedToday={isCompletedToday}
+                isSyncing={isSyncing}
+                colors={colors}
+                onToggle={handleToggle}
+              />
             );
           }) : (
             <TouchableOpacity
@@ -181,15 +206,7 @@ export const HabitGrid = React.memo(function HabitGrid() {
     </View>
   );
 }, (prev, next) => {
-  // P-4: Custom comparison to avoid re-renders on global timer ticks
-  // We only re-render if the habits data structure itself changes.
   return prev === next; 
-  // Wait, if I use selectors inside, React.memo(HabitGrid) will still re-render if the parent re-renders.
-  // The selectors inside will cause re-render if THEIR value changes.
-  // But parent (Home) re-rendering causes child to re-render.
-  // The audit suggests: 
-  // return prev.habits === next.habits && prev.completedToday === next.completedToday;
-  // But HabitGrid doesn't take props currently!
 });
 
 const styles = StyleSheet.create({

@@ -1,6 +1,6 @@
 import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { IconSymbol } from '../components/ui/icon-symbol'; 
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';

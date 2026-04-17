@@ -1,9 +1,9 @@
 import { useStore } from '@/store/useStore';
 import { useMemo } from 'react';
+import { getLevelProgress } from '@/store/helpers';
 
 export const useProfileStats = () => {
-  // Selector pattern: subscribe to each field individually.
-  // focusSecondsToday is a primitive so it doesn't re-render on tick until value changes.
+  // ... existing selectors ...
   const habits = useStore(s => s.habits);
   const focusHistory = useStore(s => s.focusHistory);
   const getStreak = useStore(s => s.actions.getStreak);
@@ -21,15 +21,18 @@ export const useProfileStats = () => {
     const totalHabitCompletions = (habits || []).reduce((acc, h) => acc + (h.completedDays?.length || 0), 0);
     const totalMoodLogs = Object.keys(moodHistory || {}).length;
 
-    // 2. XP & Level Logic (Now persistent from store)
-    const level = userLevel;
-    const xpInCurrentLevel = totalXP % 100;
-    const xpNeeded = 100 - xpInCurrentLevel;
-    const xpProgress = xpInCurrentLevel / 100;
+    // 2. XP & Level Logic (Synchronized with helpers)
+    const { progress: xpProgress, xpInLevel: xpInCurrentLevel, xpRequiredForNext } = getLevelProgress(totalXP);
+    const xpNeeded = xpRequiredForNext - xpInCurrentLevel;
 
     // 4. Rank Determination
-    const rankNames = ['Novice', 'Striker', 'Achiever', 'Master', 'Champion', 'Legend'];
-    const rank = rankNames[Math.min(level - 1, rankNames.length - 1)];
+    const rankNames = [
+      'Spark', 'Seeker', 'Challenger', 'Pathfinder', 'Striker',
+      'Warrior', 'Guardian', 'Architect', 'Enforcer', 'Legend',
+      'Phantom', 'Titan', 'Sovereign', 'Ascendant', 'Immortal',
+      'Eclipse', 'Ethereal', 'Mythic', 'Transcendent', 'Apex',
+    ];
+    const rank = rankNames[Math.min(userLevel - 1, rankNames.length - 1)];
 
     // 5. Streaks
     const streaks = habits.map(h => getStreak(h.id));
@@ -62,7 +65,7 @@ export const useProfileStats = () => {
     }
 
     return {
-      level,
+      level: userLevel,
       totalXP,
       xpInCurrentLevel,
       xpNeeded,
@@ -78,7 +81,7 @@ export const useProfileStats = () => {
       moodColor,
       avgMood
     };
-  }, [habits, focusHistory, moodHistory, getStreak, focusSecondsToday]);
+  }, [habits, focusHistory, moodHistory, getStreak, focusSecondsToday, userLevel, totalXP]);
 
   return stats;
 };

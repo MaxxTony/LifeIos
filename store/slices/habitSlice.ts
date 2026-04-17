@@ -68,15 +68,16 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           : [...h.completedDays, today];
 
         // Z-3: Prune stale completions (performance & doc size)
-        if (newCompletedDays.length > 500) {
-          newCompletedDays = newCompletedDays.sort().slice(-500);
+        if (newCompletedDays.length > 2000) {
+          newCompletedDays = newCompletedDays.sort().slice(-2000);
         }
         newCompletedDays = newCompletedDays.filter(d => d >= TWO_YEARS_AGO);
 
         let currentStreak = 0;
         const todayForStreak = new Date();
         const todayStrForStreak = formatLocalDate(todayForStreak);
-        const startOffset = newCompletedDays.includes(todayStrForStreak) ? 0 : 1;
+        const completedSet = new Set(newCompletedDays);
+        const startOffset = completedSet.has(todayStrForStreak) ? 0 : 1;
         
         for (let i = startOffset; i < 365; i++) {
           const d = new Date();
@@ -86,7 +87,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
           if (h.pausedUntil && dStr <= h.pausedUntil) continue;
 
-          if (newCompletedDays.includes(dStr)) {
+          if (completedSet.has(dStr)) {
             currentStreak++;
           } else {
             break;
@@ -102,12 +103,12 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
 
         let newXpAwardedDays = xpAwardedDays;
         if (shouldAwardXP) {
-          // Keep the list lean — prune anything older than 90 days
-          const cutoff = formatLocalDate(new Date(Date.now() - 90 * 86400000));
+          // Keep the list lean — prune anything older than 180 days
+          const cutoff = formatLocalDate(new Date(Date.now() - 180 * 86400000));
           newXpAwardedDays = [...xpAwardedDays, today]
             .filter(d => d >= cutoff)
             .sort()
-            .slice(-90);
+            .slice(-180);
         }
 
         const updatedHabit: Habit = {
@@ -120,7 +121,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
 
         if (state.userId) {
           fireSync(
-            () => dbService.toggleHabitDate(state.userId!, id, today, !isCompleted),
+            () => dbService.toggleHabitDate(state.userId!, id, newCompletedDays),
             'toggleHabit',
             state.userId,
             'habits',

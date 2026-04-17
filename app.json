@@ -60,13 +60,13 @@
         "@sentry/react-native/expo",
         {
           "organization": "lifeos",
-          "project": "react-native"
+          "project": "react-native",
+          "authToken": "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"
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     }
   }
 }

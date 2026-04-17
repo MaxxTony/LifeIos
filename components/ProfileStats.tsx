@@ -7,6 +7,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { CircularProgress } from './CircularProgress';
 import { GlassCard } from './GlassCard';
 
+import { getTodayLocal } from '@/utils/dateUtils';
+
 export function ProfileStats() {
   // Selector pattern: focusSecondsToday as primitive avoids re-render on every tick.
   const tasks = useStore(s => s.tasks);
@@ -15,8 +17,10 @@ export function ProfileStats() {
   const getStreak = useStore(s => s.actions.getStreak);
   const colors = useThemeColors();
 
-  const completedTasksToday = tasks.filter(t => t.completed).length;
-  const totalTasksToday = tasks.length;
+  const today = getTodayLocal();
+  const todayTasks = tasks.filter(t => t.date === today);
+  const completedTasksToday = todayTasks.filter(t => t.completed).length;
+  const totalTasksToday = todayTasks.length;
   const taskCompletionRate = totalTasksToday > 0
     ? Math.round((completedTasksToday / totalTasksToday) * 100)
     : 0;

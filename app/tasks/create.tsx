@@ -131,7 +131,7 @@ export default function CreateTaskScreen() {
     });
 
     return unsubscribe;
-  }, [navigation, isDirty]);
+  }, [navigation, isDirty, isSubmitting]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

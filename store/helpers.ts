@@ -56,11 +56,11 @@ export const QUEST_TEMPLATES = [
   { type: 'task' as const, title: 'Complete 3 Tasks', targetCount: 3, rewardXP: 50 },
   { type: 'task' as const, title: 'Complete 5 Tasks', targetCount: 5, rewardXP: 100 },
   { type: 'focus' as const, title: 'Deep Work: 1 Hour Focus', targetCount: 3600, rewardXP: 100 },
-  { type: 'focus' as const, title: 'Zen Moment: 10 Min Break', targetCount: 600, rewardXP: 30 },
+  { type: 'focus' as const, title: 'Zen Moment: 10 Min Focus', targetCount: 600, rewardXP: 30 },
   { type: 'habit' as const, title: 'Consistency: 2 Habits Done', targetCount: 2, rewardXP: 60 },
   { type: 'habit' as const, title: 'Daily Master: 4 Habits Done', targetCount: 4, rewardXP: 100 },
   { type: 'mood' as const, title: 'Emotional Insight: Log Mood', targetCount: 1, rewardXP: 40 },
-  { type: 'mood' as const, title: 'Daily Reflection: Log with Note', targetCount: 1, rewardXP: 60 },
+  { type: 'mood' as const, title: 'Daily Reflection: Log with Note', targetCount: 2, rewardXP: 60 },
 ];
 
 export const SYNC_RETRY_DELAYS_MS = [500, 1500, 4000];
@@ -73,4 +73,60 @@ export const isTransientError = (err: any, userId?: string | null): boolean => {
   if (code.includes('unavailable') || code.includes('deadline-exceeded') || code.includes('aborted')) return true;
   if (msg.includes('network') || msg.includes('timeout') || msg.includes('offline')) return true;
   return false;
+};
+
+// --- Gamification Logic ---
+export const LEVEL_THRESHOLDS = [
+  0,       // L1  Spark
+  250,     // L2  Seeker
+  600,     // L3  Challenger
+  1200,    // L4  Pathfinder
+  2200,    // L5  Striker
+  3700,    // L6  Warrior
+  5700,    // L7  Guardian
+  8200,    // L8  Architect
+  11500,   // L9  Enforcer
+  15500,   // L10 Legend
+  20500,   // L11 Phantom
+  26500,   // L12 Titan
+  33500,   // L13 Sovereign
+  42000,   // L14 Ascendant
+  52000,   // L15 Immortal
+  64000,   // L16 Eclipse
+  78000,   // L17 Ethereal
+  95000,   // L18 Mythic
+  115000,  // L19 Transcendent
+  140000,  // L20 Apex
+];
+
+export const computeLevel = (xp: number): number => {
+  let level = 1;
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (xp >= LEVEL_THRESHOLDS[i]) {
+      level = i + 1;
+    } else {
+      break;
+    }
+  }
+  return Math.min(level, LEVEL_THRESHOLDS.length);
+};
+
+export const getLevelProgress = (xp: number) => {
+  const level = computeLevel(xp);
+  const currentThreshold = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const nextThreshold = LEVEL_THRESHOLDS[level];
+
+  if (nextThreshold === undefined) {
+    return {
+      progress: 1.0,
+      xpInLevel: xp - currentThreshold,
+      xpRequiredForNext: 0
+    };
+  }
+
+  const xpInLevel = xp - currentThreshold;
+  const xpRequiredForNext = nextThreshold - currentThreshold;
+  const progress = Math.min(xpInLevel / xpRequiredForNext, 1.0);
+
+  return { progress, xpInLevel, xpRequiredForNext };
 };

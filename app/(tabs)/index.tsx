@@ -101,6 +101,8 @@ const skeletonStyles = StyleSheet.create({
   },
 });
 
+import { getLevelProgress } from '@/store/helpers';
+
 export default function HomeScreen() {
   const userName = useStore(s => s.userName);
   const isHydrated = useStore(s => s._hasHydrated);
@@ -111,7 +113,7 @@ export default function HomeScreen() {
   // instead of useProfileStats() to avoid re-renderingทุก second on timer ticks.
   const level = useStore(s => s.level);
   const totalXP = useStore(s => s.totalXP);
-  const xpProgress = (totalXP % 100) / 100;
+  const { progress: xpProgress } = getLevelProgress(totalXP);
 
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);

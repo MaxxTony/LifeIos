@@ -89,6 +89,16 @@ export function useFocusTimer() {
           updateFocusTime();
         }
       }
+
+      // C-6 FIX: Flush to Firestore when app goes to background
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        const s = useStore.getState();
+        if (s.focusSession.isActive && s.userId && s.focusSession.totalSecondsToday > 0) {
+          dbService.saveFocusEntry(s.userId, getTodayLocal(), s.focusSession.totalSecondsToday)
+            .catch(() => {});
+        }
+      }
+
       appState.current = nextAppState;
     };
 

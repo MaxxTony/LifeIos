@@ -142,10 +142,14 @@ export const chatService = {
       const messagesRef = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
       const messagesSnap = await getDocs(messagesRef);
 
-      if (messagesSnap.docs.length > 0) {
-        const batch = writeBatch(db);
-        messagesSnap.docs.forEach(msgDoc => batch.delete(msgDoc.ref));
-        await batch.commit();
+      if (!messagesSnap.empty) {
+        const docs = messagesSnap.docs;
+        for (let i = 0; i < docs.length; i += 499) {
+          const batch = writeBatch(db);
+          const chunk = docs.slice(i, i + 499);
+          chunk.forEach(msgDoc => batch.delete(msgDoc.ref));
+          await batch.commit();
+        }
       }
 
       await deleteDoc(doc(db, 'users', userId, 'conversations', conversationId));

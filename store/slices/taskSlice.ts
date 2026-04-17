@@ -220,31 +220,28 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
 
   checkMissedTasks: () => set((state) => {
     const now = new Date();
-    let changed = false;
+    const missedTasksToSync: Task[] = [];
+    
     const newTasks = state.tasks.map(task => {
       if (task.status === 'pending' && task.endTime) {
         const parsed = parseTimeString(task.endTime);
         if (!parsed) return task;
 
         const [taskYear, taskMonth, taskDay] = task.date.split('-').map(Number);
-        // M-7: Build end time relative to the user's CURRENT timezone logic, but
-        // ensure it honors the specific date. 
         const endDateTime = new Date(taskYear, taskMonth - 1, taskDay, parsed.hours, parsed.minutes, 0, 0);
 
-        // Optimization: only process if the day is strictly today or in the past
         const todayStr = getTodayLocal();
         if (task.date > todayStr) return task; 
 
         if (now > endDateTime) {
-          changed = true;
           const updatedTask = {
             ...task,
             status: 'missed' as const,
             systemComment: 'You missed this daily task! 😔'
           };
-          if (state.userId) {
-            fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'missedTaskSync', state.userId);
-          }
+          
+          missedTasksToSync.push(updatedTask);
+          
           import('@/services/notificationService').then(({ notificationService }) => {
             notificationService.scheduleMissedTaskNotification(task.text).catch(() => {});
           });
@@ -262,7 +259,11 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       return task;
     });
 
-    if (changed) {
+    if (missedTasksToSync.length > 0) {
+      if (state.userId) {
+        // C-11: Batching daily reset writes into 1 atomic operation to save costs and avoid key collisions
+        fireSync(() => dbService.saveTasksBatch(state.userId!, missedTasksToSync), 'missedTaskBatchSync', state.userId);
+      }
       return { tasks: newTasks };
     }
     return state;

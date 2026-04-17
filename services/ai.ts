@@ -1,9 +1,9 @@
+import { auth, functions } from '@/firebase/config';
 import { useStore } from '@/store/useStore';
+import { getTodayLocal } from '@/utils/dateUtils';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { httpsCallable } from 'firebase/functions';
-import { functions, auth } from '@/firebase/config';
 import { aiActionHandler } from './aiActionHandler';
-import { getTodayLocal } from '@/utils/dateUtils';
 
 const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -146,26 +146,52 @@ const tools = [
   },
 ];
 
-async function callAIProxy(messages: any[], systemInstruction?: string) {
-  // In native firebase, we don't need authStateReady() because the 
-  // native bridge handles session persistence before JS boot.
-  // However, we still check current user.
+async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
   if (!auth.currentUser) {
     console.warn('[LifeOS] AI call failed: User is not authenticated on the client.');
     return 'UNAUTHENTICATED';
   }
 
   try {
-    // Force refresh token to ensure header is present
     await auth.currentUser.getIdToken(true);
-    
-    // Native syntax is slightly different for httpsCallable
+
+    // Inject full context even through proxy (F-BUG-02)
+    const contextStr = getCurrentAppContext();
+    const fullSystemInstruction = `${baseSystemInstruction || 'You are LifeOS, a premium personal assistant.'}\n\n${contextStr}`;
+
     const result = await httpsCallable(functions, 'callAI')({
       messages,
-      systemInstruction,
+      systemInstruction: fullSystemInstruction,
     });
-    
-    return (result.data as any)?.text || 'Sorry, I could not generate a response.';
+
+    const data = result.data as any;
+
+    if (data.functionCalls && data.functionCalls.length > 0) {
+      const toolResults = [];
+
+      for (const call of data.functionCalls) {
+        let res = null;
+        if (call.name === 'addTask') res = aiActionHandler.handleAddTask(call.args as any);
+        else if (call.name === 'addHabit') res = aiActionHandler.handleAddHabit(call.args as any);
+        else if (call.name === 'setMood') res = aiActionHandler.handleSetMood(call.args as any);
+        else if (call.name === 'updateTask') res = aiActionHandler.handleUpdateTask(call.args as any);
+        else if (call.name === 'removeTask') res = aiActionHandler.handleRemoveTask(call.args as any);
+        else if (call.name === 'updateHabit') res = aiActionHandler.handleUpdateHabit(call.args as any);
+        else if (call.name === 'removeHabit') res = aiActionHandler.handleRemoveHabit(call.args as any);
+
+        toolResults.push({
+          name: call.name,
+          response: res || { success: false, message: 'Unknown tool' }
+        });
+      }
+
+      // We could call the proxy again with tool results to get a final text response,
+      // but for simplicity and consistency with current direct implementation, 
+      // we'll just confirm action success.
+      return 'Done! I have updated your system with those changes.';
+    }
+
+    return data.text || 'Sorry, I could not generate a response.';
   } catch (err: any) {
     console.error('[LifeOS] callAIProxy error:', err);
     throw err;
@@ -182,7 +208,7 @@ export const getAIResponse = async (
       You help users manage tasks, habits, and moods.
       Be supportive, proactive, and concise.
       User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
-      
+
       return await callAIProxy(messages, systemInstruction);
     } catch (err: any) {
       console.error('getAIResponse proxy error:', err);
@@ -197,7 +223,7 @@ export const getAIResponse = async (
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: `You are LifeOS, a premium personal assistant.
       You help users manage tasks, habits, and moods.
       Be supportive, proactive, and concise.
@@ -283,11 +309,11 @@ export const getFocusQuote = async () => {
 
   try {
     const prompt = 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.';
-    
+
     if (USE_AI_PROXY) {
       return await callAIProxy([{ role: 'user', content: prompt }]);
     } else {
-      const model = genAI!.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result?.response.text() || null;
     }
@@ -308,7 +334,7 @@ export const getMoodInsight = async (moodData: any[]) => {
     if (USE_AI_PROXY) {
       return await callAIProxy([{ role: 'user', content: prompt }]);
     } else {
-      const model = genAI!.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result?.response.text() || null;
     }

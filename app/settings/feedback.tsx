@@ -1,8 +1,12 @@
 import { Spacing, Typography } from '@/constants/theme';
+import { db } from '@/firebase/config';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
+import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { AlertCircle, Bug, MessageSquare, Send, Sparkles } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -88,6 +92,8 @@ function CategoryTile({ item, isActive, onPress }: CategoryTileProps) {
   );
 }
 
+
+
 export default function FeedbackSettings() {
   const router = useRouter();
   const [category, setCategory] = useState('general');
@@ -96,22 +102,39 @@ export default function FeedbackSettings() {
   const colors = useThemeColors();
   const maxLength = 500;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!feedback.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        userId: useStore.getState().userId,
+        category,
+        message: feedback.trim(),
+        appVersion: Constants.expoConfig?.version || 'unknown',
+        platform: Platform.OS,
+        createdAt: serverTimestamp(),
+      });
+
       setSubmitting(false);
       Toast.show({
         type: 'success',
-        text1: 'Feedback Received',
+        text1: 'Feedback Received 🙏',
         text2: 'Thank you for helping us build the future of LifeOS.',
         position: 'bottom',
       });
       router.back();
-    }, 1500);
+    } catch (error) {
+      console.error('[Feedback] Submit failed:', error);
+      setSubmitting(false);
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to Send',
+        text2: 'Please try again later.',
+        position: 'bottom',
+      });
+    }
   };
 
   return (

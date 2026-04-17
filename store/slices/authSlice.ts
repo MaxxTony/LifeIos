@@ -10,10 +10,13 @@ import Toast from 'react-native-toast-message';
 import { query, where, orderBy, limit, documentId } from 'firebase/firestore';
 
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
-const LOGGED_OUT_STATE = {
+const LOGGED_OUT_STATE: Partial<UserState> = {
   isAuthenticated: false,
+  hasCompletedOnboarding: false,
   userId: null,
   userName: null,
+  email: null,
+  createdAt: null,
   tasks: [],
   habits: [],
   mood: null,
@@ -41,6 +44,7 @@ const LOGGED_OUT_STATE = {
   skills: null,
   socialLinks: {},
   moodTheme: null,
+  themePreference: 'system' as const,
   accentColor: null,
   onboardingData: { struggles: [] },
   recentXP: null,
@@ -54,6 +58,10 @@ const LOGGED_OUT_STATE = {
   proactivePrompt: null,
   _syncUnsubscribes: [],
   sessionToken: null,
+  syncError: null,
+  _lastRetryAt: 0,
+  hasSeenWalkthrough: false,
+  lastActiveTimestamp: Date.now(),
   syncStatus: {
     tasksLoaded: false,
     habitsLoaded: false,
@@ -62,6 +70,7 @@ const LOGGED_OUT_STATE = {
     isOffline: false,
     lastCloudSync: null,
   },
+  pendingActions: [],
 };
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
@@ -131,8 +140,11 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
 
-    const myGen = get()._subscriptionGen + 1;
-    set({ _subscriptionGen: myGen, _syncUnsubscribes: [] });
+    let myGen!: number;
+    set(state => {
+      myGen = state._subscriptionGen + 1;
+      return { _subscriptionGen: myGen, _syncUnsubscribes: [] };
+    });
     const isStale = () => get()._subscriptionGen !== myGen || get().userId !== userId;
 
     const HISTORY_WINDOW_DAYS = 90;
@@ -140,9 +152,9 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     windowStart.setDate(windowStart.getDate() - HISTORY_WINDOW_DAYS);
     const windowStartStr = formatLocalDate(windowStart);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = formatLocalDate(thirtyDaysAgo);
+    const syncWindowDate = new Date();
+    syncWindowDate.setDate(syncWindowDate.getDate() - 90);
+    const syncWindowStr = formatLocalDate(syncWindowDate);
     const syncStartedAt = Date.now();
 
     const checkOfflineStatus = (fromCache: boolean) => {
@@ -218,7 +230,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           }
         }));
       }, 
-      (ref) => query(ref, where('date', '>=', thirtyDaysAgoStr))
+      (ref) => query(ref, where('date', '>=', syncWindowStr))
     );
 
     // Habits Subscription
@@ -236,7 +248,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           }
         }));
       }, 
-      (ref) => query(ref, orderBy('createdAt', 'desc'), limit(200))
+      (ref) => query(ref, orderBy('createdAt', 'desc'), limit(500))
     );
 
     // Mood History Subscription
@@ -286,10 +298,15 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     );
 
     // Quests Subscription
-    const unsubQuests = dbService.subscribeToCollection(userId, 'dailyQuests', (docs) => {
-      if (isStale()) return;
-      set({ dailyQuests: docs as any[] });
-    });
+    const unsubQuests = dbService.subscribeToCollection(
+      userId, 
+      'dailyQuests', 
+      (docs) => {
+        if (isStale()) return;
+        set({ dailyQuests: docs as any[] });
+      },
+      (ref) => query(ref, where(documentId(), '>=', `quest-${windowStartStr}`))
+    );
 
     set({ _syncUnsubscribes: [unsubRoot, unsubTasks, unsubHabits, unsubMood, unsubFocus, unsubQuests] });
   },

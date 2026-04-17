@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, Calendar, CheckCircle, Circle, Flag, Pencil, Plus, Repeat, RotateCcw, Trash2, X } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TaskDetailScreen() {
@@ -208,7 +209,7 @@ export default function TaskDetailScreen() {
                   onChangeText={setNewSubtaskText}
                   onSubmitEditing={() => {
                     if (!newSubtaskText.trim()) return;
-                    const newSubtask = { id: Math.random().toString(36).substring(7), text: newSubtaskText.trim(), completed: false };
+                    const newSubtask = { id: Crypto.randomUUID(), text: newSubtaskText.trim(), completed: false };
                     const updatedSubtasks = [...(task.subtasks || []), newSubtask];
                     updateTask(task.id, { subtasks: updatedSubtasks });
                     setNewSubtaskText('');

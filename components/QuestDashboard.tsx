@@ -6,12 +6,15 @@ import { Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getTodayLocal } from '@/utils/dateUtils';
 
 export const QuestDashboard = () => {
   const dailyQuests = useStore(s => s.dailyQuests);
   const colors = useThemeColors();
+  const today = getTodayLocal();
+  const activeQuests = dailyQuests.filter(q => q.date === today);
 
-  if (!dailyQuests || dailyQuests.length === 0) return null;
+  if (!activeQuests || activeQuests.length === 0) return null;
 
   return (
     <View style={styles.container}>
@@ -24,7 +27,7 @@ export const QuestDashboard = () => {
       </View>
 
       <View style={styles.questGrid}>
-        {dailyQuests.map((quest, index) => (
+        {activeQuests.map((quest, index) => (
           <Animated.View 
             key={quest.id} 
             entering={FadeInDown.delay(index * 100)}

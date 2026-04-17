@@ -20,6 +20,9 @@ import Toast from 'react-native-toast-message';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
 import { initCrashAnalytics } from '@/services/crashAnalytics';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Outfit_700Bold } from '@expo-google-fonts/outfit';
+
 
 
 initCrashAnalytics();
@@ -92,10 +95,13 @@ export default function RootLayout() {
     }
   };
 
+
   const [loaded, error] = useFonts({
-    'Inter-Regular': require('../assets/fonts/Inter-Regular.ttf'),
-    'Inter-SemiBold': require('../assets/fonts/Inter-SemiBold.ttf'),
-    'Outfit-Bold': require('../assets/fonts/Outfit-Bold.ttf'),
+    'Inter-Regular': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,  // ADD
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,       // ADD
+    'Outfit-Bold': Outfit_700Bold,
   });
 
   useEffect(() => {
@@ -272,7 +278,6 @@ export default function RootLayout() {
             <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback', headerBackButtonDisplayMode: "generic" }} />
             <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center', headerBackButtonDisplayMode: "generic" }} />
             <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style={isDark ? "light" : "dark"} />
           <Toast />

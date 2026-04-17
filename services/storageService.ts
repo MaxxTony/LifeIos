@@ -20,10 +20,6 @@ export const storageService = {
    */
   uploadProfileImage: async (uri: string, userId: string, previousUrl?: string | null): Promise<string> => {
     try {
-      if (previousUrl) {
-        await storageService.deleteImage(previousUrl);
-      }
-
       // Resize and compress
       const manipResult = await manipulateAsync(
         uri,
@@ -41,6 +37,12 @@ export const storageService = {
       await uploadBytes(storageRef, blob);
 
       const downloadUrl = await getDownloadURL(storageRef);
+
+      // F-BUG-29 FIX: Cleanup old avatar only AFTER the new one is safely stored
+      if (previousUrl) {
+        await storageService.deleteImage(previousUrl);
+      }
+
       return downloadUrl;
     } catch (error) {
       console.error('Error uploading image to Storage:', error);
