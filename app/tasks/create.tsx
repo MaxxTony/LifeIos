@@ -96,7 +96,7 @@ export default function CreateTaskScreen() {
   };
 
   // C-14: Prevent accidental exit with unsaved work
-  const isDirty = text.trim().length > 0;
+  const isDirty = text.trim().length > 0 || priority !== 'medium' || repeat !== 'none';
   const navigation = Platform.OS !== 'web' ? require('@react-navigation/native').useNavigation() : null;
 
   React.useEffect(() => {

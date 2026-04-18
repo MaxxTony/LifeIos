@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Platform, TextInput, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Platform, TextInput, ScrollView, Modal, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -71,6 +71,16 @@ export default function ConfigScreen() {
 
   const handleNext = () => {
     if (!title.trim()) return;
+
+    // MIN-01 FIX: Validate that at least one day is selected for weekly/monthly habits
+    if ((frequency === 'weekly' || frequency === 'monthly') && selectedDays.length === 0) {
+      Alert.alert(
+        'No Days Selected',
+        'Please select at least one day for your habit schedule.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     router.push({
       pathname: '/(habits)/goal',
@@ -279,7 +289,7 @@ export default function ConfigScreen() {
           style={[
             styles.nextBtn, 
             { backgroundColor: colors.primary, shadowColor: colors.primary },
-            !title.trim() && styles.nextBtnDisabled
+            (!title.trim() || ((frequency === 'weekly' || frequency === 'monthly') && selectedDays.length === 0)) && styles.nextBtnDisabled
           ]} 
           onPress={handleNext}
           disabled={!title.trim()}

@@ -5,7 +5,7 @@ import Toast from 'react-native-toast-message';
 import { useStore } from '@/store/useStore';
 
 export const StreakCelebration = () => {
-  const streakMilestone = useStore(s => s.streakMilestone);
+  const streakMilestone = useStore(s => s.streakMilestones[0] ?? null);
   const dismissMilestone = useStore(s => s.actions.dismissMilestone);
   const explosionRef = useRef<ConfettiCannon>(null);
 

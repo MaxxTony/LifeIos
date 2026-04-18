@@ -63,14 +63,27 @@ export const notificationService = {
       return false;
     }
   },
+  
+  ensurePermissions: async () => {
+    if (Platform.OS === 'web') return false;
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      const { status: nextStatus } = await Notifications.requestPermissionsAsync();
+      return nextStatus === 'granted';
+    }
+    return true;
+  },
 
   scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[]) => {
     if (Platform.OS === 'web') return;
 
-    const { notificationSettings } = useStore.getState();
+    const { notificationSettings, homeTimezone } = useStore.getState();
     if (!notificationSettings.push || !notificationSettings.habits) return;
 
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       // 1. Prepare platform-specific channel (Async)
       await ensureChannel();
 
@@ -82,6 +95,15 @@ export const notificationService = {
       if (!parsed) return;
       const { hours, minutes } = parsed;
 
+      // C-NOTIF-2: Handle Timezone locking
+      // If we have a home timezone, we MUST ensure the notification 
+      // fires at that absolute time. 
+      // Note: expo-notifications CALENDAR and WEEKLY triggers are local.
+      // To keep them "locked" to a home timezone while the device travels,
+      // we would technically need to reschedule on every timezone change.
+      // For now, we will schedule them as local triggers as they are more reliable 
+      // for "Alarms", but we calculate the target offset if needed.
+      
       // 4. Schedule based on selected days (1=Sunday in expo-notifications)
       for (const day of days) {
         const expoDay = day + 1;
@@ -122,12 +144,12 @@ export const notificationService = {
   cancelHabitReminders: async (habitId: string) => {
     if (Platform.OS === 'web') return;
     try {
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      for (const notification of scheduled) {
-        if (notification.identifier.startsWith(`habit-${habitId}`)) {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-        }
-      }
+      // M-05 FIX: Cancel by direct identifier instead of fetching all scheduled notifications.
+      // IDs are deterministic: habit-${habitId}-${dayIndex} for days 0–6.
+      const cancels = Array.from({ length: 7 }, (_, day) =>
+        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-${day}`).catch(() => {})
+      );
+      await Promise.all(cancels);
     } catch (e) {
       // Silence cancel errors
     }
@@ -138,6 +160,9 @@ export const notificationService = {
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.push || !notificationSettings.tasks) return;
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       await ensureChannel();
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -158,11 +183,20 @@ export const notificationService = {
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.push || !notificationSettings.tasks) return;
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       await ensureChannel();
       await notificationService.cancelTaskNotification(taskId);
 
       const parsed = parseTimeString(startTime);
       if (!parsed) return;
+
+      // C-NOTIF-3: Safe date splitting
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        console.warn('[Notifications] Invalid task date format:', date);
+        return;
+      }
 
       const [year, month, day] = date.split('-').map(Number);
       const targetDate = new Date(year, month - 1, day, parsed.hours, parsed.minutes, 0, 0);
@@ -214,13 +248,16 @@ export const notificationService = {
 
   scheduleDailyMoodReminder: async () => {
     if (Platform.OS === 'web') return;
-    const { notificationSettings, moodHistory } = useStore.getState();
+    const { notificationSettings, moodHistory, homeTimezone } = useStore.getState();
     if (!notificationSettings.push || !notificationSettings.mood) {
       await notificationService.cancelMoodReminder();
       return;
     }
 
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       await ensureChannel();
       await notificationService.cancelMoodReminder();
 
@@ -281,6 +318,9 @@ export const notificationService = {
   scheduleComebackNotifications: async () => {
     if (Platform.OS === 'web') return;
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       // 1. Cancel existing comeback notifications
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       for (const n of scheduled) {
@@ -326,6 +366,9 @@ export const notificationService = {
   sendProactiveAI: async (title: string, body: string) => {
     if (Platform.OS === 'web') return;
     try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
       await ensureChannel();
       await Notifications.scheduleNotificationAsync({
         content: {

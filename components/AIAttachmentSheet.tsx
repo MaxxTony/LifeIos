@@ -2,17 +2,21 @@ import { IconSymbol } from './ui/icon-symbol';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import * as ImagePicker from 'expo-image-picker';
-import React, { forwardRef, useCallback, useMemo } from 'react';
+import React, { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface Props {
   onSelectImage: (uri: string, base64?: string, mimeType?: string) => void;
+  /** Optional: called when the sheet is dismissed while an upload might be in progress */
+  onCancelUpload?: () => void;
 }
 
-export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelectImage }, ref) => {
+export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelectImage, onCancelUpload }, ref) => {
   const colors = useThemeColors();
   const snapPoints = useMemo(() => ['25%'], []);
+  // MIN-06 FIX: Track picker state so we can prevent accidental dismissal mid-pick
+  const [isPickerActive, setIsPickerActive] = useState(false);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -27,32 +31,42 @@ export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelect
   );
 
   const handlePickImage = async (useCamera: boolean) => {
-    let result;
-    if (useCamera) {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') return;
-      result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-        base64: true,
-      });
-    } else {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') return;
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-        base64: true,
-      });
-    }
+    setIsPickerActive(true);
+    try {
+      let result;
+      if (useCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') return;
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.7,
+          base64: true,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') return;
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.7,
+          base64: true,
+        });
+      }
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const asset = result.assets[0];
-      const mimeType = asset.mimeType || 'image/jpeg';
-      onSelectImage(asset.uri, asset.base64 || undefined, mimeType);
-      (ref as any).current?.close();
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType || 'image/jpeg';
+        onSelectImage(asset.uri, asset.base64 || undefined, mimeType);
+        (ref as any).current?.close();
+      }
+    } finally {
+      setIsPickerActive(false);
     }
   };
+
+  // MIN-06 FIX: On sheet dismiss, call cancel callback so parent can abort any in-flight upload
+  const handleDismiss = useCallback(() => {
+    if (onCancelUpload) onCancelUpload();
+  }, [onCancelUpload]);
 
   return (
     <BottomSheetModal
@@ -60,24 +74,43 @@ export const AIAttachmentSheet = forwardRef<BottomSheetModal, Props>(({ onSelect
       index={0}
       snapPoints={snapPoints}
       enableDynamicSizing={false}
-      enablePanDownToClose
+      enablePanDownToClose={!isPickerActive}
       backdropComponent={renderBackdrop}
       backgroundStyle={[styles.background, { backgroundColor: colors.card }]}
       handleIndicatorStyle={{ backgroundColor: colors.border }}
+      onDismiss={handleDismiss}
     >
       <BottomSheetView style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Add to Chat</Text>
 
         <View style={styles.grid}>
-          <TouchableOpacity style={styles.item} onPress={() => handlePickImage(true)}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={styles.item} 
+            onPress={() => handlePickImage(true)}
+            accessibilityLabel="Access camera"
+            accessibilityRole="button"
+          >
+            <View style={[
+              styles.iconCircle, 
+              colors.isDark ? styles.iconCircleDark : styles.iconCircleLight,
+              { borderColor: colors.border }
+            ]}>
               <IconSymbol name="camera.fill" size={24} color={colors.primary} />
             </View>
             <Text style={[styles.itemLabel, { color: colors.textSecondary }]}>Camera</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.item} onPress={() => handlePickImage(false)}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={styles.item} 
+            onPress={() => handlePickImage(false)}
+            accessibilityLabel="Open photo library"
+            accessibilityRole="button"
+          >
+            <View style={[
+              styles.iconCircle, 
+              colors.isDark ? styles.iconCircleDark : styles.iconCircleLight,
+              { borderColor: colors.border }
+            ]}>
               <IconSymbol name="photo.fill" size={24} color={colors.primary} />
             </View>
             <Text style={[styles.itemLabel, { color: colors.textSecondary }]}>Photos</Text>
@@ -117,6 +150,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
+  },
+  iconCircleDark: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  iconCircleLight: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   itemLabel: {
     ...Typography.caption,

@@ -3,7 +3,8 @@ import { UserState, Task, TaskActions } from '../types';
 import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import * as Crypto from 'expo-crypto';
-import { parseTimeString } from '../helpers';
+import * as Haptics from 'expo-haptics';
+import { parseTimeString, computeLevel } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { analyticsService } from '@/services/analyticsService';
 
@@ -145,26 +146,52 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         );
       }
 
-      setTimeout(() => {
-        const { actions } = get();
-        actions.checkQuestProgress('task');
-        actions.updateLifeScoreHistory();
-      }, 0);
+      const newState: Partial<UserState> = { tasks: newTasks };
 
       if (nowCompleted) {
         import('@/services/notificationService').then(({ notificationService }) => {
           notificationService.cancelTaskNotification(id);
         });
-        // Only award XP the FIRST time this task is completed (idempotent guard)
+        
+        // C-STORE-7 FIX: Award XP atomically within the same set() call
         if (shouldAwardXP) {
-          get().actions.addXP(15);
+          const amount = 15;
+          const newTotalXP = state.totalXP + amount;
+          const newLevel = computeLevel(newTotalXP);
+          
+          if (newLevel > state.level) {
+            setTimeout(() => {
+              import('react-native-toast-message').then(Toast => {
+                Toast.default.show({
+                  type: 'success',
+                  text1: 'Level Up! ✨',
+                  text2: `You reached Level ${newLevel}! Keep evolving.`
+                });
+              });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }, 800);
+          }
+          
+          newState.totalXP = newTotalXP;
+          newState.level = newLevel;
+          newState.recentXP = { amount, timestamp: Date.now() };
+
+          if (state.userId) {
+            fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { totalXP: newTotalXP, level: newLevel }), 'xpUpdateTask', state.userId);
+          }
         }
         analyticsService.logEvent(state.userId, 'task_completed', { priority: task.priority });
       } else {
         analyticsService.logEvent(state.userId, 'task_uncompleted', { priority: task.priority });
       }
 
-      return { tasks: newTasks };
+      setTimeout(() => {
+        const { actions } = get();
+        actions.checkQuestProgress('task');
+        actions.updateLifeScoreHistory();
+      }, 0);
+
+      return newState as any;
     });
   },
 
@@ -197,7 +224,16 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       if (t.id === taskId) {
         const subtasks = t.subtasks?.map(st => st.id === subtaskId ? { ...st, ...updates } : st);
         const updatedTask = { ...t, subtasks };
-        if (state.userId) fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'updateSubtask', state.userId);
+        if (state.userId) {
+          fireSync(
+            () => dbService.saveTask(state.userId!, updatedTask), 
+            'updateSubtask', 
+            state.userId,
+            'tasks',
+            updatedTask,
+            updatedTask.id
+          );
+        }
         return updatedTask;
       }
       return t;
@@ -210,7 +246,16 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       if (t.id === taskId) {
         const subtasks = t.subtasks?.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st);
         const updatedTask = { ...t, subtasks };
-        if (state.userId) fireSync(() => dbService.saveTask(state.userId!, updatedTask), 'toggleSubtask', state.userId);
+        if (state.userId) {
+          fireSync(
+            () => dbService.saveTask(state.userId!, updatedTask), 
+            'toggleSubtask', 
+            state.userId,
+            'tasks',
+            updatedTask,
+            updatedTask.id
+          );
+        }
         return updatedTask;
       }
       return t;

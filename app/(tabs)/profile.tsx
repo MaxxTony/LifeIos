@@ -19,7 +19,7 @@ import {
   User
 } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
@@ -29,12 +29,16 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    const { error } = await authService.logout();
-    if (!error) {
-      logout();
-      router.replace('/(auth)/login');
-    } else {
-      console.error(error);
+    try {
+      const { error } = await authService.logout();
+      if (!error) {
+        logout();
+        router.replace('/(auth)/login');
+      } else {
+        Alert.alert('Logout Error', 'We couldn\'t log you out right now. Please check your connection and try again.');
+      }
+    } catch (e) {
+      Alert.alert('Unexpected Error', 'Something went wrong during logout.');
     }
   };
 

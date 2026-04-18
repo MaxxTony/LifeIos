@@ -7,7 +7,7 @@ import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +27,16 @@ export default function MoodHistoryScreen() {
     d.setDate(1); // Set to 1st to avoid overflow issues
     return d;
   });
+
+  // MIN-04 FIX: Detect timezone offset changes mid-session and force calendar re-render
+  const [tzOffset, setTzOffset] = useState(() => new Date().getTimezoneOffset());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentOffset = new Date().getTimezoneOffset();
+      setTzOffset(prev => prev !== currentOffset ? currentOffset : prev);
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
 
   const getMoodLevel = (entry: any): number => {
     return typeof entry.mood === 'number' ? entry.mood : getMoodFromLegacy(entry.mood);
@@ -100,6 +110,15 @@ export default function MoodHistoryScreen() {
   const navigateMonth = (dir: number) => {
     const newMonth = new Date(currentMonth);
     newMonth.setMonth(newMonth.getMonth() + dir);
+    
+    // M-14 FIX: Month navigation bounds (3 years past, no future)
+    const now = new Date();
+    const threeYearsAgo = new Date();
+    threeYearsAgo.setFullYear(now.getFullYear() - 3);
+    
+    if (newMonth > now) return; // Can't go to future months
+    if (newMonth < threeYearsAgo) return; // Can't go earlier than 3 years
+    
     setCurrentMonth(newMonth);
   };
 
@@ -138,6 +157,7 @@ export default function MoodHistoryScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* ===== CALENDAR ===== */}
           <Animated.View
+            key={`calendar-tz-${tzOffset}`}
             entering={FadeInDown.delay(100)}
             style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}
           >

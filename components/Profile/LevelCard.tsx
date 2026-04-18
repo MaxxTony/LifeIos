@@ -133,11 +133,11 @@ export function LevelCard({ item, index, scrollX, userLevel, xpProgress, xpInCur
             {isCurrent ? (
               <View style={styles.progressContainer}>
                 <View style={styles.xpRow}>
-                  <Text style={styles.xpText}>{xpInCurrentLevel} / {levelXpRange ?? 100} XP</Text>
+                  <Text style={styles.xpText}>{xpInCurrentLevel} / {levelXpRange ?? xpInCurrentLevel + 500} XP</Text>
                   <Text style={styles.progressPerc}>{Math.round(xpProgress * 100)}%</Text>
                 </View>
                 <View style={styles.progressBg}>
-                  <View style={[styles.progressFill, { width: `${xpProgress * 100}%` }]} />
+                  <View style={[styles.progressFill, { width: `${Math.min(xpProgress * 100, 100)}%` }]} />
                 </View>
               </View>
             ) : isLocked ? (

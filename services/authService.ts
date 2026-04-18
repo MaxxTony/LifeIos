@@ -10,9 +10,10 @@ import {
   deleteUser,
   User,
 } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { auth, functions } from '../firebase/config';
 import * as Crypto from 'expo-crypto';
 import { dbService } from './dbService';
+import { httpsCallable } from 'firebase/functions';
 
 export const authService = {
   // Current user
@@ -41,8 +42,18 @@ export const authService = {
   // Generates a new session token and saves it to Firestore.
   // This effectively invalidates all other active sessions for this user.
   generateAndSaveSessionToken: async (userId: string) => {
+    // C-AUTH-2 FIX: Call Cloud Function to revoke ALL existing refresh tokens
+    // for this user before issuing a new session. This kills stolen tokens.
+    try {
+      const revoke = httpsCallable(functions, 'revokeOtherSessions');
+      await revoke();
+    } catch (err) {
+      console.warn('[LifeOS Auth] Refresh token revocation failed (non-fatal):', err);
+    }
+
     const token = Crypto.randomUUID();
-    await dbService.saveUserProfile(userId, { sessionToken: token } as any);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    await dbService.saveUserProfile(userId, { sessionToken: token, homeTimezone: tz } as any);
     return token;
   },
 
@@ -91,13 +102,16 @@ export const authService = {
   // Validate session (check if user still exists on server)
   validateSession: async (user: User) => {
     try {
-      await reload(user);
+      // C-AUTH-2 FIX: Use getIdToken(true) instead of reload().
+      // getIdToken(true) forces a refresh and will fail if tokens were revoked.
+      await user.getIdToken(true);
       return true;
     } catch (error: any) {
       if (
         error.code === 'auth/user-not-found' ||
         error.code === 'auth/user-disabled' ||
-        error.code === 'auth/user-token-expired'
+        error.code === 'auth/user-token-expired' ||
+        error.code === 'auth/id-token-revoked'
       ) {
         return false;
       }
@@ -114,7 +128,21 @@ export const authService = {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error('No authenticated user found');
+
+      // C-AUTH-4 FIX: Clear session token in Firestore before deletion.
+      // This ensures other devices listening to the profile will log out
+      // even if the Auth deletion is pending or partial.
+      try {
+        await dbService.saveUserProfile(user.uid, { sessionToken: null } as any);
+      } catch (err) {
+        console.warn('[LifeOS Auth] Failed to clear sessionToken during deletion:', err);
+      }
+
       await deleteUser(user);
+
+      // C-AUTH-4 FIX: Must force logout to clear zustand store and AsyncStorage
+      await authService.logout();
+
       return { error: null };
     } catch (error: any) {
       console.error('Account deletion error:', error);

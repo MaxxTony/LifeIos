@@ -14,7 +14,12 @@ const BARS = 5;
 
 export const VoiceWaves = ({ isActive }: { isActive: boolean }) => {
   return (
-    <View style={styles.container}>
+    <View 
+      style={styles.container}
+      accessibilityLabel="Voice activity feedback waves"
+      accessibilityRole="none"
+      importantForAccessibility="yes"
+    >
       {[...Array(BARS)].map((_, i) => (
         <WaveBar key={i} index={i} isActive={isActive} />
       ))}

@@ -20,6 +20,7 @@ const MAPPING = {
   'camera.fill': 'camera-alt',
   'photo.fill': 'photo',
   'arrow.up': 'arrow-upward',
+  'arrow.up.circle': 'arrow-circle-up',
 } as Partial<Record<import('expo-symbols').SymbolViewProps['name'], React.ComponentProps<typeof MaterialIcons>['name']>>;
 
 export type IconSymbolName = keyof typeof MAPPING;

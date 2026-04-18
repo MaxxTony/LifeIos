@@ -1,7 +1,18 @@
 import { isTransientError, SYNC_RETRY_DELAYS_MS } from './helpers';
 
-// Module-level variable to store the error publisher
+// Module-level variables to handle error publishing and re-entrancy locking
 export let publishSyncError: ((err: { label: string; message: string }) => void) | null = null;
+export let isSyncingGlobal = false;
+export let store: any = null;
+
+export const setSyncingGlobal = (val: boolean) => {
+  isSyncingGlobal = val;
+};
+
+// Injection point to avoid circular dependencies with useStore
+export const wireStore = (s: any) => {
+  store = s;
+};
 
 // This function will be called from useStore to wire up the error publisher
 export const wireSyncErrorPublisher = (publisher: typeof publishSyncError) => {
@@ -24,7 +35,14 @@ export const fireSync = (
       const canRetry = tryIdx < SYNC_RETRY_DELAYS_MS.length && isTransientError(err, userId);
       
       if (canRetry) {
-        await new Promise((r) => setTimeout(r, SYNC_RETRY_DELAYS_MS[tryIdx]));
+        // C-NET-3 FIX: Add 30% jitter to prevent thundering herd during recovery
+        const baseDelay = SYNC_RETRY_DELAYS_MS[tryIdx];
+        const jitter = Math.random() * 0.3 * baseDelay;
+        const finalDelay = baseDelay + jitter;
+        
+        if (__DEV__) console.log(`[LifeOS Sync] Retrying ${label} in ${(finalDelay / 1000).toFixed(1)}s (jitter: ${(jitter / 1000).toFixed(1)}s)`);
+        
+        await new Promise((r) => setTimeout(r, finalDelay));
         return attempt(tryIdx + 1);
       }
       
@@ -32,9 +50,12 @@ export const fireSync = (
 
       // C-5: If we hit a final failure and have a payload, queue it for later
       if (collection && payload && docId) {
-        // C-5 FIX: Lazy-load store to prevent circular dependency crash during boot
-        const store = require('./useStore').useStore;
-        const state = store.getState();
+        // C-NET-2 FIX: Use injected store reference instead of runtime require()
+        const state = store?.getState();
+        if (!state) {
+          console.warn('[LifeOS Sync] Store not yet wired - cannot queue pending action.');
+          return;
+        }
         
         // Only queue if not already in queue
         const inQueue = (state.pendingActions || []).some((a: any) => a.id === docId && a.collection === collection);

@@ -5,26 +5,18 @@ import { getAIResponse } from './ai';
 import { notificationService } from './notificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const AI_COACH_TASK = 'BACKGROUND_AI_COACH_TASK';
 const COACH_USER_KEY = 'lifeos_coach_task_owner';
 
-// C-8: Define background task at the module Level (Expo Router best practice)
-// Using a literal string and ensuring this runs at the very top of module evaluation.
-TaskManager.defineTask('BACKGROUND_AI_COACH_TASK', runAICoachTask);
-
 /**
+ * runAICoachTask
  * runAICoachTask
  * Standard function declaration to take advantage of hoisting.
  */
 export async function runAICoachTask() {
   try {
+    // M-07 FIX: Verify user identity BEFORE the jitter delay so we don't burn 30 mins for nobody.
     const state = useStore.getState();
-    const { habits, tasks, focusHistory } = state;
-
-    // B-M1: Verify that the background task is running for the correct user.
     const registeredUserId = await AsyncStorage.getItem(COACH_USER_KEY);
-    
-    // Direct check against ground truth (Firebase Auth)
     const { authService } = require('./authService');
     const actualUid = authService.currentUser?.uid;
 
@@ -32,6 +24,14 @@ export async function runAICoachTask() {
       console.log("[AI Coach] Skip: User mismatch, logged out, or session mismatched.");
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
+
+    // S-INFRA-8: Add jitter (up to 30 mins) to prevent thundering herd
+    const jitterMs = Math.floor(Math.random() * 30 * 60 * 1000);
+    if (!__DEV__) {
+      await new Promise(r => setTimeout(r, jitterMs));
+    }
+
+    const { habits, tasks, focusHistory } = state;
 
     // Prepare a summarized payload of only the last 7 days to keep token costs low
     const lastWeek = new Date();
@@ -92,30 +92,3 @@ export async function runAICoachTask() {
   }
 }
 
-export const registerAICoachTask = async () => {
-  try {
-    const status = await BackgroundFetch.getStatusAsync();
-    if (
-      status === BackgroundFetch.BackgroundFetchStatus.Restricted ||
-      status === BackgroundFetch.BackgroundFetchStatus.Denied
-    ) {
-      console.log("Background fetch not available:", status);
-      return;
-    }
-
-    // B-M1: Store the current userId so the task knows who to run for.
-    const userId = useStore.getState().userId;
-    if (userId) {
-      await AsyncStorage.setItem(COACH_USER_KEY, userId);
-    }
-
-    await BackgroundFetch.registerTaskAsync(AI_COACH_TASK, {
-      minimumInterval: 60 * 60 * 24,
-      stopOnTerminate: false,
-      startOnBoot: true,
-    });
-    console.log("AI Coach background task registered");
-  } catch (err) {
-    console.log("Task Register failed:", err);
-  }
-};

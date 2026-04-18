@@ -205,8 +205,6 @@ export const HabitGrid = React.memo(function HabitGrid() {
       </BlurView>
     </View>
   );
-}, (prev, next) => {
-  return prev === next; 
 });
 
 const styles = StyleSheet.create({

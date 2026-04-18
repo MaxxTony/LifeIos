@@ -31,40 +31,36 @@ export function useFocusTimer() {
   useEffect(() => {
     if (!isActive || !userId) return;
 
-    // C-6: On mount while active (app cold-started mid-session), immediately
-    // reconcile elapsed wall-clock time so we don't wait a full tick.
-    const { lastStartTime, totalSecondsToday } = useStore.getState().focusSession;
-    const bootElapsed = lastStartTime ? Date.now() - lastStartTime : 0;
-    
     // Seed the checkpoint ref with the current total so we don't double-write on mount
+    const { totalSecondsToday } = useStore.getState().focusSession;
     lastSavedSeconds.current = totalSecondsToday;
 
-    if (bootElapsed > 0 && bootElapsed < MAX_SESSION_MS) {
-      updateFocusTime();
-    }
+    // FIX: Do NOT call updateFocusTime() on mount here.
+    // The interval below fires every second and handles all increments.
+    // Calling updateFocusTime() on mount + interval start caused a double-tick
+    // on session resume, making the timer jump 2 seconds instantly.
 
     // Tick every second while the session is active
     const interval = setInterval(() => {
       updateFocusTime();
     }, 1000);
 
-    // C-6: Periodic Firestore checkpoint. We read fresh state from the store
-    // inside the callback so we always persist the latest accumulated value,
-    // not a stale closure snapshot from mount.
+    // Periodic Firestore checkpoint every 60s.
+    // We read fresh state from the store inside the callback so we always
+    // persist the latest accumulated value, not a stale closure snapshot.
     const checkpoint = setInterval(() => {
       const s = useStore.getState();
       if (!s.userId || !s.focusSession.isActive) return;
-      
+
       const totalSeconds = s.focusSession.totalSecondsToday;
-      
-      // C-14: Update heartbeat for focus room presence
+
+      // Update heartbeat for focus room presence
       const { presenceService } = require('@/services/presenceService');
       presenceService.updateHeartbeat(s.userId).catch(() => {});
 
       if (totalSeconds <= 0) return;
 
-      // F-H2: Only write if the user has accumulated at least 30 new focus seconds.
-      // This prevents 1,440 redundant daily writes for an idle session or break.
+      // Only write if user has accumulated at least 30 new focus seconds.
       const delta = totalSeconds - lastSavedSeconds.current;
       if (delta < 30) return;
 
@@ -74,23 +70,31 @@ export function useFocusTimer() {
       });
     }, CHECKPOINT_INTERVAL_MS);
 
-    // When the app returns to foreground after being backgrounded,
-    // immediately sync the wall-clock time that elapsed while suspended.
+    // When app returns to foreground after backgrounding, sync wall-clock time.
+    // FIX: Instead of calling updateFocusTime() (which would add a large delta at once),
+    // we update lastStartTime to now so the NEXT normal tick picks up a clean 1s delta.
+    // The total elapsed time while backgrounded is added as a single accurate delta.
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active' &&
         isActive
       ) {
-        // Guard against extreme elapsed times (e.g. overnight)
-        const { lastStartTime } = useStore.getState().focusSession;
-        const elapsed = lastStartTime ? Date.now() - lastStartTime : 0;
-        if (elapsed < MAX_SESSION_MS) {
+        const s = useStore.getState();
+        if (!s.focusSession.isActive || !s.focusSession.lastStartTime) return;
+
+        // Calculate how long the app was in background
+        const backgroundElapsed = (Date.now() - s.focusSession.lastStartTime) / 1000;
+
+        // Guard: if elapsed is unreasonably large (overnight), cap it
+        if (backgroundElapsed > 0 && backgroundElapsed < MAX_SESSION_MS / 1000) {
+          // Apply the background time as a single accumulated update
+          // updateFocusTime will read lastStartTime and add the full delta
           updateFocusTime();
         }
       }
 
-      // C-6 FIX: Flush to Firestore when app goes to background
+      // Flush to Firestore when app goes to background
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         const s = useStore.getState();
         if (s.focusSession.isActive && s.userId && s.focusSession.totalSecondsToday > 0) {

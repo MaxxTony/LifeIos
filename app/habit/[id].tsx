@@ -43,6 +43,17 @@ export default function HabitDetailScreen() {
   
   const habit = habits.find(h => h.id === id);
   const isCompletedToday = habit?.completedDays.includes(getTodayLocal());
+
+  // H-4 FIX: Auto-navigate back if habit is deleted (prevents being stuck in "Not Found")
+  React.useEffect(() => {
+    if (!habit) {
+      const timer = setTimeout(() => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [habit]);
   
   if (!habit) {
     return (

@@ -31,7 +31,7 @@ export function DailyTasksWidget() {
 
   const priorityColors = {
     high: colors.danger,
-    medium: colors.isDark ? '#FFB347' : '#D97706', // Dynamic amber/orange
+    medium: colors.warning, // Standardized: replaced hardcoded hex
     low: colors.success
   };
 
@@ -46,24 +46,27 @@ export function DailyTasksWidget() {
           <Text style={[styles.title, { color: colors.text }]}>Daily Tasks</Text>
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
-            style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
+            style={[styles.addBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
             accessibilityLabel="Create new task"
             accessibilityRole="button"
             accessibilityHint="Navigates to the task creation screen"
           >
-            <Plus size={18} color={colors.primary} strokeWidth={2.5} />
+            <Plus size={18} color={colors.primary} strokeWidth={2.5} accessibilityLabel="Plus icon" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.list}>
           {todayTasks.length > 0 ? todayTasks.slice(0, 5).map((task) => {
             const syncing = isSyncing(task.id);
+            const taskBg = colors.isDark ? styles.taskItemDark : styles.taskItemLight;
+            
             return (
               <View
                 key={task.id}
                 style={[
                   styles.taskItem,
-                  { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderColor: colors.border },
+                  taskBg,
+                  { borderColor: colors.border },
                   task.completed && styles.taskCompleted
                 ]}
               >
@@ -81,7 +84,7 @@ export function DailyTasksWidget() {
                     );
                     toggleTask(task.id);
                   }}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                   accessibilityLabel={task.completed ? `${task.text}, completed` : `Mark ${task.text} as complete`}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: task.completed }}
@@ -112,20 +115,20 @@ export function DailyTasksWidget() {
                       </Text>
                       {syncing && (
                         <View style={{ marginBottom: 4 }}>
-                          <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} />
+                          <Ionicons name="cloud-upload-outline" size={12} color={colors.primaryMuted} accessibilityLabel="Syncing to cloud" />
                         </View>
                       )}
                     </View>
                     <View style={styles.taskMeta}>
-                      <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
-                        <Flag size={10} color={priorityColors[task.priority]} />
+                      <View style={[styles.metaItem, colors.isDark ? styles.metaItemDark : styles.metaItemLight]}>
+                        <Flag size={10} color={priorityColors[task.priority]} accessibilityLabel="Priority flag" />
                         <Text style={[styles.metaText, { color: priorityColors[task.priority || 'medium'] }]}>
                           {(task.priority || 'medium').toUpperCase()}
                         </Text>
                       </View>
                       {task.startTime && (
-                        <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }]}>
-                          <Clock size={10} color={colors.textSecondary} />
+                        <View style={[styles.metaItem, colors.isDark ? styles.metaItemDarkVariant : styles.metaItemLightVariant]}>
+                          <Clock size={10} color={colors.textSecondary} accessibilityLabel="Scheduled time" />
                           <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
                         </View>
                       )}
@@ -134,13 +137,22 @@ export function DailyTasksWidget() {
                       )}
                     </View>
                   </View>
-                  <ChevronRight size={16} color={colors.textSecondary} />
+                  <ChevronRight size={16} color={colors.textSecondary} accessibilityLabel="Expand icon" />
                 </TouchableOpacity>
               </View>
             );
           }) : (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tasks for today. Start fresh? ✨</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/tasks/create')}
+                style={[styles.emptyCta, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
+                accessibilityLabel="Add your first task for today"
+                accessibilityRole="button"
+              >
+                <Plus size={14} color={colors.primary} strokeWidth={2.5} />
+                <Text style={[styles.emptyCtaText, { color: colors.primary }]}>Add a task</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -205,6 +217,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
   },
+  taskItemDark: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  taskItemLight: {
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
   taskCompleted: {
     opacity: 0.7,
   },
@@ -255,13 +273,25 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
+  metaItemDark: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  metaItemLight: {
+    backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  metaItemDarkVariant: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  metaItemLightVariant: {
+    backgroundColor: 'rgba(0,0,0,0.04)',
+  },
   metaText: {
     ...Typography.labelSmall,
-    fontSize: 9,
+    fontSize: 10,
   },
   missedTag: {
     ...Typography.labelSmall,
-    fontSize: 8,
+    fontSize: 9,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -273,6 +303,20 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     fontWeight: '500',
+  },
+  emptyCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  emptyCtaText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   viewMore: {
     marginTop: Spacing.sm,

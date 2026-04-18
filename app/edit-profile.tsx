@@ -32,7 +32,7 @@ import {
   X
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -148,6 +148,7 @@ export default function EditProfileScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permissionResult.granted) {
+        Keyboard.dismiss();
         Alert.alert('Permission Denied', `We need access to your ${useCamera ? 'camera' : 'gallery'} to update your profile picture.`);
         return;
       }
@@ -169,6 +170,7 @@ export default function EditProfileScreen() {
 
         // Upload to Firebase Storage
         if (!userId) {
+          Keyboard.dismiss();
           Alert.alert('Error', 'User ID not found. Please log in again.');
           return;
         }
@@ -180,6 +182,7 @@ export default function EditProfileScreen() {
       }
     } catch (error) {
       console.error('Image picking error:', error);
+      Keyboard.dismiss();
       Alert.alert('Upload Failed', 'Something went wrong while uploading your image. Please try again.');
     } finally {
       setUploadingImage(false);
@@ -197,6 +200,7 @@ export default function EditProfileScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (error) {
         console.error('Image removal error:', error);
+        Keyboard.dismiss();
         Alert.alert('Error', 'Something went wrong while removing your image.');
       } finally {
         setUploadingImage(false);
@@ -209,12 +213,14 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!form.userName.trim()) {
+      Keyboard.dismiss();
       Alert.alert('Error', 'Username cannot be empty');
       return;
     }
 
     // P-7 FIX: Strict Phone Validation before saving
     if (form.phoneNumber && !isPhoneValid(form.phoneNumber)) {
+      Keyboard.dismiss();
       Alert.alert('Invalid Phone Number', 'The phone number you entered is not valid for the detected country. Please check it and try again.');
       return;
     }
@@ -225,6 +231,7 @@ export default function EditProfileScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (error) {
+      Keyboard.dismiss();
       Alert.alert('Error', 'Failed to save profile');
     } finally {
       setSaving(false);

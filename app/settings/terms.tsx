@@ -1,119 +1,69 @@
-import { Spacing, Typography } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { ChevronLeft } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Spacing, Typography } from '@/constants/theme';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, FileText } from 'lucide-react-native';
 
-export default function TermsOfService() {
+export default function TermsOfServiceScreen() {
   const colors = useThemeColors();
   const router = useRouter();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Terms of Service</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last Updated: April 14, 2026</Text>
-        
-        <Section title="1. Acceptance of Terms">
-          By accessing or using LifeOS, you agree to be bound by these Terms of Service. If you do not agree to all of these terms, do not use the application.
-        </Section>
-
-        <Section title="2. Description of Service">
-          LifeOS is an AI-powered productivity platform designed to help users manage tasks, track habits, and reflect on their daily mood. The service includes local-first data management and cloud synchronization.
-        </Section>
-
-        <Section title="3. AI Assistant usage">
-          The AI features in LifeOS are intended to provide suggestions and insights based on your data. While we strive for accuracy, AI-generated content should be used as a guide and not as professional advice.
-        </Section>
-
-        <Section title="4. User Data & Responsibility">
-          You are responsible for the data you input into LifeOS. While we take measures to secure your data, you should maintain your own backups for critical information.
-        </Section>
-
-        <Section title="5. Prohibited Conduct">
-          You agree not to misuse the LifeOS services or help anyone else do so. This includes any attempt to reverse engineer the application or bypass security measures.
-        </Section>
-
-        <Section title="6. Limitation of Liability">
-          LifeOS is provided "as is" without any warranties. The LifeOS Team will not be liable for any data loss, service interruptions, or direct/indirect damages arising from the use of the app.
-        </Section>
-        
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Questions about our Terms? Contact us through the Help Center.
-          </Text>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Terms of Service</Text>
+          <View style={{ width: 44 }} />
         </View>
-      </ScrollView>
-    </View>
-  );
-}
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const colors = useThemeColors();
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-      <Text style={[styles.sectionText, { color: colors.textSecondary }]}>{children}</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.iconContainer}>
+            <FileText size={48} color={colors.secondary} />
+          </View>
+          
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>1. Acceptance of Terms</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            By accessing or using LifeOS, you agree to be bound by these Terms of Service. If you do not agree to all of these terms, you do not have permission to use the service.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>2. Description of Service</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            LifeOS is a productivity and lifestyle management platform. Features include habit tracking, task management, mood journaling, and AI-powered coaching.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>3. User Responsibilities</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            You are responsible for maintaining the confidentiality of your account and for all activities that occur under your account. You agree to use the service only for lawful purposes.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>4. Limitations of Liability</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            LifeOS and its AI features are provided for informational and productivity purposes only. The app is not a substitute for professional mental health or medical advice.
+          </Text>
+
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: colors.textSecondary }]}>Last updated: April 18, 2026</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    marginTop: 40,
-  },
-  backButton: {
-    padding: 4,
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontFamily: 'Outfit-Bold',
-  },
-  content: {
-    padding: Spacing.xl,
-    paddingBottom: 60,
-  },
-  lastUpdated: {
-    ...Typography.caption,
-    marginBottom: 32,
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Outfit-Bold',
-    marginBottom: 10,
-  },
-  sectionText: {
-    ...Typography.body,
-    lineHeight: 24,
-    fontSize: 15,
-  },
-  footer: {
-    marginTop: 20,
-    paddingTop: 32,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
-  },
-  footerText: {
-    ...Typography.caption,
-    textAlign: 'center',
-  },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, height: 60 },
+  headerTitle: { ...Typography.h3, fontSize: 18 },
+  backBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { padding: Spacing.lg },
+  iconContainer: { alignItems: 'center', marginVertical: 30 },
+  sectionTitle: { ...Typography.h3, marginTop: 24, marginBottom: 8 },
+  paragraph: { ...Typography.body, lineHeight: 24, marginBottom: 16 },
+  footer: { marginTop: 40, alignItems: 'center', paddingBottom: 40 },
+  footerText: { fontSize: 12, opacity: 0.6 }
 });

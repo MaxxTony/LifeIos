@@ -39,7 +39,6 @@ export default function WeeklyReviewScreen() {
   const moodHistory = useStore(s => s.moodHistory);
   const userName = useStore(s => s.userName);
 
-  const viewShotRef = useRef<ViewShot>(null);
   const shareCardRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
   
@@ -215,7 +214,7 @@ export default function WeeklyReviewScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Day-by-Day Pulse</Text>
           </View>
 
-          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }}>
+          <ViewShot options={{ format: 'png', quality: 0.9 }}>
             <PremiumCard style={styles.chartCard}>
               <View style={styles.chartDots}>
                 {stats.last7Days.map((date, i) => {

@@ -8,7 +8,7 @@ import { createHabitSlice } from './slices/habitSlice';
 import { createFocusSlice } from './slices/focusSlice';
 import { createMoodSlice } from './slices/moodSlice';
 import { createGamificationSlice } from './slices/gamificationSlice';
-import { wireSyncErrorPublisher } from './syncHelper';
+import { wireSyncErrorPublisher, wireStore } from './syncHelper';
 
 export const useStore = create<UserState>()(
   persist(
@@ -42,6 +42,8 @@ export const useStore = create<UserState>()(
           pomodoroWorkDuration: 25 * 60,
           pomodoroBreakDuration: 5 * 60,
           pomodoroTimeLeft: 25 * 60,
+          sessionStartSeconds: 0,
+          pomodoroOverflow: 0,
         },
         focusGoalHours: 8,
         focusHistory: {},
@@ -60,6 +62,7 @@ export const useStore = create<UserState>()(
         socialLinks: {},
         themePreference: 'system',
         accentColor: null,
+        homeTimezone: null,
         notificationSettings: {
           push: true,
           tasks: true,
@@ -68,7 +71,7 @@ export const useStore = create<UserState>()(
           proactive: true,
         },
         recentXP: null,
-        streakMilestone: null,
+        streakMilestones: [],
         lastMoodLog: null,
         lifeScoreHistory: {},
         lastActiveTimestamp: Date.now(),
@@ -108,21 +111,25 @@ export const useStore = create<UserState>()(
       name: 'lifeos-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => {
-        const { 
-          _syncUnsubscribes, 
-          _hasHydrated, 
+        const {
+          _syncUnsubscribes,
+          _hasHydrated,
           _lastRetryAt,
           _subscriptionGen,
           syncError,
           proactivePrompt,
           recentXP,
-          streakMilestone,
+          streakMilestones,
           lastMoodLog,
-          actions, 
-          ...rest 
+          actions,
+          // C-STORE-1 Fix: NEVER persist PII or sensitive session credentials to AsyncStorage in plaintext.
+          // These will be re-hydrated from the Cloud on login/reconnect.
+          sessionToken,
+          email,
+          phoneNumber,
+          birthday,
+          ...rest
         } = state;
-        // BUG-C4: NEVER persist _syncUnsubscribes or _subscriptionGen
-        // BUG-C5: DO persist pendingActions (it is included in ...rest)
         return rest;
       },
       onRehydrateStorage: () => (state) => {
@@ -136,3 +143,6 @@ export const useStore = create<UserState>()(
 wireSyncErrorPublisher((err) => {
   useStore.setState({ syncError: { label: err.label, message: err.message, timestamp: Date.now() } });
 });
+
+// C-NET-2 FIX: Inject store reference explicitly to resolve circular dependency
+wireStore(useStore);

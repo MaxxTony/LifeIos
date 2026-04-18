@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+import { deleteUser } from 'firebase/auth';
 
 const { height } = Dimensions.get('window');
 
@@ -180,13 +181,34 @@ export default function LoginScreen() {
         const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
         if (!existingProfile) {
-          await dbService.saveUserProfile(user.uid, {
+          // C-AUTH-5 FIX: Retry profile creation 3x before calling setAuth.
+          // If it fails after 3 tries, we rollback by deleting the Firebase Auth user.
+          let profileCreated = false;
+          const profileData = {
             email: user.email,
             userName: user.displayName || 'User',
             ...onboardingData,
             hasCompletedOnboarding: true,
             createdAt: Date.now()
-          });
+          };
+
+          for (let i = 0; i < 3; i++) {
+            try {
+              await dbService.saveUserProfile(user.uid, profileData);
+              profileCreated = true;
+              break;
+            } catch (e: any) {
+              console.warn(`[LifeOS] Profile creation attempt ${i + 1} failed:`, e.message);
+              if (i === 2) {
+                await deleteUser(user); // Rollback Firebase Auth
+                throw new Error('Account setup failed (Network Error). Please try again.');
+              }
+              // Exponential backoff: 1s, 2s, 3s
+              await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+            }
+          }
+
+          if (!profileCreated) return;
 
           // Switch to setup mode to let them confirm/change their name
           setSetupUser(user);
@@ -278,13 +300,32 @@ export default function LoginScreen() {
         const { data: existingProfile } = await dbService.getUserProfile(user.uid);
 
         if (isSignUp || !existingProfile) {
-          await dbService.saveUserProfile(user.uid, {
+          // C-AUTH-5 FIX: Retry profile creation 3x for new email signups
+          let profileCreated = false;
+          const profileData = {
             email: user.email,
             userName: fullName || email.split('@')[0],
             ...onboardingData,
             hasCompletedOnboarding: true,
             createdAt: Date.now()
-          });
+          };
+
+          for (let i = 0; i < 3; i++) {
+            try {
+              await dbService.saveUserProfile(user.uid, profileData);
+              profileCreated = true;
+              break;
+            } catch (e: any) {
+              console.warn(`[LifeOS] Email signup profile creation attempt ${i + 1} failed:`, e.message);
+              if (i === 2) {
+                await deleteUser(user); // Rollback
+                throw new Error('Account setup failed. Please try again.');
+              }
+              await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+            }
+          }
+
+          if (!profileCreated) return;
         }
 
         completeOnboarding();

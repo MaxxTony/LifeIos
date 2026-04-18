@@ -16,6 +16,9 @@ export const MoodFeedbackOverlay = () => {
   useEffect(() => {
     if (lastMoodLog && Date.now() - lastMoodLog.timestamp < 5000) {
       setVisible(true);
+      // C-08 FIX: Auto-dismiss after 5s so overlay can never get stuck.
+      const t = setTimeout(() => handleClose(), 5000);
+      return () => clearTimeout(t);
     }
   }, [lastMoodLog]);
 

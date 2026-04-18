@@ -73,7 +73,8 @@ export default function EditTaskScreen() {
     updateTask(task.id, {
       text: text.trim(),
       priority,
-      date: task.date,   // M-2 FIX: preserve the task's original date, never reset to today
+      date: task.date,
+      repeat: task.repeat,   // C-13 FIX: preserve recurrence config — was silently wiped on every edit
       startTime: formatTime(startTime),
       endTime: formatTime(endTime),
     });
@@ -159,9 +160,9 @@ export default function EditTaskScreen() {
           <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
             <View style={styles.selectLeft}>
               <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Today)</Text>
+              <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Original)</Text>
             </View>
-            <Text style={[styles.selectValue, { color: colors.text }]}>{formatDate(date)}</Text>
+            <Text style={[styles.selectValue, { color: colors.text }]}>{task.date}</Text>
           </View>
 
           <View style={styles.timeRow}>

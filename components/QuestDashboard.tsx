@@ -20,7 +20,7 @@ export const QuestDashboard = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Ionicons name="sparkles" size={18} color={colors.primary} />
+          <Ionicons name="sparkles" size={18} color={colors.primary} accessibilityLabel="Challenges icon" />
           <Text style={[styles.title, { color: colors.text }]}>Daily Challenges</Text>
         </View>
         <Text style={[styles.subTitle, { color: colors.textSecondary }]}>Complete for massive XP 💎</Text>
@@ -38,6 +38,7 @@ export const QuestDashboard = () => {
                 borderColor: quest.completed ? colors.success + '40' : colors.border 
               }
             ]}
+            accessibilityLabel={`Challenge: ${quest.title}. ${quest.completed ? 'Completed.' : 'In progress.'}`}
           >
             <View style={styles.questInfo}>
               <View style={styles.questTextContent}>
@@ -48,17 +49,28 @@ export const QuestDashboard = () => {
                 ]}>
                   {quest.title}
                 </Text>
-                <Text style={[styles.rewardText, { color: colors.primary }]}>+{quest.rewardXP} XP</Text>
+                <Text 
+                  style={[styles.rewardText, { color: colors.primary }]}
+                  accessibilityLabel={`${quest.rewardXP} XP Reward`}
+                >
+                  +{quest.rewardXP} XP
+                </Text>
               </View>
               {quest.completed ? (
-                <View style={[styles.checkCircle, { backgroundColor: colors.success }]}>
+                <View 
+                  style={[styles.checkCircle, { backgroundColor: colors.success }]}
+                  accessibilityLabel="Quest completed"
+                >
                   <Ionicons name="checkmark" size={16} color="white" />
                 </View>
               ) : (
-                <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                <Text 
+                  style={[styles.progressText, { color: colors.textSecondary }]}
+                  accessibilityLabel={`Progress: ${quest.currentCount || 0} of ${quest.targetCount || 0}`}
+                >
                   {quest.type === 'focus' 
-                    ? `${Math.floor(quest.currentCount / 60)}/${Math.floor(quest.targetCount / 60)}m`
-                    : `${quest.currentCount}/${quest.targetCount}`}
+                    ? `${Math.floor((quest.currentCount || 0) / 60)}/${Math.floor((quest.targetCount || 1) / 60)}m`
+                    : `${quest.currentCount || 0}/${quest.targetCount || 0}`}
                 </Text>
               )}
             </View>
@@ -70,7 +82,7 @@ export const QuestDashboard = () => {
                 end={{ x: 1, y: 0 }}
                 style={[
                   styles.progressBarFill, 
-                  { width: `${(quest.currentCount / quest.targetCount) * 100}%` }
+                  { width: `${Math.min(100, Math.max(0, quest.targetCount > 0 ? (quest.currentCount / quest.targetCount) * 100 : 0))}%` }
                 ]}
               />
             </View>

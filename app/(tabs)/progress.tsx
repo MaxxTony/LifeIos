@@ -49,6 +49,13 @@ export default function ProgressScreen() {
   }, [tasks, habits, focusSession.totalSecondsToday]);
   const [selectedHabitIndex, setSelectedHabitIndex] = useState(0);
 
+  // P-7 FIX: Bounds check for chosen habit index (prevents crash on deletion)
+  useEffect(() => {
+    if (habits.length > 0 && selectedHabitIndex >= habits.length) {
+      setSelectedHabitIndex(Math.max(0, habits.length - 1));
+    }
+  }, [habits.length]);
+
   // 1. Calculate Today's Stats
   const todayStr = getTodayLocal();
   

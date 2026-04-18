@@ -44,6 +44,8 @@ export interface FocusSession {
   pomodoroWorkDuration: number; // in seconds
   pomodoroBreakDuration: number; // in seconds
   pomodoroTimeLeft: number; // in seconds
+  sessionStartSeconds: number; // Total seconds today at the moment the current session started
+  pomodoroOverflow: number; // C-02 FIX: carry capped tick overflow to next tick
 }
 
 export interface MoodEntry {
@@ -114,6 +116,7 @@ export interface UserState {
   };
   themePreference: 'light' | 'dark' | 'system';
   accentColor: string | null;
+  homeTimezone: string | null;
   notificationSettings: {
     push: boolean;
     tasks: boolean;
@@ -122,7 +125,8 @@ export interface UserState {
     proactive: boolean;
   };
   recentXP: { amount: number; timestamp: number } | null;
-  streakMilestone: { habitTitle: string; streak: number; timestamp: number } | null;
+  // C-06 FIX: Queue so multiple simultaneous streak milestones all display.
+  streakMilestones: { habitTitle: string; streak: number; timestamp: number }[];
   lastMoodLog: { mood: number; timestamp: number } | null;
   lifeScoreHistory: Record<string, number>;
   lastActiveTimestamp: number;

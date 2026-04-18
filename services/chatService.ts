@@ -7,9 +7,10 @@ import {
   deleteDoc,
   query,
   orderBy,
-  limit,
   serverTimestamp,
   writeBatch,
+  startAfter,
+  limit,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
@@ -47,21 +48,27 @@ export const chatService = {
     }
   },
 
-  // Get messages for a conversation
-  getMessages: async (userId: string, conversationId: string): Promise<ChatMessage[]> => {
+  // Get messages for a conversation (paginated)
+  getMessages: async (userId: string, conversationId: string, lastVisibleEntry?: any): Promise<{ messages: ChatMessage[], lastVisible: any }> => {
     try {
-      const q = query(
-        collection(db, 'users', userId, 'conversations', conversationId, 'messages'),
-        orderBy('createdAt', 'desc'),
-        limit(101)
-      );
+      // C-15 FIX: query() requires a collection ref as first arg every time — cannot chain from an existing Query.
+      const msgCol = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
+      const q = lastVisibleEntry
+        ? query(msgCol, orderBy('createdAt', 'desc'), startAfter(lastVisibleEntry), limit(50))
+        : query(msgCol, orderBy('createdAt', 'desc'), limit(50));
+
       const querySnapshot = await getDocs(q);
+      const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
       const messages = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatMessage[];
-      // Sort back to chronological for the UI
-      return messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      
+      // We return them reversed here (decending), UI handles chronological sorting if needed
+      return { 
+        messages: messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), 
+        lastVisible 
+      };
     } catch (error) {
       console.error('Error getting messages:', error);
-      return [];
+      return { messages: [], lastVisible: null };
     }
   },
 
@@ -114,22 +121,27 @@ export const chatService = {
     }
   },
 
-  // Upload image to Firebase Storage
-  uploadImage: async (userId: string, uri: string): Promise<string> => {
+  // Upload image to Firebase Storage with compression
+  uploadImage: async (
+    userId: string, 
+    uri: string, 
+    onProgress?: (progress: number) => void
+  ): Promise<string> => {
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Not authenticated with Firebase');
+      const { storageService } = require('./storageService');
+      const { manipulateAsync, SaveFormat } = require('expo-image-manipulator');
+
+      // C-MEDIA-12: Resize and compress chat photos to save quota and speed up chat
+      const manipResult = await manipulateAsync(
+        uri,
+        [{ resize: { width: 1200 } }], // Cap width at 1200px
+        { compress: 0.7, format: SaveFormat.JPEG }
+      );
 
       const timestamp = new Date().getTime();
-      const storageRef = ref(storage, `profiles/${userId}/chats_${timestamp}.jpg`);
+      const fileName = `profiles/${userId}/chats_${timestamp}.jpg`;
 
-      // Fetch the local URI as a blob and upload
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      await uploadBytes(storageRef, blob);
-
-      const downloadUrl = await getDownloadURL(storageRef);
-      return downloadUrl;
+      return await storageService.uploadFile(fileName, manipResult.uri, onProgress);
     } catch (error: any) {
       console.error('Image upload failed:', error);
       throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);

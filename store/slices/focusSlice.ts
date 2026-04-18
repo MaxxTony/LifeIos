@@ -10,35 +10,38 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
 
   toggleFocusSession: () => set((state) => {
     const now = Date.now();
-    const perfNow = typeof performance !== 'undefined' ? performance.now() : 0;
 
     if (state.focusSession.isActive) {
-      const elapsed = state.focusSession.lastStartTime ? (now - state.focusSession.lastStartTime) / 1000 : 0;
-      const totalSeconds = Math.max(0, state.focusSession.totalSecondsToday + elapsed);
-      
+      // DELTA FIX: totalSecondsToday is already accurate (updated each tick).
+      // Just add the small gap between the last tick and the stop press (~0-1s).
+      const lastTickDelta = state.focusSession.lastStartTime
+        ? Math.min((now - state.focusSession.lastStartTime) / 1000, 30)
+        : 0;
+      const totalSeconds = Math.max(0, state.focusSession.totalSecondsToday + lastTickDelta);
+
       if (state.userId) {
         fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'stopFocusSync', state.userId);
         import('@/services/presenceService').then(({ presenceService }) => {
           presenceService.leaveFocusRoom(state.userId!);
         });
-        analyticsService.logEvent(state.userId, 'focus_session_stop', { duration: elapsed });
-        
-        // Award XP incrementally (1 XP per 3 min) to match updateFocusTime
-        const oldEarnedXP = Math.floor(state.focusSession.totalSecondsToday / 180);
-        const newEarnedXP = Math.floor(totalSeconds / 180);
-        const earnedDelta = newEarnedXP - oldEarnedXP;
+        analyticsService.logEvent(state.userId, 'focus_session_stop', { duration: totalSeconds });
+
+        // XP awarded based on minutes of focus (1 XP per 3 minutes)
+        const previousXP = Math.floor((state.focusSession.sessionStartSeconds || 0) / 180);
+        const newXP = Math.floor(totalSeconds / 180);
+        const earnedDelta = newXP - previousXP;
         if (earnedDelta > 0) {
           get().actions.addXP(earnedDelta);
         }
       }
 
       return {
-        focusSession: { 
-          ...state.focusSession, 
-          isActive: false, 
-          totalSecondsToday: totalSeconds, 
+        focusSession: {
+          ...state.focusSession,
+          isActive: false,
+          totalSecondsToday: totalSeconds,
           lastStartTime: null,
-          _lastTickPerformanceTime: null 
+          sessionStartSeconds: totalSeconds,
         }
       };
     } else {
@@ -50,11 +53,11 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       }
 
       return {
-        focusSession: { 
-          ...state.focusSession, 
-          isActive: true, 
+        focusSession: {
+          ...state.focusSession,
+          isActive: true,
           lastStartTime: now,
-          _lastTickPerformanceTime: perfNow
+          sessionStartSeconds: state.focusSession.totalSecondsToday,
         }
       };
     }
@@ -62,57 +65,37 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
 
   updateFocusTime: () => set((state) => {
     if (!state.focusSession.isActive) return state;
-    
+
     const now = Date.now();
-    const perfNow = typeof performance !== 'undefined' ? performance.now() : 0;
-    
-    let elapsed = 0;
-    const { _lastTickPerformanceTime, lastStartTime } = state.focusSession as any;
+    const { lastStartTime, totalSecondsToday } = state.focusSession;
 
-    if (_lastTickPerformanceTime) {
-      // M-3 FIX: Use performance.now() for monotonic ticks while app is running.
-      // This is immune to system clock changes (DST jumps).
-      elapsed = (perfNow - _lastTickPerformanceTime) / 1000;
-    } else if (lastStartTime) {
-      // Background reconciliation: use wall-clock time
-      elapsed = (now - lastStartTime) / 1000;
-    }
+    // DELTA-BASED FIX: Calculate only the time since the last tick (not since session start).
+    // This prevents the timer from counting up and fixes minute-jumping.
+    // lastStartTime is updated to 'now' at the end of each tick.
+    const rawDelta = lastStartTime ? (now - lastStartTime) / 1000 : 1;
+    // Cap delta to 30s to handle app backgrounding / JS thread freezes.
+    // Anything > 30s means the app was suspended; the AppState handler reconciles those.
+    const delta = Math.min(Math.max(0, rawDelta), 30);
 
-    // C-11: Drift-aware reconciliation safeguard
-    const MAX_TICK_SECONDS = 30; // Normal ticks are ~1s. 
-    const isBackgroundSync = elapsed > MAX_TICK_SECONDS;
-    
-    // Cap background sync at 24h, cap foreground ticks at 30s
-    const CLAMP_SECONDS = isBackgroundSync ? (24 * 3600) : MAX_TICK_SECONDS;
-    const safeElapsed = Math.min(elapsed, CLAMP_SECONDS);
-
-    if (safeElapsed <= 0) return state;
-
-    const totalSeconds = state.focusSession.totalSecondsToday + safeElapsed;
- 
-    // C-11: Periodic Checkpoint (Every minute) to prevent data loss if app is killed
-    const currentMinute = Math.floor(totalSeconds / 60);
-    const lastMinute = Math.floor(state.focusSession.totalSecondsToday / 60);
-    if (currentMinute > lastMinute && state.userId) {
-      fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'focusCheckpoint', state.userId);
-    }
-
-    // XP Logic: Award 1 XP per 3 minutes (180s) of focus. 
-    // Total is 20 XP per hour (3600s / 180s = 20).
-    const oldEarnedXP = Math.floor(state.focusSession.totalSecondsToday / 180);
-    const newEarnedXP = Math.floor(totalSeconds / 180);
-    const earnedDelta = newEarnedXP - oldEarnedXP;
+    const newTotalSeconds = totalSecondsToday + delta;
 
     let newMode = state.focusSession.pomodoroMode;
-    let newTimeLeft = state.focusSession.pomodoroTimeLeft - elapsed;
-    let newIsActive = state.focusSession.isActive;
+    let newTimeLeft = state.focusSession.pomodoroTimeLeft;
+    let pomodoroPhaseChanged = false;
 
     if (state.focusSession.isPomodoro) {
-      if (newTimeLeft <= 0) {
-        import('expo-haptics').then(Haptics => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+      // COUNTDOWN FIX: decrement pomodoroTimeLeft by delta (not recalculate from scratch)
+      newTimeLeft = Math.max(0, state.focusSession.pomodoroTimeLeft - delta);
+
+      if (newTimeLeft <= 0 && !pomodoroPhaseChanged) {
+        pomodoroPhaseChanged = true;
+        // Fire haptic + notification asynchronously
+        import('expo-haptics').then(Haptics =>
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+        );
         import('@/services/notificationService').then(({ notificationService }) => {
-          const title = newMode === 'work' ? "Focus Session Complete ☕" : "Break Over 🔥";
-          const body = newMode === 'work' ? "Work session complete! Time for a break." : "Break over! Ready to focus?";
+          const title = newMode === 'work' ? '☕ Break Time!' : '🔥 Focus Time!';
+          const body  = newMode === 'work' ? 'Work session complete! Take a break.' : 'Break over! Time to focus.';
           notificationService.sendProactiveAI(title, body);
         });
 
@@ -126,24 +109,21 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       }
     }
 
+    // Quest progress + life score (async, outside set)
     setTimeout(() => {
       const { actions } = get();
-      if (earnedDelta > 0) {
-        actions.addXP(earnedDelta);
-      }
-      actions.checkQuestProgress('focus', totalSeconds);
+      actions.checkQuestProgress('focus', newTotalSeconds);
       actions.updateLifeScoreHistory();
     }, 0);
 
     return {
       focusSession: {
         ...state.focusSession,
-        totalSecondsToday: totalSeconds,
-        lastStartTime: now,
-        _lastTickPerformanceTime: perfNow,
+        totalSecondsToday: newTotalSeconds,
+        lastStartTime: now,          // ← Advance lastStartTime so next tick delta is ~1s
         pomodoroMode: newMode,
         pomodoroTimeLeft: newTimeLeft,
-        isActive: newIsActive
+        pomodoroOverflow: 0,          // No longer needed but keep field for compat
       }
     };
   }),
@@ -153,7 +133,11 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       ...state.focusSession,
       isPomodoro: !state.focusSession.isPomodoro,
       pomodoroMode: 'work',
-      pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
+      // FIX: Always reset to full work duration when toggling Pomodoro on.
+      // Never use stale pomodoroTimeLeft — it may be 0 from a finished previous cycle.
+      pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration,
+      // Reset lastStartTime so the next tick calculates a fresh 1s delta
+      lastStartTime: state.focusSession.isActive ? Date.now() : state.focusSession.lastStartTime,
     }
   })),
 });

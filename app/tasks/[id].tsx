@@ -189,8 +189,10 @@ export default function TaskDetailScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      const updatedSubtasks = task.subtasks?.filter(s => s.id !== st.id);
-                      updateTask(task.id, { subtasks: updatedSubtasks });
+                      const updatedSubtasks = task.subtasks?.filter(s => s.id !== st.id) ?? [];
+                      // C-14 FIX: Recalculate parent completion after subtask removal.
+                      const isNowComplete = updatedSubtasks.length > 0 && updatedSubtasks.every(s => s.completed);
+                      updateTask(task.id, { subtasks: updatedSubtasks, completed: isNowComplete });
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     }}
                   >

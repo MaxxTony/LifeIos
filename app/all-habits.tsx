@@ -13,6 +13,7 @@ import { Alert, Dimensions, Platform, FlatList, StyleSheet, Text, TouchableOpaci
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -156,6 +157,7 @@ function HabitsSkeleton() {
 export default function AllHabitsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
+  const isFocused = useIsFocused();
 
   const habits = useStore(s => s.habits);
   const habitsLoaded = useStore(s => s.syncStatus.habitsLoaded);

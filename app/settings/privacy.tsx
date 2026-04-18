@@ -1,133 +1,69 @@
-import { Spacing, Typography } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Spacing, Typography } from '@/constants/theme';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
 
-export default function PrivacyPolicy() {
+export default function PrivacyPolicyScreen() {
   const colors = useThemeColors();
   const router = useRouter();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-
-
-      <ScrollView contentContainerStyle={styles.content}>
-
-
-        <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last Updated: April 14, 2026</Text>
-
-        <Section title="1. Transparency">
-          We are committed to being transparent about what data we collect and why. LifeOS is designed to work as much as possible on your device directly.
-        </Section>
-
-        <Section title="2. Information We Collect">
-          - **Essential Data**: Tasks, Habits, and Mood entries are collected only to provide the app service and cross-device sync.
-          - **AI Interactions**: Your chat history with the LifeOS AI assistant is stored to maintain context for your assistant.
-        </Section>
-
-        <Section title="3. How We Use Data">
-          Your data is used exclusively to facilitate your productivity experience. We do not use your personal information or productivity patterns for advertising or profiling.
-        </Section>
-
-        <Section title="4. Local-First & Sync">
-          LifeOS uses a local-first architecture. This means your data is stored on your device and synchronized securely via encrypted Firebase channels to your other devices.
-        </Section>
-
-        <Section title="5. Your Control">
-          You can edit, delete, or export your account data at any time through the app settings. Deleting your account permanently removes all your history from our sync servers.
-        </Section>
-
-        <Section title="6. Security">
-          We use industry-standard encryption to protect your data during transit and at rest. Security is a top priority for the LifeOS Team.
-        </Section>
-
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Privacy matters to us just as much as it does to you.
-          </Text>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Privacy Policy</Text>
+          <View style={{ width: 44 }} />
         </View>
-      </ScrollView>
-    </View>
-  );
-}
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const colors = useThemeColors();
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-      <Text style={[styles.sectionText, { color: colors.textSecondary }]}>{children}</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.iconContainer}>
+            <ShieldCheck size={48} color={colors.primary} />
+          </View>
+          
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>1. Information We Collect</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            LifeOS collects minimal data required for synchronization and AI features. This includes your tasks, habits, mood entries, and focus session statistics.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>2. How We Use Data</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            Your data is used to provide real-time cloud synchronization, generate productivity insights via the AI coach, and maintain your experience levels (XP) and streaks.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>3. Data Security</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            We use industry-standard encryption (AES-256) and Firebase's secure authentication to protect your information. Your health and mood data are treated with extra care and are never shared with third parties.
+          </Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>4. AI Processing</Text>
+          <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            Anonymous task and mood data may be processed by AI models to provide coaching advice. We truncate and filter PII wherever possible before processing.
+          </Text>
+
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: colors.textSecondary }]}>Last updated: April 18, 2026</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    marginTop: 40,
-  },
-  backButton: {
-    padding: 4,
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontFamily: 'Outfit-Bold',
-  },
-  content: {
-    padding: Spacing.xl,
-    paddingBottom: 60,
-  },
-  heroBox: {
-    padding: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginBottom: 40,
-    gap: 12,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontFamily: 'Outfit-Bold',
-  },
-  heroDesc: {
-    textAlign: 'center',
-    ...Typography.body,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  lastUpdated: {
-    ...Typography.caption,
-    marginBottom: 32,
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Outfit-Bold',
-    marginBottom: 10,
-  },
-  sectionText: {
-    ...Typography.body,
-    lineHeight: 24,
-    fontSize: 15,
-  },
-  footer: {
-    marginTop: 20,
-    paddingTop: 32,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
-  },
-  footerText: {
-    ...Typography.caption,
-    textAlign: 'center',
-  },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, height: 60 },
+  headerTitle: { ...Typography.h3, fontSize: 18 },
+  backBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { padding: Spacing.lg },
+  iconContainer: { alignItems: 'center', marginVertical: 30 },
+  sectionTitle: { ...Typography.h3, marginTop: 24, marginBottom: 8 },
+  paragraph: { ...Typography.body, lineHeight: 24, marginBottom: 16 },
+  footer: { marginTop: 40, alignItems: 'center', paddingBottom: 40 },
+  footerText: { fontSize: 12, opacity: 0.6 }
 });

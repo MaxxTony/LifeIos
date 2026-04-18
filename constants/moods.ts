@@ -1,11 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 
+export const MoodColors = {
+  awful: '#5B8CFF',
+  meh: '#9B8EC4',
+  okay: '#00D68F',
+  good: '#FFB347',
+  amazing: '#FF6B6B',
+};
+
 export const MOOD_LEVELS = [
-  { level: 1, label: 'Awful', color: '#5B8CFF', bgColor: 'rgba(91,140,255,0.15)', icon: 'sad-outline' as const },
-  { level: 2, label: 'Meh', color: '#9B8EC4', bgColor: 'rgba(155,142,196,0.15)', icon: 'remove-circle-outline' as const },
-  { level: 3, label: 'Okay', color: '#00D68F', bgColor: 'rgba(0,214,143,0.15)', icon: 'happy-outline' as const },
-  { level: 4, label: 'Good', color: '#FFB347', bgColor: 'rgba(255,179,71,0.15)', icon: 'sunny-outline' as const },
-  { level: 5, label: 'Amazing', color: '#FF6B6B', bgColor: 'rgba(255,107,107,0.15)', icon: 'star-outline' as const },
+  { level: 1, label: 'Awful', color: MoodColors.awful, bgColor: 'rgba(91,140,255,0.15)', icon: 'sad-outline' as const },
+  { level: 2, label: 'Meh', color: MoodColors.meh, bgColor: 'rgba(155,142,196,0.15)', icon: 'remove-circle-outline' as const },
+  { level: 3, label: 'Okay', color: MoodColors.okay, bgColor: 'rgba(0,214,143,0.15)', icon: 'happy-outline' as const },
+  { level: 4, label: 'Good', color: MoodColors.good, bgColor: 'rgba(255,179,71,0.15)', icon: 'sunny-outline' as const },
+  { level: 5, label: 'Amazing', color: MoodColors.amazing, bgColor: 'rgba(255,107,107,0.15)', icon: 'star-outline' as const },
 ];
 
 export const ACTIVITIES = [

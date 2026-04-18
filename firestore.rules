@@ -31,7 +31,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read:   if isOwner(userId);
       allow create, update: if isOwner(userId) && ownsPayload(userId)
-        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'totalXP', 'level', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId'])
+        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'totalXP', 'level', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles'])
         && (request.resource.data.totalXP is number || !('totalXP' in request.resource.data));
       allow delete: if isOwner(userId);
 

@@ -249,6 +249,35 @@ export const callAI = onCall(
   }
 );
 
+/**
+ * C-AUTH-2 FIX: Session Revocation
+ * -------------------------------
+ * Invalidates all refresh tokens for the calling user.
+ * This is used during multi-device login to ensure that old sessions
+ * (and potentially stolen ID tokens) are killed.
+ */
+export const revokeOtherSessions = onCall(
+  {
+    region: 'us-central1',
+    memory: '256MiB',
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Sign in required.');
+    }
+
+    try {
+      const uid = request.auth.uid;
+      await admin.auth().revokeRefreshTokens(uid);
+      console.log(`[Auth] Revoked refresh tokens for user: ${uid}`);
+      return { success: true };
+    } catch (err: any) {
+      console.error('[Auth] revokeOtherSessions error:', err);
+      throw new HttpsError('internal', 'Failed to revoke sessions.');
+    }
+  }
+);
+
 // F-7: Scheduled cleanup for unbounded conversation growth
 // Runs every night at midnight to delete messages older than 90 days.
 export const scheduledConversationCleanup = onSchedule('0 0 * * *', async () => {

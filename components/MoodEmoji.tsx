@@ -52,6 +52,8 @@ export function MoodEmoji({ level, size = 40, style, themeOverride }: MoodEmojiP
   const themeImages = THEME_ASSETS[moodTheme as keyof typeof THEME_ASSETS];
   const asset = themeImages ? themeImages[moodLevel as keyof typeof themeImages] : null;
 
+  const moodLabel = moodLevel === 1 ? 'Awful' : moodLevel === 2 ? 'Meh' : moodLevel === 3 ? 'Okay' : moodLevel === 4 ? 'Good' : 'Amazing';
+
   if (!asset) {
     // Fallback to classic emoji if theme not found
     const emojis: Record<number, string> = {
@@ -62,14 +64,22 @@ export function MoodEmoji({ level, size = 40, style, themeOverride }: MoodEmojiP
       5: '🤩',
     };
     return (
-      <View style={[styles.classicContainer, { width: size, height: size }, style]}>
+      <View 
+        style={[styles.classicContainer, { width: size, height: size }, style]}
+        accessibilityLabel={`Mood: ${moodLabel}`}
+        accessibilityRole="image"
+      >
         <Text style={{ fontSize: size * 0.8 }}>{emojis[moodLevel]}</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.imageContainer, { width: size, height: size }, style]}>
+    <View 
+      style={[styles.imageContainer, { width: size, height: size }, style]}
+      accessibilityLabel={`Mood: ${moodLabel}`}
+      accessibilityRole="image"
+    >
       <Image
         source={asset}
         style={{ width: size, height: size }}

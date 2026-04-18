@@ -1,6 +1,7 @@
-import { collection, addDoc, writeBatch, doc } from 'firebase/firestore';
+import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import * as Sentry from '@sentry/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type AnalyticsEvent =
   | 'task_added'
@@ -28,15 +29,24 @@ const HIGH_VALUE_EVENTS: AnalyticsEvent[] = [
   'focus_session_stop',
 ];
 
-// C-11: Internal queue for batching Firestore writes
 let eventQueue: { event: AnalyticsEvent; params: Record<string, any>; timestamp: Date }[] = [];
-const BATCH_SIZE_LIMIT = 5;
+const BATCH_SIZE_LIMIT = 30; // Optimized for high volume (1M+ users)
+const QUEUE_STORAGE_KEY = 'lifeos_analytics_queue';
+
+const persistQueue = async () => {
+  try {
+    await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(eventQueue));
+  } catch (err) {
+    if (__DEV__) console.warn('[Analytics] Failed to persist queue:', err);
+  }
+};
 
 const flushQueue = async (userId: string) => {
   if (eventQueue.length === 0) return;
   
   const eventsToCommit = [...eventQueue];
   eventQueue = []; // Clear immediately to prevent double-processing
+  await persistQueue(); // Sync persistence
   
   try {
     const batch = writeBatch(db);
@@ -56,10 +66,12 @@ export const analyticsService = {
   logEvent: async (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {
     // 1. ALWAYS ADD TO SENTRY (Perfect for debugging, free on most plans)
     try {
+      // M-06 FIX: Strip PII fields before sending to Sentry. Only send safe metadata.
+      const { title, text, note, reason, body, content, ...safeParams } = params;
       Sentry.addBreadcrumb({
         category: 'analytics',
         message: event,
-        data: { userId: userId || 'anonymous', ...params },
+        data: { userId: userId || 'anonymous', ...safeParams },
         level: 'info',
       });
     } catch (err) {
@@ -78,6 +90,7 @@ export const analyticsService = {
       params,
       timestamp: new Date(),
     });
+    await persistQueue();
 
     // Flush if limit reached
     if (eventQueue.length >= BATCH_SIZE_LIMIT) {
@@ -101,5 +114,17 @@ export const analyticsService = {
   // Manual flush (e.g. on app background or logout)
   forceFlush: async (userId: string | null) => {
     if (userId) await flushQueue(userId);
+  },
+
+  initAnalyticsService: async () => {
+    try {
+      const persisted = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
+      if (persisted) {
+        eventQueue = JSON.parse(persisted);
+        if (__DEV__) console.log(`[Analytics] Recovered ${eventQueue.length} events from storage.`);
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[Analytics] Failed to init service:', err);
+    }
   }
 };

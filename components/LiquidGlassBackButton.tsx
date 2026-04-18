@@ -20,6 +20,8 @@ export function LiquidGlassBackButton() {
         }
       ]}
       activeOpacity={0.7}
+      accessibilityLabel="Go back"
+      accessibilityRole="button"
     >
       <BlurView 
         intensity={30} 
@@ -38,9 +40,9 @@ export function LiquidGlassBackButton() {
 
 const styles = StyleSheet.create({
   container: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
     marginLeft: Platform.OS === 'ios' ? 0 : 8,

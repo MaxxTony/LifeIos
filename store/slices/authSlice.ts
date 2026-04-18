@@ -4,10 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
-import { fireSync } from '../syncHelper';
-import { migrateTasks } from '../helpers';
+import { fireSync, isSyncingGlobal, setSyncingGlobal } from '../syncHelper';
+import { migrateTasks, computeLevel } from '../helpers';
 import Toast from 'react-native-toast-message';
 import { query, where, orderBy, limit, documentId } from 'firebase/firestore';
+import { setSentryUser } from '@/services/crashAnalytics';
 
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
 const LOGGED_OUT_STATE: Partial<UserState> = {
@@ -30,6 +31,8 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
     pomodoroWorkDuration: 25 * 60,
     pomodoroBreakDuration: 5 * 60,
     pomodoroTimeLeft: 25 * 60,
+    sessionStartSeconds: 0,
+    pomodoroOverflow: 0,
   },
   focusHistory: {},
   focusGoalHours: 8,
@@ -45,10 +48,18 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   socialLinks: {},
   moodTheme: null,
   themePreference: 'system' as const,
-  accentColor: null,
+  accentColor: null as string | null,
+  homeTimezone: null as string | null,
+  notificationSettings: {
+    push: true,
+    tasks: true,
+    habits: true,
+    mood: true,
+    proactive: true,
+  },
   onboardingData: { struggles: [] },
   recentXP: null,
-  streakMilestone: null,
+  streakMilestones: [],
   lastMoodLog: null,
   lifeScoreHistory: {},
   totalXP: 0,
@@ -98,6 +109,8 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       _syncUnsubscribes: [],
       _subscriptionGen: state._subscriptionGen + 1,
     }));
+    // C-18 FIX: Tag Sentry session so crashes are attributed to the correct user.
+    setSentryUser(userId, userName);
     get().actions.subscribeToCloud();
   },
 
@@ -119,7 +132,15 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
   },
 
   logout: async () => {
-    get()._syncUnsubscribes.forEach(unsub => {
+    // C-09 FIX: Clean up presence before clearing state so we have userId available.
+    const state = get();
+    if (state.focusSession?.isActive && state.userId) {
+      try {
+        const { presenceService } = await import('@/services/presenceService');
+        await presenceService.leaveFocusRoom(state.userId);
+      } catch (_) {}
+    }
+    state._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
     // C-1: Clear AsyncStorage immediately to prevent data leak window
@@ -128,6 +149,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     } catch (err) {
       console.warn('[LifeOS] Failed to clear storage on logout:', err);
     }
+    setSentryUser(null);
     set(LOGGED_OUT_STATE);
   },
 
@@ -161,154 +183,176 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       if (!fromCache) return false;
       const now = Date.now();
       const { lastCloudSync } = get().syncStatus;
-      // Ignore "offline" (cache) status within first 5s of sync session to avoid startup flicker
       if (now - syncStartedAt < 5000) return false;
-      // If we had a successful cloud sync in the last 30s, trust the connection is likely still okay
       if (lastCloudSync && now - lastCloudSync < 30000) return false;
       return true;
     };
 
-    // Root Profile Subscription
-    const unsubRoot = dbService.subscribeToUserData(userId, (data) => {
-      if (!data) {
-        if (!get().syncStatus.isOffline) {
-          console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
-          authService.logout();          
-          get().actions.setAuth(null, null); 
+    // C-STORE-4 FIX: Collect ALL unsubscribers in a local array first.
+    // If an error occurs midway, we still update the store with what we have
+    // so they can be cleaned up on the next logout/login.
+    const collected: (() => void)[] = [];
+
+    try {
+      // Root Profile Subscription
+      const unsubRoot = dbService.subscribeToUserData(
+        userId,
+        (data) => {
+          if (!data) {
+            console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
+            authService.logout();
+            get().actions.setAuth(null, null);
+            return;
+          }
+
+          const currentToken = get().sessionToken;
+          if (data.sessionToken && currentToken && data.sessionToken !== currentToken) {
+            console.warn('[LifeOS] sessionToken mismatch - logging out device.');
+            Toast.show({
+              type: 'error',
+              text1: 'Session Expired',
+              text2: 'You have been logged in on another device.'
+            });
+            authService.logout();
+            get().actions.setAuth(null, null);
+            return;
+          }
+
+          set((state) => ({
+            userName: data.userName || get().userName,
+            moodTheme: data.moodTheme || get().moodTheme,
+            focusGoalHours: data.focusGoalHours || get().focusGoalHours,
+            bio: data.bio !== undefined ? data.bio : get().bio,
+            location: data.location !== undefined ? data.location : get().location,
+            occupation: data.occupation !== undefined ? data.occupation : get().occupation,
+            avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : get().avatarUrl,
+            phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : get().phoneNumber,
+            birthday: data.birthday !== undefined ? data.birthday : get().birthday,
+            pronouns: data.pronouns !== undefined ? data.pronouns : get().pronouns,
+            skills: data.skills !== undefined ? data.skills : get().skills,
+            socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
+            accentColor: data.accentColor || get().accentColor,
+            homeTimezone: data.homeTimezone || get().homeTimezone,
+            hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
+            syncStatus: {
+              ...state.syncStatus,
+              isOffline: checkOfflineStatus(!!data._fromCache),
+              lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
+            }
+          }));
+        },
+        (error) => {
+          if (error.code === 'permission-denied') {
+            console.warn('[LifeOS] Firestore permission denied for root user - forcing logout.');
+            authService.logout();
+            get().actions.setAuth(null, null);
+          }
         }
-        return;
-      }
+      );
+      collected.push(unsubRoot);
 
-      const currentToken = get().sessionToken;
-      if (data.sessionToken && currentToken && data.sessionToken !== currentToken) {
-        console.warn('[LifeOS] sessionToken mismatch - logging out device.');
-        Toast.show({
-          type: 'error',
-          text1: 'Session Expired',
-          text2: 'You have been logged in on another device.'
-        });
-        authService.logout();
-        get().actions.setAuth(null, null);
-        return;
-      }
+      // Tasks Subscription
+      const unsubTasks = dbService.subscribeToCollection(
+        userId,
+        'tasks',
+        (docs, metadata) => {
+          if (isStale()) return;
+          set((state) => ({
+            tasks: migrateTasks(docs as Task[]),
+            syncStatus: {
+              ...state.syncStatus,
+              tasksLoaded: true,
+              isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+            }
+          }));
+        },
+        (ref) => query(ref, where('date', '>=', syncWindowStr))
+      );
+      collected.push(unsubTasks);
 
-      set((state) => ({
-        userName: data.userName || get().userName,
-        moodTheme: data.moodTheme || get().moodTheme,
-        focusGoalHours: data.focusGoalHours || get().focusGoalHours,
-        bio: data.bio !== undefined ? data.bio : get().bio,
-        location: data.location !== undefined ? data.location : get().location,
-        occupation: data.occupation !== undefined ? data.occupation : get().occupation,
-        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : get().avatarUrl,
-        phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : get().phoneNumber,
-        birthday: data.birthday !== undefined ? data.birthday : get().birthday,
-        pronouns: data.pronouns !== undefined ? data.pronouns : get().pronouns,
-        skills: data.skills !== undefined ? data.skills : get().skills,
-        socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
-        accentColor: data.accentColor || get().accentColor,
-        hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
-        syncStatus: {
-          ...state.syncStatus,
-          isOffline: checkOfflineStatus(!!data._fromCache),
-          lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
-        }
-      }));
-    });
+      // Habits Subscription
+      const unsubHabits = dbService.subscribeToCollection(
+        userId,
+        'habits',
+        (docs, metadata) => {
+          if (isStale()) return;
+          set((state) => ({
+            habits: docs as Habit[],
+            syncStatus: {
+              ...state.syncStatus,
+              habitsLoaded: true,
+              isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+            }
+          }));
+        },
+        (ref) => query(ref, orderBy('createdAt', 'desc'), limit(500))
+      );
+      collected.push(unsubHabits);
 
-    // Tasks Subscription
-    const unsubTasks = dbService.subscribeToCollection(
-      userId, 
-      'tasks', 
-      (docs, metadata) => {
-        if (isStale()) return;
-        set((state) => ({ 
-          tasks: migrateTasks(docs as Task[]),
-          syncStatus: { 
-            ...state.syncStatus, 
-            tasksLoaded: true,
-            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
-          }
-        }));
-      }, 
-      (ref) => query(ref, where('date', '>=', syncWindowStr))
-    );
+      // Mood History Subscription
+      const unsubMood = dbService.subscribeToCollection(
+        userId,
+        'moodHistory',
+        (docs, metadata) => {
+          const map: Record<string, MoodEntry> = {};
+          docs.forEach(doc => {
+            const { id, ...entry } = doc as { id: string } & MoodEntry;
+            map[id] = entry;
+          });
+          const today = getTodayLocal();
+          set(state => ({
+            moodHistory: { ...state.moodHistory, ...map },
+            mood: map[today]?.mood ?? state.mood,
+            syncStatus: {
+              ...state.syncStatus,
+              moodLoaded: true,
+              isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+            }
+          }));
+        },
+        (ref) => query(ref, where(documentId(), '>=', windowStartStr))
+      );
+      collected.push(unsubMood);
 
-    // Habits Subscription
-    const unsubHabits = dbService.subscribeToCollection(
-      userId, 
-      'habits', 
-      (docs, metadata) => {
-        if (isStale()) return;
-        set((state) => ({ 
-          habits: docs as Habit[],
-          syncStatus: { 
-            ...state.syncStatus, 
-            habitsLoaded: true,
-            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
-          }
-        }));
-      }, 
-      (ref) => query(ref, orderBy('createdAt', 'desc'), limit(500))
-    );
+      // Focus History Subscription
+      const unsubFocus = dbService.subscribeToCollection(
+        userId,
+        'focusHistory',
+        (docs, metadata) => {
+          if (isStale()) return;
+          const map: Record<string, number> = {};
+          docs.forEach(doc => {
+            map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0;
+          });
+          set((state) => ({
+            focusHistory: map,
+            syncStatus: {
+              ...state.syncStatus,
+              focusLoaded: true,
+              isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
+            }
+          }));
+        },
+        (ref) => query(ref, where(documentId(), '>=', windowStartStr))
+      );
+      collected.push(unsubFocus);
 
-    // Mood History Subscription
-    const unsubMood = dbService.subscribeToCollection(
-      userId, 
-      'moodHistory', 
-      (docs, metadata) => {
-        const map: Record<string, MoodEntry> = {};
-        docs.forEach(doc => { 
-          const { id, ...entry } = doc as { id: string } & MoodEntry; 
-          map[id] = entry; 
-        });
-        const today = getTodayLocal();
-        set(state => ({
-          moodHistory: { ...state.moodHistory, ...map },
-          mood: map[today]?.mood ?? state.mood,
-          syncStatus: { 
-            ...state.syncStatus, 
-            moodLoaded: true,
-            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
-          }
-        }));
-      }, 
-      (ref) => query(ref, where(documentId(), '>=', windowStartStr))
-    );
-
-    // Focus History Subscription
-    const unsubFocus = dbService.subscribeToCollection(
-      userId,
-      'focusHistory',
-      (docs, metadata) => {
-        if (isStale()) return;
-        const map: Record<string, number> = {};
-        docs.forEach(doc => {
-          map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0;
-        });
-        set((state) => ({
-          focusHistory: map,
-          syncStatus: {
-            ...state.syncStatus,
-            focusLoaded: true,
-            isOffline: checkOfflineStatus(metadata?.fromCache ?? state.syncStatus.isOffline)
-          }
-        }));
-      },
-      (ref) => query(ref, where(documentId(), '>=', windowStartStr))
-    );
-
-    // Quests Subscription
-    const unsubQuests = dbService.subscribeToCollection(
-      userId, 
-      'dailyQuests', 
-      (docs) => {
-        if (isStale()) return;
-        set({ dailyQuests: docs as any[] });
-      },
-      (ref) => query(ref, where(documentId(), '>=', `quest-${windowStartStr}`))
-    );
-
-    set({ _syncUnsubscribes: [unsubRoot, unsubTasks, unsubHabits, unsubMood, unsubFocus, unsubQuests] });
+      // Quests Subscription
+      const unsubQuests = dbService.subscribeToCollection(
+        userId,
+        'dailyQuests',
+        (docs) => {
+          if (isStale()) return;
+          set({ dailyQuests: docs as any[] });
+        },
+        (ref) => query(ref, where(documentId(), '>=', `quest-${windowStartStr}`))
+      );
+      collected.push(unsubQuests);
+    } catch (err) {
+      console.error('[LifeOS] Sync subscription set failed:', err);
+    } finally {
+      set({ _syncUnsubscribes: collected });
+    }
   },
 
   hydrateFromCloud: async () => {
@@ -335,8 +379,20 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             skills: data.skills || null,
             socialLinks: data.socialLinks || {},
             accentColor: data.accentColor || get().accentColor,
+            homeTimezone: data.homeTimezone || null,
             hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough
           });
+        }
+
+        // M-12 FIX: Server-wins for XP — take max(local, server) so the higher value always wins.
+        // Prevents cheating rollbacks when re-logging in and prevents data loss from multi-device use.
+        const statsDoc = await dbService.getCollectionDoc(userId, 'stats', 'global');
+        if (statsDoc) {
+          const serverXP: number = statsDoc.totalXP || 0;
+          const localXP = get().totalXP;
+          if (serverXP > localXP) {
+            set({ totalXP: serverXP, level: computeLevel(serverXP) });
+          }
         }
       } catch (err: any) {
         console.error('Cloud hydration failed:', err);
@@ -348,37 +404,50 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
   retrySync: async () => {
     const now = Date.now();
     if (now - get()._lastRetryAt < 10000) return;
+    
+    // C-SYNC-3 FIX: Re-entrancy lock
+    if (isSyncingGlobal) {
+      console.log('[LifeOS Sync] Sync already in progress, skipping retry.');
+      return;
+    }
+    setSyncingGlobal(true);
+
     set({ syncError: null, _lastRetryAt: now });
     
     const { userId, pendingActions } = get();
-    if (!userId) return;
-
-    // C-5: Process Pending Actions Queue
-    if (pendingActions.length > 0) {
-      console.log(`[LifeOS Sync] Processing ${pendingActions.length} pending actions...`);
-      for (const action of pendingActions) {
-        try {
-          if (action.collection === 'tasks') {
-            if (action.type === 'delete') await dbService.deleteTask(userId, action.id);
-            else await dbService.saveTask(userId, action.payload);
-          } else if (action.collection === 'habits') {
-            if (action.type === 'delete') await dbService.deleteHabit(userId, action.id);
-            else await dbService.saveHabit(userId, action.payload);
-          }
-          set(state => ({
-            pendingActions: state.pendingActions.filter(a => a.id !== action.id)
-          }));
-        } catch (err) {
-          console.warn(`[LifeOS Sync] Retry failed for ${action.id}:`, err);
-        }
-      }
+    if (!userId) {
+      setSyncingGlobal(false);
+      return;
     }
 
     try {
+      // C-5: Process Pending Actions Queue
+      if (pendingActions.length > 0) {
+        console.log(`[LifeOS Sync] Processing ${pendingActions.length} pending actions...`);
+        for (const action of pendingActions) {
+          try {
+            if (action.collection === 'tasks') {
+              if (action.type === 'delete') await dbService.deleteTask(userId, action.id);
+              else await dbService.saveTask(userId, action.payload);
+            } else if (action.collection === 'habits') {
+              if (action.type === 'delete') await dbService.deleteHabit(userId, action.id);
+              else await dbService.saveHabit(userId, action.payload);
+            }
+            set(state => ({
+              pendingActions: state.pendingActions.filter(a => a.id !== action.id)
+            }));
+          } catch (err) {
+            console.warn(`[LifeOS Sync] Retry failed for ${action.id}:`, err);
+          }
+        }
+      }
+
       get().actions.subscribeToCloud();
     } catch (err: any) {
       console.error('[LifeOS] retrySync failed:', err?.message || err);
       set({ syncError: { label: 'retrySync', message: err?.message || String(err), timestamp: Date.now() } });
+    } finally {
+      setSyncingGlobal(false);
     }
   },
 

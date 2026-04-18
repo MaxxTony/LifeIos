@@ -9,7 +9,7 @@ const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!USE_AI_PROXY && !__DEV__) {
-  console.error('[LifeOS] CRITICAL: Client-side AI key detected in non-dev build. Proxy is MANDATORY for production.');
+  throw new Error('[FATAL] Gemini API key must not be used directly in production. USE_AI_PROXY must be true.');
 }
 
 const genAI = (GEMINI_API_KEY && (!USE_AI_PROXY || __DEV__)) ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
@@ -18,34 +18,57 @@ const getCurrentAppContext = () => {
   const state = useStore.getState();
   const today = getTodayLocal();
 
+  // C-AI-2 FIX: Truncate context to only include essential high-level data
+  // Limit to top 5 tasks and top 5 habits to prevent token bloat and PII leakage
+  const tasks = state.tasks
+    .filter(t => t.date === today)
+    .sort((a, b) => {
+      const pMap = { high: 0, medium: 1, low: 2 };
+      return (pMap[a.priority as keyof typeof pMap] ?? 1) - (pMap[b.priority as keyof typeof pMap] ?? 1);
+    })
+    .slice(0, 5);
+
+  const habits = state.habits.slice(0, 5);
+
+  // Limit mood history to last 7 days only
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d.toISOString().split('T')[0];
+  });
+  
+  const moodHistory: Record<string, any> = {};
+  last7Days.forEach(day => {
+    if (state.moodHistory[day]) moodHistory[day] = state.moodHistory[day].mood;
+  });
+
   const context = {
     user: {
       name: state.userName || 'User',
-      struggles: state.onboardingData.struggles,
+      struggles: state.onboardingData.struggles.slice(0, 3),
     },
     today: {
       date: today,
-      tasks: state.tasks.filter(t => t.date === today).map(t => ({
+      tasks: tasks.map(t => ({
         id: t.id,
         text: t.text,
         priority: t.priority,
         status: t.status,
-        timing: t.startTime ? `${t.startTime} - ${t.endTime}` : 'No time set'
       })),
       focusTimeMinutes: Math.round(state.focusSession.totalSecondsToday / 60),
-      focusGoalHours: state.focusGoalHours,
-      currentMood: state.moodHistory[today]?.mood || 'Not logged'
     },
-    habits: state.habits.map(h => ({
+    habits: habits.map(h => ({
       id: h.id,
       title: h.title,
-      frequency: h.frequency,
       isCompletedToday: h.completedDays.includes(today),
-      streak: state.actions.getStreak(h.id)
-    }))
+    })),
+    recentMoods: moodHistory
   };
 
-  return `CURRENT APP STATE SNAPSHOT (${today}):\n${JSON.stringify(context, null, 2)}`;
+  const snapshot = `CURRENT APP STATE SNAPSHOT (${today}):\n${JSON.stringify(context, null, 2)}`;
+  
+  // C-AI-2: Enforce hard character limit to prevent proxy failures & protect PII
+  return snapshot.length > 2000 ? snapshot.substring(0, 1997) + '...' : snapshot;
 };
 
 const tools = [
@@ -185,10 +208,18 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
         });
       }
 
-      // We could call the proxy again with tool results to get a final text response,
-      // but for simplicity and consistency with current direct implementation, 
-      // we'll just confirm action success.
-      return 'Done! I have updated your system with those changes.';
+      // C-21 FIX: Build a context-aware summary from actual tool results instead of a hardcoded string.
+      const successParts = toolResults
+        .filter(r => r.response?.success !== false)
+        .map(r => r.response?.message || r.name);
+      const failParts = toolResults
+        .filter(r => r.response?.success === false)
+        .map(r => r.response?.message || r.name);
+
+      const parts: string[] = [];
+      if (successParts.length > 0) parts.push(successParts.join(' '));
+      if (failParts.length > 0) parts.push(`Could not complete: ${failParts.join(', ')}.`);
+      return parts.join(' ') || 'Done! I have updated your system.';
     }
 
     return data.text || 'Sorry, I could not generate a response.';

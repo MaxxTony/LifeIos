@@ -16,9 +16,9 @@ import { AppState, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-// Importing the service registers the background task definition at module load time.
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { AI_COACH_TASK, registerAICoachTask, runAICoachTask } from '@/services/aiCoachService';
+import { registerAllBackgroundTasks } from '@/services/backgroundService';
+import { analyticsService } from '@/services/analyticsService';
 import { initCrashAnalytics } from '@/services/crashAnalytics';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Outfit_700Bold } from '@expo-google-fonts/outfit';
@@ -26,9 +26,6 @@ import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 
 
 initCrashAnalytics();
-
-// C-8: Redundant definition to ensure Expo Router handles background wake-ups correctly.
-TaskManager.defineTask(AI_COACH_TASK, runAICoachTask);
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -47,6 +44,7 @@ export default function RootLayout() {
   const systemColorScheme = useColorScheme();
   const appState = useRef(AppState.currentState);
   const wasAuthenticated = useRef(false);
+  const isValidatingSession = useRef(false); // C-AUTH-6 FIX: Guard against double-fires
   const router = useRouter();
 
   // Start the global focus timer
@@ -104,6 +102,19 @@ export default function RootLayout() {
     'Outfit-Bold': Outfit_700Bold,
   });
 
+  // Watchdog for hydration stuck
+  useEffect(() => {
+    if (!_hasHydrated) {
+      const timer = setTimeout(() => {
+        if (!useStore.getState()._hasHydrated) {
+          console.error('[LifeOS Watchdog] Hydration stuck for 10s. Forcing reset/logout.');
+          useStore.getState().actions.logout();
+        }
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [_hasHydrated]);
+
   useEffect(() => {
     if (loaded || error) {
       SplashScreen.hideAsync();
@@ -114,6 +125,21 @@ export default function RootLayout() {
   useEffect(() => {
     if (_hasHydrated) {
       performDailyReset();
+      useStore.getState().actions.generateDailyQuests();
+      analyticsService.initAnalyticsService();
+
+      // C-12 FIX: Detect network loss via periodic fetch ping and update isOffline.
+      const checkConnection = async () => {
+        try {
+          await fetch('https://www.google.com/generate_204', { method: 'HEAD', cache: 'no-store' });
+          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: false } }));
+        } catch {
+          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: true } }));
+        }
+      };
+      const connInterval = setInterval(checkConnection, 15000);
+      checkConnection();
+      return () => clearInterval(connInterval);
     }
   }, [_hasHydrated]);
 
@@ -159,30 +185,41 @@ export default function RootLayout() {
         notificationService.scheduleComebackNotifications();
       });
 
-      // Phase 4: Register Background AI Coach
-      registerAICoachTask();
+      // Phase 4: Register Background Services
+      registerAllBackgroundTasks();
     }
   }, [_hasHydrated]);
 
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
-      if (user) {
-        // Double check session validity (handles server-side deletion)
-        const isValid = await authService.validateSession(user);
+      // C-AUTH-6 FIX: Guard against double-fires during signup flows
+      if (isValidatingSession.current) {
+        console.log('[LifeOS] onAuthStateChanged ignored - already validating session.');
+        return;
+      }
+      isValidatingSession.current = true;
 
-        if (!isValid) {
-          await authService.logout();
+      try {
+        if (user) {
+          // Double check session validity (handles server-side deletion)
+          const isValid = await authService.validateSession(user);
+
+          if (!isValid) {
+            await authService.logout();
+            setAuth(null, null);
+            return;
+          }
+
+          // setAuth already calls subscribeToCloud() which sets up real-time listeners
+          // for tasks, habits, mood, focus and the root profile — no separate
+          // hydrateFromCloud() call needed (would race with the real-time listeners).
+          setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
+        } else {
           setAuth(null, null);
-          return;
         }
-
-        // setAuth already calls subscribeToCloud() which sets up real-time listeners
-        // for tasks, habits, mood, focus and the root profile — no separate
-        // hydrateFromCloud() call needed (would race with the real-time listeners).
-        setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
-      } else {
-        setAuth(null, null);
+      } finally {
+        isValidatingSession.current = false;
       }
     });
 
@@ -206,8 +243,24 @@ export default function RootLayout() {
     if (!isOffline && hasHydrated && wasOffline === true) {
       console.log('[LifeOS] Connection restored. Triggering automatic sync engine...');
       retrySync();
+
+      // C-AUTH-3 FIX: Proactive auth refresh on network recovery
+      // This catches users whose tokens expired or were revoked while offline.
+      if (authService.currentUser) {
+        authService.currentUser.getIdToken(true).catch(e => {
+          if (
+            e.code === 'auth/user-not-found' || 
+            e.code === 'auth/user-token-expired' || 
+            e.code === 'auth/id-token-revoked'
+          ) {
+            console.warn('[LifeOS] Auth token invalid on reconnect - logging out.');
+            authService.logout(); // Ensure Firebase is also signed out
+            setAuth(null, null);
+          }
+        });
+      }
     }
-  }, [isOffline, hasHydrated, retrySync]);
+  }, [isOffline, hasHydrated, retrySync, setAuth]);
 
   useEffect(() => {
     // Listen for foreground notifications
@@ -233,7 +286,8 @@ export default function RootLayout() {
       if (data?.habitId) {
         router.push(`/habit/${data.habitId}`);
       } else if (data?.taskId) {
-        router.push(`/tasks/${data.taskId}`);
+        // C-22 FIX: Use explicit params for reliable Expo Router dynamic route matching.
+        router.push({ pathname: '/tasks/[id]', params: { id: data.taskId } } as any);
       } else if (data?.type === 'PROACTIVE_AI') {
         router.push('/ai-chat');
       }

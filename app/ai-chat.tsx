@@ -53,11 +53,20 @@ export default function AIChatScreen() {
   const [initialLoading, setInitialLoading] = useState(false);
   const [attachedImage, setAttachedImage] = useState<{ uri: string, base64: string, mimeType: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const attachmentSheetRef = useRef<BottomSheetModal>(null);
+  const isMounted = useRef(true);
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!currentConversationId && messages.length === 0) {
@@ -82,10 +91,30 @@ export default function AIChatScreen() {
     if (!userId || id === currentConversationId) return;
     setInitialLoading(true);
     setCurrentConversationId(id);
-    const history = await chatService.getMessages(userId, id);
-    setMessages(history);
+    const result = await chatService.getMessages(userId, id);
+    setMessages(result.messages);
+    setLastVisibleDoc(result.lastVisible);
+    setHasMore(result.messages.length === 50);
     setInitialLoading(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  const loadMoreMessages = async () => {
+    if (!userId || !currentConversationId || !lastVisibleDoc || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    const result = await chatService.getMessages(userId, currentConversationId, lastVisibleDoc);
+    
+    if (result.messages.length > 0) {
+      // M-08 FIX: Cap total in-memory messages at 200 to prevent JS thread lag on long sessions.
+      const MAX_MESSAGES = 200;
+      setMessages(prev => [...result.messages, ...prev].slice(-MAX_MESSAGES));
+      setLastVisibleDoc(result.lastVisible);
+      setHasMore(result.messages.length === 50);
+    } else {
+      setHasMore(false);
+    }
+    setIsLoadingMore(false);
   };
 
   const handleNewChat = () => {
@@ -138,12 +167,12 @@ export default function AIChatScreen() {
     try {
       let finalImageUrl = undefined;
       if (currentAttachedImage) {
-        setUploading(true);
+        if (isMounted.current) setUploading(true);
         finalImageUrl = await chatService.uploadImage(
           userId,
           currentAttachedImage.uri
         );
-        setUploading(false);
+        if (isMounted.current) setUploading(false);
       }
 
       // M-4 FIX: Cap history at last 20 messages to control token cost/latency.
@@ -206,9 +235,11 @@ export default function AIChatScreen() {
       };
       setMessages(prev => [...prev, errMsg]);
     } finally {
-      setLoading(false);
-      setUploading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+      if (isMounted.current) {
+        setLoading(false);
+        setUploading(false);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+      }
     }
   };
 
@@ -261,11 +292,28 @@ export default function AIChatScreen() {
             ]}
             showsVerticalScrollIndicator={false}
           >
-            {messages.length > 100 && (
+            {hasMore && (
+              <TouchableOpacity 
+                onPress={loadMoreMessages}
+                disabled={isLoadingMore}
+                style={[styles.loadMoreBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+              >
+                {isLoadingMore ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <IconSymbol name="arrow.up.circle" size={16} color={colors.primary} />
+                    <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load older messages</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {!hasMore && messages.length >= 50 && (
               <View style={[styles.limitIndicator, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
                 <IconSymbol name="info.circle" size={14} color={colors.primary} />
                 <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                  Showing most recent 100 messages to maintain speed.
+                  All messages loaded.
                 </Text>
               </View>
             )}
@@ -644,5 +692,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 8,
+  },
+  loadMoreText: {
+    fontFamily: 'Outfit-Medium',
+    fontSize: 14,
   },
 });

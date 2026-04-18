@@ -61,13 +61,15 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         const today = dateStr || getTodayLocal();
         if (h.pausedUntil && today <= h.pausedUntil) return h;
 
-        const TWO_YEARS_AGO = formatLocalDate(new Date(Date.now() - 2 * 365 * 86400000));
-        const isCompleted = h.completedDays.includes(today);
+        const completedSet = new Set(h.completedDays);
+        const isCompleted = completedSet.has(today);
+        
         let newCompletedDays = isCompleted
           ? h.completedDays.filter(d => d !== today)
           : [...h.completedDays, today];
-
+        
         // Z-3: Prune stale completions (performance & doc size)
+        const TWO_YEARS_AGO = formatLocalDate(new Date(Date.now() - 2 * 365 * 86400000));
         if (newCompletedDays.length > 2000) {
           newCompletedDays = newCompletedDays.sort().slice(-2000);
         }
@@ -76,8 +78,8 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         let currentStreak = 0;
         const todayForStreak = new Date();
         const todayStrForStreak = formatLocalDate(todayForStreak);
-        const completedSet = new Set(newCompletedDays);
-        const startOffset = completedSet.has(todayStrForStreak) ? 0 : 1;
+        const newCompletedSet = new Set(newCompletedDays);
+        const startOffset = newCompletedSet.has(todayStrForStreak) ? 0 : 1;
         
         for (let i = startOffset; i < 365; i++) {
           const d = new Date();
@@ -87,7 +89,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
           if (h.pausedUntil && dStr <= h.pausedUntil) continue;
 
-          if (completedSet.has(dStr)) {
+          if (newCompletedSet.has(dStr)) {
             currentStreak++;
           } else {
             break;
@@ -95,20 +97,19 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         }
 
         // XP guard: only award once per habit per calendar day.
-        // xpAwardedDays is never trimmed when unchecking, so re-completing the same
-        // day never grants a second award.
         const xpAwardedDays = h.xpAwardedDays || [];
-        const alreadyAwardedToday = xpAwardedDays.includes(today);
+        const xpAwardedSet = new Set(xpAwardedDays);
+        const alreadyAwardedToday = xpAwardedSet.has(today);
         const shouldAwardXP = !isCompleted && !alreadyAwardedToday;
 
         let newXpAwardedDays = xpAwardedDays;
         if (shouldAwardXP) {
-          // Keep the list lean — prune anything older than 180 days
-          const cutoff = formatLocalDate(new Date(Date.now() - 180 * 86400000));
+          // C-20 FIX: Extended prune window to 365 days (was 180, allowing re-award of old dates).
+          const cutoff = formatLocalDate(new Date(Date.now() - 365 * 86400000));
           newXpAwardedDays = [...xpAwardedDays, today]
             .filter(d => d >= cutoff)
             .sort()
-            .slice(-180);
+            .slice(-365);
         }
 
         const updatedHabit: Habit = {
@@ -130,11 +131,11 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           );
         }
 
-        let streakMilestone = null;
+        let detectedMilestone: { habitTitle: string; streak: number; timestamp: number } | null = null;
         if (!isCompleted) {
           const milestones = [7, 14, 30, 50, 100];
           if (milestones.includes(currentStreak)) {
-            streakMilestone = { habitTitle: h.title, streak: currentStreak, timestamp: Date.now() };
+            detectedMilestone = { habitTitle: h.title, streak: currentStreak, timestamp: Date.now() };
           }
           // Only award XP if not already given today (idempotent guard)
           if (shouldAwardXP) {
@@ -145,18 +146,19 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           analyticsService.logEvent(state.userId, 'habit_uncompleted', { title: h.title });
         }
 
-        if (streakMilestone) {
+        if (detectedMilestone) {
+          const milestone = detectedMilestone;
           setTimeout(() => {
             import('react-native-toast-message').then(Toast => {
               Toast.default.show({
                 type: 'success',
                 text1: 'Milestone Reached! 🔥',
-                text2: `You hit a ${streakMilestone.streak}-day streak for ${h.title}!`
+                text2: `You hit a ${milestone.streak}-day streak for ${h.title}!`
               });
             });
             get().actions.triggerProactivePrompt(
-              'milestone', 
-              `Incredible consistency! You just hit a ${streakMilestone.streak}-day streak for ${h.title}. How does it feel to be this focused?`
+              'milestone',
+              `Incredible consistency! You just hit a ${milestone.streak}-day streak for ${h.title}. How does it feel to be this focused?`
             );
           }, 500);
         }
@@ -167,14 +169,22 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           actions.updateLifeScoreHistory();
         }, 0);
 
-        return {
-          ...updatedHabit,
-          streakMilestone
-        };
+        // C-06 FIX: Return milestone outside habit object so caller can add to root state queue.
+        (updatedHabit as any).__detectedMilestone = detectedMilestone;
+        return updatedHabit;
       }
       return h;
     });
-    return { habits: newHabits };
+
+    // C-06 FIX: Collect milestone from the updated habit and push to root streakMilestones queue.
+    const newMilestone = (newHabits.find(h => (h as any).__detectedMilestone) as any)?.__detectedMilestone ?? null;
+    // Clean up temporary field
+    newHabits.forEach(h => { delete (h as any).__detectedMilestone; });
+
+    return {
+      habits: newHabits,
+      ...(newMilestone && { streakMilestones: [...state.streakMilestones, newMilestone] }),
+    };
   }),
 
   updateHabit: (id: string, updates: Partial<Habit>) => set((state) => {

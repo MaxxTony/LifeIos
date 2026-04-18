@@ -14,9 +14,12 @@ export const useProfileStats = () => {
 
   const stats = useMemo(() => {
     // 1. Lifetime Totals
-    const historicalFocusSeconds = Object.values(focusHistory || {}).reduce((acc, sec) => acc + (typeof sec === 'number' ? sec : 0), 0);
+    const historicalFocusSeconds = Object.values(focusHistory || {}).reduce((acc, sec) => {
+      const val = typeof sec === 'number' ? sec : 0;
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
     const todayFocusSeconds = focusSecondsToday || 0;
-    const totalFocusSeconds = historicalFocusSeconds + todayFocusSeconds;
+    const totalFocusSeconds = (isNaN(historicalFocusSeconds) ? 0 : historicalFocusSeconds) + (isNaN(todayFocusSeconds) ? 0 : todayFocusSeconds);
     const totalFocusHours = parseFloat((totalFocusSeconds / 3600).toFixed(1));
     const totalHabitCompletions = (habits || []).reduce((acc, h) => acc + (h.completedDays?.length || 0), 0);
     const totalMoodLogs = Object.keys(moodHistory || {}).length;
@@ -38,8 +41,8 @@ export const useProfileStats = () => {
     const streaks = habits.map(h => getStreak(h.id));
     const maxStreak = streaks.length > 0 ? Math.max(...streaks) : 0;
 
-    // 6. Mood Sentiment
-    const moodEntries = Object.values(moodHistory || {});
+    // 6. Mood Sentiment (Sliding window: Last 30 entries for relevance & performance)
+    const moodEntries = Object.values(moodHistory || {}).slice(-30);
     const avgMood = moodEntries.length > 0 
       ? moodEntries.reduce((acc, curr) => acc + curr.mood, 0) / moodEntries.length 
       : 0;

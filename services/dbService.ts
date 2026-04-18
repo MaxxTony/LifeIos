@@ -18,6 +18,7 @@ import {
   Query,
   DocumentData,
   SnapshotMetadata,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Task, Habit, MoodEntry, UserState } from '../store/types';
@@ -88,9 +89,10 @@ export const dbService = {
 
   // Atomic Habit Operations
   saveHabit: async (userId: string, habit: Habit) => {
-    let prunedCompletions = habit.completedDays || [];
-    if (prunedCompletions.length > 2000) {
-      prunedCompletions = prunedCompletions.sort().slice(-2000);
+    // C-DB-2 FIX: Lower limit to 1000 and Deduplicate entries using Set to prevent 1MB document limit breach
+    let prunedCompletions = Array.from(new Set(habit.completedDays || []));
+    if (prunedCompletions.length > 1000) {
+      prunedCompletions = prunedCompletions.sort().slice(-1000);
     }
 
     const habitData = sanitizeData({
@@ -163,12 +165,24 @@ export const dbService = {
     await setDoc(doc(db, 'users', userId, collectionName, docId), sanitizeData(data), { merge: true });
   },
 
+  getCollectionDoc: async (userId: string, collectionName: string, docId: string) => {
+    const snap = await getDoc(doc(db, 'users', userId, collectionName, docId));
+    return snap.exists() ? snap.data() : null;
+  },
+
   saveAccentColor: async (userId: string, color: string | null) => {
     await setDoc(doc(db, 'users', userId), { accentColor: color }, { merge: true });
   },
 
   // DATA MIGRATION Logic
   migrateLegacyData: async (userId: string, legacyData: Partial<UserState> & { tasks?: any[]; habits?: any[]; moodHistory?: any; focusHistory?: any }) => {
+    // C-DB-3 FIX: Idempotency check to prevent redundant writes/quota drain
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists() && userDoc.data()?._migrationComplete) {
+      console.log(`[LifeOS Migration] User ${userId} already migrated. Skipping.`);
+      return;
+    }
+
     const batch = writeBatch(db);
     const updates: any = {};
     let hasMigration = false;
@@ -212,13 +226,17 @@ export const dbService = {
     if (hasMigration) {
       console.log(`[LifeOS Migration] Migrating legacy data for user ${userId}...`);
       await batch.commit();
-      await setDoc(doc(db, 'users', userId), sanitizeData(updates), { merge: true });
+      await setDoc(doc(db, 'users', userId), { ...sanitizeData(updates), _migrationComplete: true }, { merge: true });
       console.log(`[LifeOS Migration] Successfully migrated user ${userId}.`);
     }
   },
 
   // Real-time listener for user root document
-  subscribeToUserData: (userId: string, onUpdate: (data: (Partial<UserState> & { _fromCache?: boolean }) | null) => void) => {
+  subscribeToUserData: (
+    userId: string,
+    onUpdate: (data: (Partial<UserState> & { _fromCache?: boolean }) | null) => void,
+    onError?: (error: any) => void
+  ): Unsubscribe => {
     const docRef = doc(db, 'users', userId);
     let hasExisted = false;
     return onSnapshot(
@@ -233,7 +251,9 @@ export const dbService = {
         }
       },
       (error: any) => {
-        if (error.code === 'permission-denied') {
+        if (onError) {
+          onError(error);
+        } else if (error.code === 'permission-denied') {
           process.env.NODE_ENV === 'development' && console.warn('Firestore root subscription closed: Permission denied');
         } else {
           console.error('Firestore root subscription error:', error);
@@ -248,7 +268,7 @@ export const dbService = {
     collectionName: string,
     onUpdate: (docs: DocumentData[], metadata: SnapshotMetadata) => void,
     queryFn?: (ref: CollectionReference<DocumentData>) => Query<DocumentData>
-  ) => {
+  ): Unsubscribe => {
     const collRef = collection(db, 'users', userId, collectionName);
     const finalRef = queryFn ? queryFn(collRef) : collRef;
 

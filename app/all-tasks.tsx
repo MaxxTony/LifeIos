@@ -13,6 +13,7 @@ import React, { useCallback, useMemo, useRef, useEffect } from 'react';
 import { Platform, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as any;
 
@@ -138,11 +139,12 @@ const TaskItem = React.memo(({
 export default function AllTasksScreen() {
   const router = useRouter();
   const colors = useThemeColors();
+  const isFocused = useIsFocused();
   const tasks = useStore(s => s.tasks);
   const tasksLoaded = useStore(s => s.syncStatus.tasksLoaded);
   const toggleTask = useStore(s => s.actions.toggleTask);
 
-  const today = getTodayLocal();
+  const today = useMemo(() => getTodayLocal(), [isFocused]);
   const priorityWeight = { high: 1, medium: 2, low: 3 };
 
   const priorityColors = useMemo(() => ({

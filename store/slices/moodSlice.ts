@@ -11,14 +11,22 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
     const cleanEntry: MoodEntry = { 
       mood, 
       timestamp: Date.now(),
-      reason: extras?.reason ?? null,
+      reason: extras?.reason ? extras.reason.slice(0, 500) : null,
       activities: extras?.activities ?? [],
       emotions: extras?.emotions ?? [],
-      note: extras?.note ?? null
+      note: extras?.note ? extras.note.slice(0, 2000) : null
     };
 
     set((state) => {
-      const newHistory = { ...state.moodHistory, [dateKey]: cleanEntry as MoodEntry };
+      const rawHistory = { ...state.moodHistory, [dateKey]: cleanEntry as MoodEntry };
+
+      // M-18 FIX: Prune mood history beyond 365 days to prevent unbounded growth.
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 365);
+      const cutoffStr = cutoff.toISOString().split('T')[0];
+      const newHistory = Object.fromEntries(
+        Object.entries(rawHistory).filter(([k]) => k >= cutoffStr)
+      ) as typeof rawHistory;
       if (state.userId) {
         fireSync(() => dbService.saveMood(state.userId!, cleanEntry, dateKey), 'saveMood', state.userId);
         analyticsService.logEvent(state.userId, 'mood_logged', { mood });

@@ -1,10 +1,10 @@
 {
   "rules": {
     "focusRoom": {
+      ".read": "auth != null",
       "$uid": {
-        ".read": "auth != null && (data.child('isPublic').val() === true || auth.uid === $uid)",
         ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['userName', 'lastActive', 'status'])"
+        ".validate": "newData.hasChildren(['userName', 'lastActive', 'status', 'isPublic']) && newData.child('isPublic').val() === true"
       }
     }
   }

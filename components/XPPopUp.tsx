@@ -76,6 +76,8 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
   );
 };
 
+const MAX_ACTIVE_POPUPS = 3;
+
 export const XPPopUp = () => {
   const recentXP = useStore(s => s.recentXP);
   const dismissXP = useStore(s => s.actions.dismissXP);
@@ -84,9 +86,11 @@ export const XPPopUp = () => {
   useEffect(() => {
     if (recentXP) {
       const id = recentXP.timestamp;
-      // Add new XP to the list
-      setActiveXPs(prev => [...prev, { id, amount: recentXP.amount }]);
-      // Dismiss from store immediately so it can be re-triggered
+      // C-05 FIX: Cap active popups to prevent animation queue freeze on rapid XP events.
+      setActiveXPs(prev => {
+        if (prev.length >= MAX_ACTIVE_POPUPS) return prev;
+        return [...prev, { id, amount: recentXP.amount }];
+      });
       dismissXP();
     }
   }, [recentXP]);

@@ -35,9 +35,26 @@ export const presenceService = {
   updateHeartbeat: async (userId: string) => {
     if (!userId) return;
     try {
+      // B-FP: Only heartbeat if we are authenticated and updating our own path
+      const { authService } = require('./authService');
+      const currentUser = authService.currentUser;
+      if (!currentUser || currentUser.uid !== userId) return;
+
+      // Ensure the user is actually still in focus mode locally
+      const { useStore } = require('@/store/useStore');
+      const { focusSession, userName } = useStore.getState();
+      if (!focusSession.isActive) return;
+
       const userRef = ref(rtdb, `focusRoom/${userId}`);
-      // Use update on the parent instead of set on the child to be more consistent with RTDB patterns.
-      await update(userRef, { lastActive: serverTimestamp() }).catch(() => {});
+      
+      // C-RTDB-1 FIX: Heartbeat must satisfy .validate rule: "newData.hasChildren(['userName', 'lastActive', 'status'])"
+      // Sending a more complete object ensures it passes even if the node was deleted by onDisconnect.
+      await update(userRef, { 
+        lastActive: serverTimestamp(),
+        userName: userName || 'Anonymous',
+        status: 'focusing',
+        isPublic: true
+      }).catch(() => {});
     } catch (_) {
       // Quiet fail for heartbeat
     }
@@ -66,10 +83,19 @@ export const presenceService = {
         callback([]);
         return;
       }
-      const activeUsers = Object.keys(data).map(uid => ({
-        id: uid,
-        ...data[uid],
-      }));
+      // M-02 FIX: Filter out stale entries (lastActive > 30s ago) so deleted/crashed users don't appear active.
+      const STALE_THRESHOLD_MS = 30000;
+      const now = Date.now();
+      const activeUsers = Object.keys(data)
+        .filter(uid => {
+          const lastActive = data[uid]?.lastActive;
+          if (!lastActive) return false;
+          const ms = typeof lastActive === 'object' && 'toMillis' in lastActive
+            ? lastActive.toMillis()
+            : typeof lastActive === 'number' ? lastActive : 0;
+          return now - ms < STALE_THRESHOLD_MS;
+        })
+        .map(uid => ({ id: uid, ...data[uid] }));
       callback(activeUsers);
     }, (error) => {
       // Gracefully handle permission-denied (e.g. if reading the whole room is restricted)

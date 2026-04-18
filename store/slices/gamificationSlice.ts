@@ -6,77 +6,84 @@ import { QUEST_TEMPLATES, computeLevel } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { GamificationActions, UserState } from '../types';
 
+// C-03 FIX: Module-level re-entrancy guard prevents simultaneous double resets.
+let isResetting = false;
+
 export const createGamificationSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], GamificationActions> = (set, get) => ({
-  performDailyReset: () => set((state) => {
+  performDailyReset: () => {
+    if (isResetting) return;
+    isResetting = true;
     try {
-      const today = getTodayLocal();
-      if (state.lastResetDate === today) return state;
+      set((state) => {
+        try {
+          const today = getTodayLocal();
+          if (state.lastResetDate === today) return state;
 
-      // Guard: already running reset in this tick
-      const lastResetDate = today;
+          const lastResetDate = today;
 
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = formatLocalDate(yesterday);
-      let newFocusHistory = state.focusHistory;
-      if (state.focusSession.totalSecondsToday > 0) {
-        newFocusHistory = { ...state.focusHistory, [yesterdayStr]: state.focusSession.totalSecondsToday };
-        if (state.userId) {
-          fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync', state.userId);
-        }
-      }
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = formatLocalDate(yesterday);
+          let newFocusHistory = state.focusHistory;
+          if (state.focusSession.totalSecondsToday > 0) {
+            newFocusHistory = { ...state.focusHistory, [yesterdayStr]: state.focusSession.totalSecondsToday };
+            if (state.userId) {
+              fireSync(() => dbService.saveFocusEntry(state.userId!, yesterdayStr, state.focusSession.totalSecondsToday), 'dailyResetFocusSync', state.userId);
+            }
+          }
 
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const cutoffStr = formatLocalDate(cutoff);
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30);
+          const cutoffStr = formatLocalDate(cutoff);
 
-      const missedTasks: any[] = [];
-      const updatedTasks = state.tasks.map(t => {
-        // Mark all PENDING tasks from any day BEFORE today as missed
-        if (t.date < today && t.status === 'pending') {
-          const missedTask = {
-            ...t,
-            status: 'missed' as const,
-            systemComment: t.date === yesterdayStr ? 'You missed this daily task! 😔' : `Missed on ${t.date}.`
+          const missedTasks: any[] = [];
+          const updatedTasks = state.tasks.map(t => {
+            if (t.date < today && t.status === 'pending') {
+              const missedTask = {
+                ...t,
+                status: 'missed' as const,
+                systemComment: t.date === yesterdayStr ? 'You missed this daily task! 😔' : `Missed on ${t.date}.`
+              };
+              missedTasks.push(missedTask);
+              return missedTask;
+            }
+            return t;
+          });
+
+          if (state.userId && missedTasks.length > 0) {
+            fireSync(() => dbService.saveTasksBatch(state.userId!, missedTasks), 'taskResetSyncBatch', state.userId);
+          }
+
+          const newTasks = updatedTasks.filter(t => t.date >= cutoffStr);
+          console.log(`[LifeOS] Daily reset performed for ${today}. Tasks pruned to last 30 days.`);
+
+          if (state.userId) {
+            fireSync(() => dbService.deleteDailyQuests(state.userId!), 'deleteDailyQuestsSync', state.userId);
+          }
+
+          return {
+            lastResetDate,
+            tasks: newTasks,
+            focusSession: {
+              ...state.focusSession,
+              totalSecondsToday: 0,
+              isActive: false,
+              lastStartTime: null,
+              pomodoroMode: 'work',
+              pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
+            },
+            focusHistory: newFocusHistory,
+            dailyQuests: [],
           };
-          missedTasks.push(missedTask);
-          return missedTask;
+        } catch (error) {
+          console.error('[LifeOS] Daily reset failed:', error);
+          return state;
         }
-        return t;
       });
-
-      if (state.userId && missedTasks.length > 0) {
-        fireSync(() => dbService.saveTasksBatch(state.userId!, missedTasks), 'taskResetSyncBatch', state.userId);
-      }
-
-      // Keep only recent tasks (last 30 days) to prevent store bloat
-      const newTasks = updatedTasks.filter(t => t.date >= cutoffStr);
-
-      console.log(`[LifeOS] Daily reset performed for ${today}. Tasks pruned to last 30 days.`);
-
-      if (state.userId) {
-        fireSync(() => dbService.deleteDailyQuests(state.userId!), 'deleteDailyQuestsSync', state.userId);
-      }
-
-      return {
-        lastResetDate,
-        tasks: newTasks,
-        focusSession: {
-          ...state.focusSession,
-          totalSecondsToday: 0,
-          isActive: false,
-          lastStartTime: null,
-          pomodoroMode: 'work',
-          pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
-        },
-        focusHistory: newFocusHistory,
-        dailyQuests: [],
-      };
-    } catch (error) {
-      console.error('[LifeOS] Daily reset failed:', error);
-      return state;
+    } finally {
+      isResetting = false;
     }
-  }),
+  },
 
   updateLifeScoreHistory: () => set((state) => {
     const today = getTodayLocal();
@@ -100,12 +107,24 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       : 0;
 
     const newHistory = { ...state.lifeScoreHistory, [today]: lifeScore };
+    
+    // Z-4: Prune Life Score history beyond 90 days (database health)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const ninetyDaysAgoStr = formatLocalDate(ninetyDaysAgo);
+    
+    const prunedHistory = Object.keys(newHistory)
+      .filter(k => k >= ninetyDaysAgoStr)
+      .reduce((obj, key) => {
+        obj[key] = newHistory[key];
+        return obj;
+      }, {} as Record<string, number>);
 
     if (state.userId && state.lifeScoreHistory[today] !== lifeScore) {
       fireSync(() => dbService.saveCollectionDoc(state.userId!, 'lifeScoreHistory', today, { score: lifeScore }), 'saveLifeScore', state.userId);
     }
 
-    return { lifeScoreHistory: newHistory };
+    return { lifeScoreHistory: prunedHistory };
   }),
 
   generateDailyQuests: () => {
@@ -121,7 +140,9 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       id: `quest-${today}-${idx}`,
       currentCount: 0,
       completed: false,
-      date: today
+      date: today,
+      // M-09 FIX: Clamp XP reward to valid range (1–500) to guard against bad template data.
+      rewardXP: Math.max(1, Math.min(q.rewardXP, 500)),
     }));
 
     set({ dailyQuests: selected, lastResetDate: today });
@@ -148,7 +169,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       dailyQuests: state.dailyQuests.map(q =>
         q.id === questId ? updatedQuest : q
       ),
-      completedQuests: [...state.completedQuests, questId]
+      completedQuests: [...state.completedQuests, questId].slice(-100)
     }));
 
     if (userId) {
@@ -198,7 +219,10 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
   checkQuestProgress: (type: 'task' | 'habit' | 'focus' | 'mood', count?: number) => set((state) => {
     let changed = false;
+    let totalXPToAdd = 0;
+    const completedQuestsThisTick: string[] = [];
     const questsToSync: any[] = [];
+
     const newQuests = state.dailyQuests.map(q => {
       if (q.type !== type || q.completed) return q;
 
@@ -217,12 +241,26 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         changed = true;
         const isFinished = newCount >= q.targetCount;
         const updated = { ...q, currentCount: Math.min(newCount, q.targetCount) };
-        
+
         if (isFinished) {
-          updated.completed = true; // Mark completed optimistically to prevent double-award
-          setTimeout(() => get().actions.completeQuest(q.id), 0);
+          // C-STORE-6 FIX: Mark completed and award XP ATOMICALLY
+          updated.completed = true;
+          totalXPToAdd += q.rewardXP;
+          completedQuestsThisTick.push(q.id);
+
+          // Trigger UI rewards (outside set, but logic is atomic)
+          setTimeout(() => {
+            import('react-native-toast-message').then(Toast => {
+              Toast.default.show({
+                type: 'success',
+                text1: 'Quest Completed! 🏆',
+                text2: `${q.title} (+${q.rewardXP} XP)`
+              });
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }, 500);
         }
-        
+
         questsToSync.push(updated);
         return updated;
       }
@@ -235,7 +273,37 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
           fireSync(() => dbService.saveDailyQuest(state.userId!, q), `questProgressSync_${q.id}`, state.userId!);
         });
       }
-      return { dailyQuests: newQuests };
+
+      // If we awarded XP, also calculate level up atomically
+      const newState: Partial<UserState> = { dailyQuests: newQuests };
+      if (totalXPToAdd > 0) {
+        const newTotalXP = state.totalXP + totalXPToAdd;
+        const newLevel = computeLevel(newTotalXP);
+        
+        if (newLevel > state.level) {
+          setTimeout(() => {
+            import('react-native-toast-message').then(Toast => {
+              Toast.default.show({
+                type: 'success',
+                text1: 'Level Up! ✨',
+                text2: `You reached Level ${newLevel}! Keep evolving.`
+              });
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }, 1200);
+        }
+
+        newState.totalXP = newTotalXP;
+        newState.level = newLevel;
+        newState.recentXP = { amount: totalXPToAdd, timestamp: Date.now() };
+        newState.completedQuests = [...state.completedQuests, ...completedQuestsThisTick].slice(-100);
+
+        if (state.userId) {
+          fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { totalXP: newTotalXP, level: newLevel }), 'xpUpdateQuests', state.userId);
+        }
+      }
+
+      return newState as any;
     }
     return state;
   }),
@@ -254,7 +322,8 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   },
 
   dismissXP: () => set({ recentXP: null }),
-  dismissMilestone: () => set({ streakMilestone: null }),
+  // C-06 FIX: Shift from front of queue so simultaneous milestones all play in order.
+  dismissMilestone: () => set(state => ({ streakMilestones: state.streakMilestones.slice(1) })),
   dismissMoodLog: () => set({ lastMoodLog: null }),
   dismissProactive: () => set({ proactivePrompt: null }),
   setLastActive: () => set({ lastActiveTimestamp: Date.now() }),
