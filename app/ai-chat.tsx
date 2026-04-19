@@ -91,12 +91,13 @@ export default function AIChatScreen() {
     if (!userId || id === currentConversationId) return;
     setInitialLoading(true);
     setCurrentConversationId(id);
-    const result = await chatService.getMessages(userId, id);
-    setMessages(result.messages);
-    setLastVisibleDoc(result.lastVisible);
-    setHasMore(result.messages.length === 50);
-    setInitialLoading(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    await chatService.getMessages(userId, id, undefined, (result) => {
+      setMessages(result.messages);
+      setLastVisibleDoc(result.lastVisible);
+      setHasMore(result.messages.length === 50);
+      setInitialLoading(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 100);
+    });
   };
 
   const loadMoreMessages = async () => {

@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MoodEmoji } from './MoodEmoji';
 import { History, Pencil, Plus, PlusCircle } from 'lucide-react-native';
 
-export function MoodTrend() {
+export const MoodTrend = React.memo(function MoodTrend() {
   const router = useRouter();
   const colors = useThemeColors();
   const moodHistory = useStore(s => s.moodHistory);
@@ -206,7 +206,7 @@ export function MoodTrend() {
       </BlurView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

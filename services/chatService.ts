@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../firebase/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface ChatConversation {
   id: string;
@@ -33,24 +34,46 @@ export interface ChatMessage {
 
 export const chatService = {
   // Get most recent conversations for a user (capped at 50)
-  getConversations: async (userId: string): Promise<ChatConversation[]> => {
+  getConversations: async (userId: string, onUpdate?: (data: ChatConversation[]) => void): Promise<ChatConversation[]> => {
+    const cacheKey = `CHAT_CONV_CACHE_${userId}`;
     try {
+      if (onUpdate) {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) onUpdate(JSON.parse(cached));
+      }
+
       const q = query(
         collection(db, 'users', userId, 'conversations'),
         orderBy('updatedAt', 'desc'),
         limit(50)
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatConversation[];
+      const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatConversation[];
+      
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
+      if (onUpdate) onUpdate(data);
+      return data;
     } catch (error) {
       console.error('Error getting conversations:', error);
-      return [];
+      const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+      return cached ? JSON.parse(cached) : [];
     }
   },
 
   // Get messages for a conversation (paginated)
-  getMessages: async (userId: string, conversationId: string, lastVisibleEntry?: any): Promise<{ messages: ChatMessage[], lastVisible: any }> => {
+  getMessages: async (
+    userId: string, 
+    conversationId: string, 
+    lastVisibleEntry?: any,
+    onUpdate?: (data: { messages: ChatMessage[], lastVisible: any }) => void
+  ): Promise<{ messages: ChatMessage[], lastVisible: any }> => {
+    const cacheKey = `CHAT_MSG_CACHE_${conversationId}`;
     try {
+      if (!lastVisibleEntry && onUpdate) {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) onUpdate({ messages: JSON.parse(cached), lastVisible: null });
+      }
+
       // C-15 FIX: query() requires a collection ref as first arg every time — cannot chain from an existing Query.
       const msgCol = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
       const q = lastVisibleEntry
@@ -61,13 +84,21 @@ export const chatService = {
       const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
       const messages = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatMessage[];
       
-      // We return them reversed here (decending), UI handles chronological sorting if needed
-      return { 
-        messages: messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), 
-        lastVisible 
-      };
+      const sortedMessages = messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      
+      if (!lastVisibleEntry) {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(sortedMessages));
+      }
+      
+      const result = { messages: sortedMessages, lastVisible };
+      if (onUpdate) onUpdate(result);
+      return result;
     } catch (error) {
       console.error('Error getting messages:', error);
+      if (!lastVisibleEntry) {
+        const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+        if (cached) return { messages: JSON.parse(cached), lastVisible: null };
+      }
       return { messages: [], lastVisible: null };
     }
   },
@@ -139,7 +170,10 @@ export const chatService = {
       );
 
       const timestamp = new Date().getTime();
-      const fileName = `profiles/${userId}/chats_${timestamp}.jpg`;
+      // FIREBASE-10 FIX: Use a dedicated chat-images path, separate from profile avatars.
+      // Old path: profiles/{uid}/chats_{ts}.jpg  (mixed with avatars, never cleaned up)
+      // New path: users/{uid}/chats/{ts}.jpg     (isolated, cleaned up on conversation delete)
+      const fileName = `users/${userId}/chats/${timestamp}.jpg`;
 
       return await storageService.uploadFile(fileName, manipResult.uri, onProgress);
     } catch (error: any) {
@@ -149,18 +183,39 @@ export const chatService = {
   },
 
   // Delete conversation and its messages
+  // FIREBASE-10 FIX: Also deletes any Storage images referenced in messages
+  // to prevent unbounded Firebase Storage cost growth.
   deleteConversation: async (userId: string, conversationId: string) => {
     try {
       const messagesRef = collection(db, 'users', userId, 'conversations', conversationId, 'messages');
       const messagesSnap = await getDocs(messagesRef);
 
       if (!messagesSnap.empty) {
+        // Collect Storage image URLs to delete BEFORE removing Firestore docs
+        const imageUrls: string[] = [];
+        messagesSnap.docs.forEach(msgDoc => {
+          const data = msgDoc.data();
+          if (data.imageUrl && typeof data.imageUrl === 'string' && data.imageUrl.startsWith('http')) {
+            imageUrls.push(data.imageUrl);
+          }
+        });
+
+        // Batch-delete all message docs
         const docs = messagesSnap.docs;
         for (let i = 0; i < docs.length; i += 499) {
           const batch = writeBatch(db);
           const chunk = docs.slice(i, i + 499);
           chunk.forEach(msgDoc => batch.delete(msgDoc.ref));
           await batch.commit();
+        }
+
+        // Delete Storage images (fire-and-forget; storage cleanup is non-critical)
+        if (imageUrls.length > 0) {
+          import('./storageService').then(({ storageService }) => {
+            imageUrls.forEach(url => {
+              storageService.deleteFileByUrl?.(url).catch(() => {});
+            });
+          }).catch(() => {});
         }
       }
 

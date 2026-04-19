@@ -92,7 +92,7 @@ const TaskItem = React.memo(({
             task.completed && [styles.checkboxChecked, { backgroundColor: priorityColors[task.priority] }],
           ]}
           onPress={() => onToggle(task.id)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           accessibilityLabel={task.completed ? "Mark incomplete" : "Mark complete"}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: task.completed }}
@@ -225,7 +225,7 @@ export default function AllTasksScreen() {
                 activeOpacity={0.7}
                 accessibilityLabel="Back"
                 accessibilityRole="button"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
                 <ChevronLeft size={22} color={colors.text} />
               </TouchableOpacity>
@@ -243,7 +243,7 @@ export default function AllTasksScreen() {
                 activeOpacity={0.8}
                 accessibilityLabel="Create task"
                 accessibilityRole="button"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
                 <LinearGradient
                   colors={[colors.primary, colors.secondary]}

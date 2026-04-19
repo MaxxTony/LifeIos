@@ -2,6 +2,8 @@ import { dbService } from '@/services/dbService';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { StateCreator } from 'zustand';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 import { QUEST_TEMPLATES, computeLevel } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { GamificationActions, UserState } from '../types';
@@ -58,11 +60,59 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
           console.log(`[LifeOS] Daily reset performed for ${today}. Tasks pruned to last 30 days.`);
 
           if (state.userId) {
-            fireSync(() => dbService.deleteDailyQuests(state.userId!), 'deleteDailyQuestsSync', state.userId);
+            // FIREBASE-2 FIX: Pass today as beforeDate so only docs with IDs < "quest-{today}"
+            fireSync(() => dbService.deleteDailyQuests(state.userId!, today), 'deleteDailyQuestsSync', state.userId);
           }
+
+          // Global Streak Breakage Check
+          let newGlobalStreak = state.globalStreak || 0;
+          let newStreakFreezes = state.streakFreezes || 0;
+          
+          if (state.lastActiveDate && state.lastActiveDate < yesterdayStr) {
+            if (newStreakFreezes > 0) {
+              // Consume freeze to protect streak
+              newStreakFreezes -= 1;
+              console.log(`[LifeOS] Global streak protected using a Freeze. Remaining: ${newStreakFreezes}`);
+              setTimeout(() => {
+                import('react-native-toast-message').then(Toast => {
+                  Toast.default.show({
+                    type: 'success',
+                    text1: '🧊 Streak Saved!',
+                    text2: `A Freeze was used to keep your ${newGlobalStreak}-day streak alive.`
+                  });
+                });
+              }, 2000);
+              
+              if (state.userId) {
+                // Must update the saved profile immediately
+                fireSync(() => dbService.saveUserProfile(state.userId!, { streakFreezes: newStreakFreezes } as any), 'consumeFreeze_profile', state.userId);
+              }
+            } else {
+              // Streak broken!
+              newGlobalStreak = 0;
+              if ((state.globalStreak || 0) > 2) {
+                setTimeout(() => {
+                  import('react-native-toast-message').then(Toast => {
+                    Toast.default.show({
+                      type: 'error',
+                      text1: 'Streak Broken 🧊',
+                      text2: `You missed a day. Time to start fresh!`
+                    });
+                  });
+                }, 2000);
+              }
+            }
+          }
+
+          // --- Phase 6: Sync to Native Widgets ---
+          import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
+            widgetSyncService.syncStreak(newGlobalStreak);
+          });
 
           return {
             lastResetDate,
+            globalStreak: newGlobalStreak,
+            streakFreezes: newStreakFreezes,
             tasks: newTasks,
             focusSession: {
               ...state.focusSession,
@@ -190,6 +240,61 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   addXP: (amount: number) => set((state) => {
     const newTotalXP = state.totalXP + amount;
     const newLevel = computeLevel(newTotalXP);
+    
+    // --- Phase 6 Gamification Gameloop ---
+    const todayStr = getTodayLocal();
+    let newGlobalStreak = state.globalStreak || 0;
+    let newLastActiveDate = state.lastActiveDate;
+
+    // 1. Check Global Streak
+    if (state.lastActiveDate !== todayStr) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = formatLocalDate(yesterday);
+
+      if (state.lastActiveDate === yesterdayStr) {
+        newGlobalStreak += 1;
+      } else {
+        newGlobalStreak = 1; // Restart streak
+      }
+      newLastActiveDate = todayStr;
+      
+      // Streak saved for today, cancel any streak warnings!
+      import('@/services/notificationService').then(({ notificationService }) => {
+        notificationService.cancelStreakWarningNotification();
+      });
+      
+      
+      // Toast notification for streak if > 1
+      if (newGlobalStreak > 1) {
+        setTimeout(() => {
+          import('react-native-toast-message').then(Toast => {
+            Toast.default.show({
+              type: 'success',
+              text1: 'Streak Saved! 🔥',
+              text2: `You're on a ${newGlobalStreak}-day streak!`
+            });
+          });
+        }, 1500); // show slightly after level up
+      }
+    }
+
+    // 2. Check Weekly XP (Resets every Monday)
+    const todayDate = new Date();
+    const dayOfWeek = todayDate.getDay() || 7; // Make Sunday 7 instead of 0
+    const diffToMonday = todayDate.getDate() - dayOfWeek + 1;
+    const currentMonday = new Date(todayDate);
+    currentMonday.setDate(diffToMonday);
+    const currentMondayStr = formatLocalDate(currentMonday);
+
+    let newWeeklyXP = (state.weeklyXP || 0) + amount;
+    let newLastWeekResetDate = state.lastWeekResetDate;
+
+    if (state.lastWeekResetDate !== currentMondayStr) {
+      // New week started! Reset weekly XP.
+      newWeeklyXP = amount;
+      newLastWeekResetDate = currentMondayStr;
+    }
 
     // Check for Level Up
     if (newLevel > state.level) {
@@ -205,10 +310,31 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       }, 800);
     }
 
-    const newStatData = { totalXP: newTotalXP, level: newLevel };
+    const newStatData = { 
+      totalXP: newTotalXP, 
+      level: newLevel,
+      weeklyXP: newWeeklyXP,
+      globalStreak: newGlobalStreak,
+      lastActiveDate: newLastActiveDate,
+      lastWeekResetDate: newLastWeekResetDate
+    };
+
+    // --- Phase 6: Sync to Native Widgets ---
+    import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
+      widgetSyncService.syncStreak(newGlobalStreak);
+    });
 
     if (state.userId) {
       fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', newStatData), 'xpUpdate', state.userId);
+      // We also update the publicProfile so friends can see it
+      fireSync(() => setDoc(doc(db, 'publicProfiles', state.userId!), {
+        level: newLevel,
+        weeklyXP: newWeeklyXP,
+        globalStreak: newGlobalStreak,
+        lastActive: Date.now(),
+        userName: state.userName || 'Anonymous',
+        avatarUrl: state.avatarUrl || null
+      }, { merge: true }), 'publicProfileSync', state.userId);
     }
 
     return {

@@ -176,7 +176,7 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
   }
 
   try {
-    await auth.currentUser.getIdToken(true);
+    await auth.currentUser.getIdToken();
 
     // Inject full context even through proxy (F-BUG-02)
     const contextStr = getCurrentAppContext();

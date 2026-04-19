@@ -7,7 +7,8 @@ import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { fireSync, isSyncingGlobal, setSyncingGlobal } from '../syncHelper';
 import { migrateTasks, computeLevel } from '../helpers';
 import Toast from 'react-native-toast-message';
-import { query, where, orderBy, limit, documentId } from 'firebase/firestore';
+import { query, where, orderBy, limit, documentId, setDoc, doc } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 import { setSentryUser } from '@/services/crashAnalytics';
 
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
@@ -64,6 +65,13 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   lifeScoreHistory: {},
   totalXP: 0,
   level: 1,
+  weeklyXP: 0,
+  globalStreak: 0,
+  lastActiveDate: null,
+  lastWeekResetDate: null,
+  lastLoginBonusDate: null,
+  streakFreezes: 0,
+  globalConfetti: false,
   dailyQuests: [],
   completedQuests: [],
   proactivePrompt: null,
@@ -169,13 +177,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     });
     const isStale = () => get()._subscriptionGen !== myGen || get().userId !== userId;
 
-    const HISTORY_WINDOW_DAYS = 90;
+    const HISTORY_WINDOW_DAYS = 365;
     const windowStart = new Date();
     windowStart.setDate(windowStart.getDate() - HISTORY_WINDOW_DAYS);
     const windowStartStr = formatLocalDate(windowStart);
 
     const syncWindowDate = new Date();
-    syncWindowDate.setDate(syncWindowDate.getDate() - 90);
+    syncWindowDate.setDate(syncWindowDate.getDate() - 365);
     const syncWindowStr = formatLocalDate(syncWindowDate);
     const syncStartedAt = Date.now();
 
@@ -192,6 +200,22 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     // If an error occurs midway, we still update the store with what we have
     // so they can be cleaned up on the next logout/login.
     const collected: (() => void)[] = [];
+
+    // SOCIAL: Upsert publicProfile so user appears in Discover tab immediately.
+    // Runs every app open — light setDoc(merge:true) with current profile data.
+    const state = get();
+    setDoc(
+      doc(db, 'publicProfiles', userId),
+      {
+        userName: state.userName || 'Unknown',
+        avatarUrl: state.avatarUrl || null,
+        level: state.level || 1,
+        weeklyXP: state.weeklyXP || 0,
+        globalStreak: state.globalStreak || 0,
+        lastActive: Date.now(),
+      },
+      { merge: true }
+    ).catch(err => console.warn('[LifeOS] publicProfile upsert failed:', err));
 
     try {
       // Root Profile Subscription
@@ -234,12 +258,64 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             accentColor: data.accentColor || get().accentColor,
             homeTimezone: data.homeTimezone || get().homeTimezone,
             hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
+            streakFreezes: data.streakFreezes !== undefined ? data.streakFreezes : get().streakFreezes,
+            lastLoginBonusDate: data.lastLoginBonusDate !== undefined ? data.lastLoginBonusDate : get().lastLoginBonusDate,
             syncStatus: {
               ...state.syncStatus,
               isOffline: checkOfflineStatus(!!data._fromCache),
               lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
             }
           }));
+
+          // GAMIFICATION: Daily Login Bonus (+5 XP)
+          if (!data._fromCache) {
+            const todayStr = formatLocalDate(new Date());
+            const currentState = get();
+            
+            // If they haven't gotten the bonus today
+            if (currentState.lastLoginBonusDate !== todayStr) {
+              const newXP = currentState.totalXP + 5;
+              const newWeeklyXP = currentState.weeklyXP + 5;
+              const newLevel = computeLevel(newXP);
+              
+              set({
+                totalXP: newXP,
+                weeklyXP: newWeeklyXP,
+                level: newLevel,
+                lastLoginBonusDate: todayStr
+              });
+              
+              fireSync(() => dbService.updateGlobalStats(userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }), 'dailyLoginBonus_stats', userId);
+              fireSync(() => dbService.saveUserProfile(userId!, { lastLoginBonusDate: todayStr } as any), 'dailyLoginBonus_profile', userId);
+
+              // Show toast and trigger confetti!
+              currentState.actions.triggerGlobalConfetti();
+              Toast.show({
+                type: 'success',
+                text1: '🎁 Daily Bonus!',
+                text2: '+5 XP for logging in today.',
+                visibilityTime: 4000
+              });
+            }
+          }
+
+          // SOCIAL: Sync fresh profile to publicProfiles root collection.
+          // Fires on every app open with real username + avatar from Firestore.
+          if (!data._fromCache) {
+            const currentState = get();
+            setDoc(
+              doc(db, 'publicProfiles', userId),
+              {
+                userName: data.userName || currentState.userName || 'Unknown',
+                avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : (currentState.avatarUrl || null),
+                level: currentState.level || 1,
+                weeklyXP: currentState.weeklyXP || 0,
+                globalStreak: currentState.globalStreak || 0,
+                lastActive: Date.now(),
+              },
+              { merge: true }
+            ).catch(err => console.warn('[LifeOS] publicProfile sync failed:', err));
+          }
         },
         (error) => {
           if (error.code === 'permission-denied') {
@@ -390,9 +466,47 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         if (statsDoc) {
           const serverXP: number = statsDoc.totalXP || 0;
           const localXP = get().totalXP;
+          
+          const updates: Partial<UserState> = {};
+          
           if (serverXP > localXP) {
-            set({ totalXP: serverXP, level: computeLevel(serverXP) });
+            updates.totalXP = serverXP;
+            updates.level = computeLevel(serverXP);
           }
+          
+          if (statsDoc.globalStreak !== undefined) updates.globalStreak = statsDoc.globalStreak;
+          if (statsDoc.weeklyXP !== undefined) updates.weeklyXP = statsDoc.weeklyXP;
+          if (statsDoc.lastActiveDate !== undefined) updates.lastActiveDate = statsDoc.lastActiveDate;
+          if (statsDoc.lastWeekResetDate !== undefined) updates.lastWeekResetDate = statsDoc.lastWeekResetDate;
+          
+          if (Object.keys(updates).length > 0) {
+            set(updates);
+            
+            // --- Phase 6: Sync to Native Widgets ---
+            import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
+              widgetSyncService.syncStreak(updates.globalStreak ?? get().globalStreak);
+            });
+          }
+        }
+
+        // SOCIAL FIX: Always upsert publicProfile on login so user appears
+        // in other users' Discover tab. This fires even if user has never earned XP.
+        try {
+          const state = get();
+          await setDoc(
+            doc(db, 'publicProfiles', userId),
+            {
+              userName: state.userName || 'Unknown',
+              avatarUrl: state.avatarUrl || null,
+              level: state.level || 1,
+              weeklyXP: state.weeklyXP || 0,
+              globalStreak: state.globalStreak || 0,
+              lastActive: Date.now(),
+            },
+            { merge: true }
+          );
+        } catch (profileErr) {
+          console.warn('[LifeOS] publicProfile upsert failed (non-fatal):', profileErr);
         }
       } catch (err: any) {
         console.error('Cloud hydration failed:', err);
@@ -463,6 +577,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     if (state.userId) fireSync(() => dbService.saveAccentColor(state.userId!, color), 'saveAccentColor', state.userId);
     return { accentColor: color };
   }),
+  triggerGlobalConfetti: () => {
+    set({ globalConfetti: true });
+    // Auto turn off so it can be re-triggered
+    setTimeout(() => {
+      set({ globalConfetti: false });
+    }, 4000);
+  },
   setHasSeenWalkthrough: (seen) => set((state) => {
     if (state.userId) fireSync(() => dbService.saveUserProfile(state.userId!, { hasSeenWalkthrough: seen }), 'saveWalkthroughState', state.userId);
     return { hasSeenWalkthrough: seen };
@@ -479,5 +600,31 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     if (get().userId) {
       fireSync(() => dbService.saveUserProfile(get().userId!, { notificationSettings: next }), 'updateNotificationSettings', get().userId);
     }
+  },
+  buyStreakFreeze: async () => {
+    const state = get();
+    if (!state.userId) return;
+    if (state.totalXP < 1000) {
+      Toast.show({ type: 'error', text1: 'Not enough XP', text2: 'You need 1,000 XP to buy a Freeze.' });
+      return;
+    }
+    if (state.streakFreezes >= 3) {
+      Toast.show({ type: 'info', text1: 'Max Freezes Reached', text2: 'You can only hold 3 Streak Freezes at a time.' });
+      return;
+    }
+
+    const newXP = state.totalXP - 1000;
+    const newWeeklyXP = Math.max(0, state.weeklyXP - 1000);
+    const newFreezes = state.streakFreezes + 1;
+    const newLevel = computeLevel(newXP);
+    
+    set({ totalXP: newXP, weeklyXP: newWeeklyXP, streakFreezes: newFreezes, level: newLevel });
+    
+    // Save to global stats
+    fireSync(() => dbService.updateGlobalStats(state.userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }), 'buyFreeze_stats', state.userId);
+    // Save freeze count to root profile
+    fireSync(() => dbService.saveUserProfile(state.userId!, { streakFreezes: newFreezes } as any), 'buyFreeze_profile', state.userId);
+    
+    Toast.show({ type: 'success', text1: '❄️ Streak Freeze Bought!', text2: 'It will automatically be used if you miss a day.' });
   },
 });

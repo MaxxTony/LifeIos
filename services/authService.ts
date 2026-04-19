@@ -10,10 +10,9 @@ import {
   deleteUser,
   User,
 } from 'firebase/auth';
-import { auth, functions } from '../firebase/config';
+import { auth } from '../firebase/config';
 import * as Crypto from 'expo-crypto';
 import { dbService } from './dbService';
-import { httpsCallable } from 'firebase/functions';
 
 export const authService = {
   // Current user
@@ -40,17 +39,10 @@ export const authService = {
   },
 
   // Generates a new session token and saves it to Firestore.
-  // This effectively invalidates all other active sessions for this user.
+  // NOTE: We do NOT revoke Firebase refresh tokens here — doing so invalidates
+  // the user's own token immediately, causing background Firestore calls to fail
+  // with permission-denied, which triggers an erroneous auto-logout.
   generateAndSaveSessionToken: async (userId: string) => {
-    // C-AUTH-2 FIX: Call Cloud Function to revoke ALL existing refresh tokens
-    // for this user before issuing a new session. This kills stolen tokens.
-    try {
-      const revoke = httpsCallable(functions, 'revokeOtherSessions');
-      await revoke();
-    } catch (err) {
-      console.warn('[LifeOS Auth] Refresh token revocation failed (non-fatal):', err);
-    }
-
     const token = Crypto.randomUUID();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     await dbService.saveUserProfile(userId, { sessionToken: token, homeTimezone: tz } as any);
@@ -110,7 +102,6 @@ export const authService = {
       if (
         error.code === 'auth/user-not-found' ||
         error.code === 'auth/user-disabled' ||
-        error.code === 'auth/user-token-expired' ||
         error.code === 'auth/id-token-revoked'
       ) {
         return false;

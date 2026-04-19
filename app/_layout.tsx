@@ -12,10 +12,11 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as TaskManager from 'expo-task-manager';
 import { useEffect, useRef } from 'react';
-import { AppState, useColorScheme } from 'react-native';
+import { AppState, useColorScheme, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { registerAllBackgroundTasks } from '@/services/backgroundService';
 import { analyticsService } from '@/services/analyticsService';
@@ -25,7 +26,15 @@ import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 
 
 
+import { registerWidgetTaskHandler } from 'react-native-android-widget';
+import { widgetTaskHandler } from '../widget/WidgetTaskHandler';
+
 initCrashAnalytics();
+
+// Register the Android Widget background handler (ignored on iOS)
+if (Platform.OS === 'android') {
+  registerWidgetTaskHandler(widgetTaskHandler);
+}
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -40,6 +49,7 @@ export default function RootLayout() {
   const isAuthenticated = useStore(s => s.isAuthenticated);
   const performDailyReset = useStore(s => s.actions.performDailyReset);
   const focusIsActive = useStore(s => s.focusSession.isActive);
+  const globalConfetti = useStore(s => s.globalConfetti);
   const checkMissedTasks = useStore(s => s.actions.checkMissedTasks);
   const systemColorScheme = useColorScheme();
   const appState = useRef(AppState.currentState);
@@ -128,10 +138,12 @@ export default function RootLayout() {
       useStore.getState().actions.generateDailyQuests();
       analyticsService.initAnalyticsService();
 
-      // C-12 FIX: Detect network loss via periodic fetch ping and update isOffline.
+      // BUG-NET-4 FIX: Replace google.com with cloudflare's lightweight trace endpoint.
+      // google.com is blocked in China / many corporate networks → app always shows offline.
+      // cloudflare.com/cdn-cgi/trace is a neutral ~500B text endpoint available globally.
       const checkConnection = async () => {
         try {
-          await fetch('https://www.google.com/generate_204', { method: 'HEAD', cache: 'no-store' });
+          await fetch('https://www.cloudflare.com/cdn-cgi/trace', { method: 'HEAD', cache: 'no-store' });
           useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: false } }));
         } catch {
           useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: true } }));
@@ -180,10 +192,36 @@ export default function RootLayout() {
       const { setLastActive } = useStore.getState().actions;
       setLastActive();
 
-      // Schedule comeback notifications for when user closes app
+      // Schedule comeback and streak warnings when user closes app or sets it up
       import('@/services/notificationService').then(({ notificationService }) => {
         notificationService.scheduleComebackNotifications();
+        notificationService.scheduleStreakWarningNotification();
       });
+
+      // BUG-AUTH-3 FIX: Reschedule ALL habit notifications after reinstall.
+      // After an OS reinstall or app cache clear, all locally-scheduled notifications
+      // are gone. We re-register them on every hydration when the user is authenticated,
+      // which is cheap since scheduleHabitReminder() is idempotent (cancels old → reschedules).
+      const { isAuthenticated: authed, habits, userId: uid } = useStore.getState();
+      if (authed && uid && habits.length > 0) {
+        import('@/services/notificationService').then(({ notificationService }) => {
+          notificationService.requestPermissions().then(granted => {
+            if (!granted) return;
+            habits.forEach(habit => {
+              if (habit.reminderTime && habit.targetDays && habit.targetDays.length > 0) {
+                notificationService.scheduleHabitReminder(
+                  habit.id,
+                  habit.title,
+                  habit.icon || '📅',
+                  habit.reminderTime,
+                  habit.frequency || 'daily',
+                  habit.targetDays
+                );
+              }
+            });
+          });
+        });
+      }
 
       // Phase 4: Register Background Services
       registerAllBackgroundTasks();
@@ -250,7 +288,6 @@ export default function RootLayout() {
         authService.currentUser.getIdToken(true).catch(e => {
           if (
             e.code === 'auth/user-not-found' || 
-            e.code === 'auth/user-token-expired' || 
             e.code === 'auth/id-token-revoked'
           ) {
             console.warn('[LifeOS] Auth token invalid on reconnect - logging out.');
@@ -320,6 +357,7 @@ export default function RootLayout() {
             <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="focus-detail" options={{ presentation: 'modal', headerShown: false }} />
+            <Stack.Screen name="social-leaderboard" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-log" options={{ presentation: 'modal', headerShown: false }} />
             <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
@@ -334,6 +372,19 @@ export default function RootLayout() {
             <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
           </Stack>
           <StatusBar style={isDark ? "light" : "dark"} />
+          {globalConfetti && (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ConfettiCannon
+                count={150}
+                origin={{ x: -10, y: 0 }}
+                autoStart={true}
+                fadeOut={true}
+                fallSpeed={3000}
+                explosionSpeed={350}
+                colors={['#7C5CFF', '#00D1FF', '#FF00B8', '#FFD700', '#10B981']}
+              />
+            </View>
+          )}
           <Toast />
         </ThemeProvider>
       </BottomSheetModalProvider>

@@ -31,7 +31,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read:   if isOwner(userId);
       allow create, update: if isOwner(userId) && ownsPayload(userId)
-        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'totalXP', 'level', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles'])
+        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'totalXP', 'level', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles', '_migrationComplete', 'lastLoginBonusDate', 'streakFreezes'])
         && (request.resource.data.totalXP is number || !('totalXP' in request.resource.data));
       allow delete: if isOwner(userId);
 
@@ -82,9 +82,9 @@ service cloud.firestore {
       match /stats/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
-          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level']));
+          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate']));
       }
- 
+
       match /lifeScoreHistory/{date} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
@@ -96,14 +96,22 @@ service cloud.firestore {
         allow write, create: if isOwner(userId)
           && (request.method == 'delete' || request.resource.data.keys().hasOnly(['id', 'title', 'targetCount', 'currentCount', 'rewardXP', 'icon', 'type', 'completed', 'date']));
       }
- 
-      match /analytics/{eventId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['event', 'params', 'timestamp'])
-          && request.resource.data.event is string;
-        allow update, delete: if false;
-      }
+    } // end of match /users/{userId}
+
+    match /publicProfiles/{profileId} {
+      // Allows friends/users to read the public profile data
+      allow read: if isSignedIn();
+      allow write: if isOwner(profileId)
+        && (request.method == 'delete' || request.resource.data.keys().hasOnly(['level', 'weeklyXP', 'globalStreak', 'lastActive', 'userName', 'avatarUrl']));
+    }
+
+    match /friendRequests/{requestId} {
+      allow create: if isSignedIn() 
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'fromUserId', 'toUserId', 'status', 'createdAt']);
+      
+      allow read, update, delete: if isSignedIn()
+        && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
     }
 
     match /feedback/{id} {

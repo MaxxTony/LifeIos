@@ -11,10 +11,86 @@ import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { Brain, Target, Zap, TrendingUp, Award, Info, Sparkles } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Brain, Target, Zap, TrendingUp, Award, Info, Sparkles, Flame, ShieldAlert, PlusCircle } from 'lucide-react-native';
 import { useProfileStats } from '@/hooks/useProfileStats';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
+
+// BUG-NET-2 FIX: Skeleton for Progress screen — shown when habits/mood/focus data
+// hasn't arrived from Firestore yet. Prevents "0%" and "0h" looking like real data.
+function ProgressSkeleton() {
+  const colors = useThemeColors();
+  return (
+    <Animated.View entering={FadeIn.duration(300)} style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={[styles.header, { marginBottom: Spacing.lg }]}>
+            <View style={{ gap: 6 }}>
+              <SkeletonBlock width={80} height={10} borderRadius={4} />
+              <SkeletonBlock width={140} height={32} borderRadius={8} />
+            </View>
+            <SkeletonBlock width={72} height={32} borderRadius={16} />
+          </View>
+
+          {/* Hero life score card */}
+          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: Spacing.sm }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ gap: 10, flex: 1 }}>
+                <SkeletonBlock width={100} height={10} borderRadius={4} />
+                <SkeletonBlock width={80} height={48} borderRadius={10} />
+                <SkeletonBlock width={120} height={12} borderRadius={4} />
+              </View>
+              <SkeletonBlock width={100} height={100} borderRadius={50} />
+            </View>
+          </View>
+
+          {/* 3 metric mini-cards */}
+          <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg }}>
+            {[...Array(3)].map((_, i) => (
+              <View key={i} style={[styles.premiumCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border, alignItems: 'center', paddingVertical: Spacing.md }]}>
+                <SkeletonBlock width={36} height={36} borderRadius={12} style={{ marginBottom: 6 }} />
+                <SkeletonBlock width={32} height={20} borderRadius={6} style={{ marginBottom: 4 }} />
+                <SkeletonBlock width={40} height={10} borderRadius={4} />
+              </View>
+            ))}
+          </View>
+
+          {/* XP bar card */}
+          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: Spacing.lg }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+              <SkeletonBlock width={120} height={16} borderRadius={6} />
+              <SkeletonBlock width={80} height={12} borderRadius={4} />
+            </View>
+            <SkeletonBlock width="100%" height={10} borderRadius={5} style={{ marginBottom: 6 }} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
+              {[...Array(4)].map((_, i) => (
+                <SkeletonBlock key={i} width={80} height={12} borderRadius={4} />
+              ))}
+            </View>
+          </View>
+
+          {/* 2 chart placeholder cards */}
+          {[...Array(2)].map((_, i) => (
+            <View key={i} style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: Spacing.lg }]}>
+              <SkeletonBlock width={140} height={18} borderRadius={6} style={{ marginBottom: 16 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 100 }}>
+                {[...Array(7)].map((_, j) => (
+                  <SkeletonBlock key={j} width={12} height={Math.random() * 60 + 20} borderRadius={6} />
+                ))}
+              </View>
+            </View>
+          ))}
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </Animated.View>
+  );
+}
 
 // Local Premium Card Component
 const PremiumCard = ({ children, style }: { children: React.ReactNode, style?: any }) => {
@@ -40,9 +116,21 @@ export default function ProgressScreen() {
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const moodHistory = useStore(s => s.moodHistory);
+  const streakFreezes = useStore(s => s.streakFreezes);
+  const buyStreakFreeze = useStore(s => s.actions.buyStreakFreeze);
   const lifeScoreHistory = useStore(s => s.lifeScoreHistory);
   const updateLifeScoreHistory = useStore(s => s.actions.updateLifeScoreHistory);
+  // BUG-NET-2 FIX: Wait for all three data sources before rendering real numbers.
+  // Without this, users see "0%" "0h" "0 tasks" immediately on open — it looks broken.
+  const habitsLoaded = useStore(s => s.syncStatus.habitsLoaded);
+  const moodLoaded = useStore(s => s.syncStatus.moodLoaded);
+  const focusLoaded = useStore(s => s.syncStatus.focusLoaded);
+  const tasksLoaded = useStore(s => s.syncStatus.tasksLoaded);
   const colors = useThemeColors();
+  const router = useRouter();
+
+  // Show skeleton while any core data source is still resolving
+  const isDataReady = habitsLoaded && moodLoaded && focusLoaded && tasksLoaded;
 
   useEffect(() => {
     updateLifeScoreHistory();
@@ -85,7 +173,8 @@ export default function ProgressScreen() {
     level: userLevel, 
     xpInCurrentLevel, 
     xpProgress, 
-    xpNeeded 
+    xpNeeded,
+    globalStreak
   } = useProfileStats();
 
   // Formatting Data...
@@ -165,6 +254,9 @@ export default function ProgressScreen() {
     return Math.round(lifeScore - avgPast);
   }, [lifeScoreChartData, lifeScore, todayStr]);
 
+  // BUG-NET-2 FIX: Return skeleton while data resolves from Firestore
+  if (!isDataReady) return <ProgressSkeleton />;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -176,10 +268,18 @@ export default function ProgressScreen() {
               <Text style={[styles.headerGreeting, { color: colors.textSecondary }]}>YOUR JOURNEY</Text>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Evolution</Text>
             </View>
-            <TouchableOpacity style={[styles.levelBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
-              <Award size={14} color={colors.primary} />
-              <Text style={[styles.levelBadgeText, { color: colors.primary }]}>LVL {userLevel}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {globalStreak > 0 && (
+                <TouchableOpacity style={[styles.levelBadge, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '30' }]}>
+                  <Flame size={14} color={colors.danger} fill={colors.danger} />
+                  <Text style={[styles.levelBadgeText, { color: colors.danger }]}>{globalStreak}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.levelBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
+                <Award size={14} color={colors.primary} />
+                <Text style={[styles.levelBadgeText, { color: colors.primary }]}>LVL {userLevel}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ZONE 1: DAILY PULSE */}
@@ -231,6 +331,50 @@ export default function ProgressScreen() {
               <MetricItem icon={<Target size={18} color={colors.secondary} />} value={`${completedTasksCount}`} label="Tasks" color={colors.secondary} />
               <MetricItem icon={<Zap size={18} color={colors.danger} />} value={`${completedHabitsCount}`} label="Habits" color={colors.danger} />
             </View>
+
+            <TouchableOpacity 
+              onPress={() => router.push('/social-leaderboard')}
+              style={[
+                styles.leagueBanner, 
+                { backgroundColor: colors.isDark ? '#2A1F45' : '#F7F4FE', borderColor: colors.primary + '30' }
+              ]}
+            >
+              <View style={styles.leagueBannerContent}>
+                <View style={styles.leagueIconWrapper}>
+                  <Flame size={20} color={colors.primary} />
+                </View>
+                <View style={styles.leagueTextWrapper}>
+                  <Text style={[styles.leagueTitle, { color: colors.text }]}>The Weekly League</Text>
+                  <Text style={[styles.leagueSub, { color: colors.textSecondary }]}>Rank up against your friends!</Text>
+                </View>
+              </View>
+              <View style={styles.leagueAction}>
+                <Text style={[styles.leagueActionText, { color: colors.primary }]}>View</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={buyStreakFreeze}
+              style={[
+                styles.leagueBanner, 
+                { backgroundColor: colors.isDark ? '#1F2937' : '#F1F5F9', borderColor: colors.border, marginTop: Spacing.sm }
+              ]}
+            >
+              <View style={styles.leagueBannerContent}>
+                <View style={[styles.leagueIconWrapper, { backgroundColor: colors.isDark ? '#374151' : '#E2E8F0' }]}>
+                  <ShieldAlert size={20} color="#38BDF8" />
+                </View>
+                <View style={styles.leagueTextWrapper}>
+                  <Text style={[styles.leagueTitle, { color: colors.text }]}>Buy Streak Freeze (1,000 XP)</Text>
+                  <Text style={[styles.leagueSub, { color: colors.textSecondary }]}>
+                    {streakFreezes >= 3 ? 'Max Freezes Reached (3/3)' : `You have ${streakFreezes}/3 Freezes`}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.leagueAction}>
+                <PlusCircle size={20} color={streakFreezes >= 3 ? colors.textSecondary : "#38BDF8"} />
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* ZONE 2: GROWTH & EVOLUTION */}
@@ -443,6 +587,14 @@ const styles = StyleSheet.create({
   metricIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
   metricValue: { ...Typography.h3, fontSize: 16, fontWeight: '700' },
   metricLabel: { ...Typography.caption, fontSize: 9 },
+  leagueBanner: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
+  leagueBannerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  leagueIconWrapper: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(124, 92, 255, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  leagueTextWrapper: { justifyContent: 'center' },
+  leagueTitle: { fontSize: 16, fontWeight: '800' },
+  leagueSub: { fontSize: 12 },
+  leagueAction: { backgroundColor: 'rgba(124, 92, 255, 0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  leagueActionText: { fontWeight: 'bold', fontSize: 12 },
   section: { marginBottom: Spacing.lg },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: Spacing.md, paddingHorizontal: 4 },
   sectionTitle: { ...Typography.h3, fontSize: 18 },

@@ -8,7 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getTodayLocal } from '@/utils/dateUtils';
 
-export const QuestDashboard = () => {
+export const QuestDashboard = React.memo(() => {
   const dailyQuests = useStore(s => s.dailyQuests);
   const colors = useThemeColors();
   const today = getTodayLocal();
@@ -91,7 +91,7 @@ export const QuestDashboard = () => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

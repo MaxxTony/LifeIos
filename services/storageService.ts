@@ -131,4 +131,22 @@ export const storageService = {
       await AsyncStorage.removeItem(`${ORPHANED_AVATARS_KEY}_${userId}`);
     } catch { /* best-effort */ }
   },
+
+  /**
+   * FIREBASE-10 FIX: Public alias so chatService can delete Storage files by URL
+   * without importing deleteImage (which is internal convention).
+   * Silently ignores non-Firebase URLs or missing files.
+   */
+  deleteFileByUrl: async (url: string) => {
+    try {
+      if (!url || !url.includes('firebasestorage')) return;
+      const fileRef = getRefFromUrl(url);
+      await deleteObject(fileRef);
+    } catch (e: any) {
+      // object/404 means already deleted — safe to ignore
+      if (e?.code !== 'storage/object-not-found') {
+        console.warn('[Storage] deleteFileByUrl failed:', e?.message);
+      }
+    }
+  },
 };

@@ -17,6 +17,29 @@ import { useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
+function HabitsSkeleton() {
+  const colors = useThemeColors();
+  return (
+    <View style={{ gap: Spacing.md }}>
+      {[200, 150, 180, 220].map((w, i) => (
+        <View key={i} style={[styles.habitCard, { backgroundColor: colors.card, borderColor: colors.border, height: 80 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ gap: 8 }}>
+              <SkeletonBlock width={w} height={18} borderRadius={6} />
+              <SkeletonBlock width={80} height={12} borderRadius={4} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[...Array(7)].map((_, j) => (
+                <SkeletonBlock key={j} width={24} height={24} borderRadius={8} />
+              ))}
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // P-4: Memoize the habit item to avoid re-renders during focus ticks
 const HabitItem = React.memo(({ 
   habit, 
@@ -121,38 +144,14 @@ const HabitItem = React.memo(({
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.dotsContainer}
-            onPress={() => onToggle(habit.id)}
-            activeOpacity={0.7}
-            accessibilityLabel={isCompletedToday ? "Mark habit as incomplete for today" : "Mark habit as complete for today"}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isCompletedToday }}
-          >
+          <View style={styles.dotsContainer}>
             {renderDots(habit.completedDays)}
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </View>
     </Swipeable>
   );
 });
-
-function HabitsSkeleton() {
-  const colors = useThemeColors();
-  return (
-    <View style={{ gap: Spacing.md }}>
-      {[240, 200, 220].map((w, i) => (
-        <View key={i} style={[styles.habitCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SkeletonBlock width="40%" height={16} borderRadius={8} />
-          <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SkeletonBlock width="30%" height={12} borderRadius={4} />
-            <SkeletonBlock width="120" height={14} borderRadius={6} />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 export default function AllHabitsScreen() {
   const router = useRouter();
@@ -230,6 +229,7 @@ export default function AllHabitsScreen() {
                 activeOpacity={0.7}
                 accessibilityLabel="Back"
                 accessibilityRole="button"
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
                 <ChevronLeft size={22} color={colors.text} />
               </TouchableOpacity>
@@ -242,6 +242,7 @@ export default function AllHabitsScreen() {
                 activeOpacity={0.8}
                 accessibilityLabel="Add new habit"
                 accessibilityRole="button"
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
                 <LinearGradient
                   colors={[colors.primary, colors.secondary]}
@@ -256,10 +257,10 @@ export default function AllHabitsScreen() {
           </BlurView>
         </View>
 
+        {renderHeaderLabels()}
+
         {!habitsLoaded ? (
-          <View style={{ padding: Spacing.md, marginTop: 10 }}>
-            <HabitsSkeleton />
-          </View>
+          <View style={{ padding: Spacing.md }}><HabitsSkeleton /></View>
         ) : (
           <FlatList
             data={habits}

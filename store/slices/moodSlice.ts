@@ -17,6 +17,10 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
       note: extras?.note ? extras.note.slice(0, 2000) : null
     };
 
+    // BUG-AUTH-1 FIX: Check BEFORE set() whether this date already has a mood entry.
+    // Re-logging mood on the same day (overwrite) was awarding XP again — gamification exploit.
+    const isNewLogForToday = !get().moodHistory[dateKey];
+
     set((state) => {
       const rawHistory = { ...state.moodHistory, [dateKey]: cleanEntry as MoodEntry };
 
@@ -27,10 +31,15 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
       const newHistory = Object.fromEntries(
         Object.entries(rawHistory).filter(([k]) => k >= cutoffStr)
       ) as typeof rawHistory;
+
       if (state.userId) {
         fireSync(() => dbService.saveMood(state.userId!, cleanEntry, dateKey), 'saveMood', state.userId);
         analyticsService.logEvent(state.userId, 'mood_logged', { mood });
-        get().actions.addXP(5); // Small reward for self-awareness
+
+        // Only award XP once per day — guard against re-log overwrite exploit
+        if (isNewLogForToday) {
+          get().actions.addXP(5); // Small reward for self-awareness
+        }
       }
 
       const today = getTodayLocal();
@@ -40,6 +49,7 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
 
       setTimeout(() => {
         const { actions } = get();
+        // Quest progress: count 2 if note provided (for "Log with Note" quest), else 1
         actions.checkQuestProgress('mood', !!extras?.note ? 2 : 1);
         actions.updateLifeScoreHistory();
         if (mood <= 2) {

@@ -7,7 +7,7 @@ import {
   Alert,
   Animated,
   Dimensions,
-  ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -83,9 +83,10 @@ export function ChatHistorySidebar({
 
   const loadConversations = async () => {
     setLoading(true);
-    const data = await chatService.getConversations(userId);
-    setConversations(data);
-    setLoading(false);
+    await chatService.getConversations(userId, (data) => {
+      setConversations(data);
+      setLoading(false);
+    });
   };
 
   const handleDelete = (id: string, title: string) => {
@@ -131,6 +132,9 @@ export function ChatHistorySidebar({
   };
 
   const groups = groupConversations();
+  const sections = Object.keys(groups)
+    .filter(key => groups[key].length > 0)
+    .map(key => ({ title: key, data: groups[key] }));
 
   if (!shouldRender) return null;
 
@@ -173,40 +177,46 @@ export function ChatHistorySidebar({
               </LinearGradient>
             </TouchableOpacity>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-              {Object.keys(groups).map((groupName) => (
-                groups[groupName].length > 0 && (
-                  <View key={groupName} style={styles.group}>
-                    <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{groupName}</Text>
-                    {groups[groupName].map((conv) => (
-                      <TouchableOpacity
-                        key={conv.id}
-                        style={[
-                          styles.chatItem,
-                          { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
-                          currentConversationId === conv.id && { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }
-                        ]}
-                        onPress={() => { onSelectChat(conv.id); onClose(); }}
-                      >
-                        <View style={styles.chatInfo}>
-                          <Text style={[styles.chatTitle, { color: colors.text }]} numberOfLines={1}>{conv.title || 'Untitled Chat'}</Text>
-                          <Text style={[styles.chatLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>{conv.lastMessage || 'No messages'}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => handleDelete(conv.id, conv.title || '')} style={styles.deleteButton}>
-                          <IconSymbol name="trash.fill" size={16} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    ))}
+            {conversations.length === 0 && !loading ? (
+              <View style={styles.emptyContainer}>
+                <IconSymbol name="sparkles" size={40} color={colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No chat history yet</Text>
+              </View>
+            ) : (
+              <SectionList
+                sections={sections}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                stickySectionHeadersEnabled={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={5}
+                renderSectionHeader={({ section: { title } }) => (
+                  <View style={styles.group}>
+                    <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{title}</Text>
                   </View>
-                )
-              ))}
-              {conversations.length === 0 && !loading && (
-                <View style={styles.emptyContainer}>
-                  <IconSymbol name="sparkles" size={40} color={colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No chat history yet</Text>
-                </View>
-              )}
-            </ScrollView>
+                )}
+                renderItem={({ item: conv }) => (
+                  <TouchableOpacity
+                    key={conv.id}
+                    style={[
+                      styles.chatItem,
+                      { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border },
+                      currentConversationId === conv.id && { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }
+                    ]}
+                    onPress={() => { onSelectChat(conv.id); onClose(); }}
+                  >
+                    <View style={styles.chatInfo}>
+                      <Text style={[styles.chatTitle, { color: colors.text }]} numberOfLines={1}>{conv.title || 'Untitled Chat'}</Text>
+                      <Text style={[styles.chatLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>{conv.lastMessage || 'No messages'}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleDelete(conv.id, conv.title || '')} style={styles.deleteButton}>
+                      <IconSymbol name="trash.fill" size={16} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
           </View>
         </Animated.View>
       </View>

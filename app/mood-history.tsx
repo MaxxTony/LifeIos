@@ -9,16 +9,80 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// BUG-NET-2 FIX: Skeleton shown while moodLoaded === false (slow connection / first open)
+function MoodHistorySkeleton() {
+  const colors = useThemeColors();
+  return (
+    <Animated.View entering={FadeIn.duration(300)} style={{ flex: 1, padding: Spacing.md, gap: 16 }}>
+      {/* Calendar card skeleton */}
+      <View style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}>
+        {/* Month nav */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <SkeletonBlock width={20} height={20} borderRadius={10} />
+          <SkeletonBlock width={140} height={22} borderRadius={8} />
+          <SkeletonBlock width={20} height={20} borderRadius={10} />
+        </View>
+        {/* Weekday labels */}
+        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+          {[...Array(7)].map((_, i) => (
+            <SkeletonBlock key={i} width={`${100 / 7}%` as any} height={12} borderRadius={4} style={{ marginHorizontal: 1 }} />
+          ))}
+        </View>
+        {/* Day grid — 5 rows × 7 cols */}
+        {[...Array(5)].map((_, row) => (
+          <View key={row} style={{ flexDirection: 'row', marginBottom: 6 }}>
+            {[...Array(7)].map((_, col) => (
+              <View key={col} style={{ flexBasis: '14.28%', alignItems: 'center' }}>
+                <SkeletonBlock width={38} height={44} borderRadius={12} />
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+
+      {/* Day detail card skeleton */}
+      <View style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}>
+        <SkeletonBlock width="50%" height={14} borderRadius={6} style={{ marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <SkeletonBlock width={52} height={52} borderRadius={26} />
+          <View style={{ gap: 8 }}>
+            <SkeletonBlock width={100} height={22} borderRadius={8} />
+            <SkeletonBlock width={60} height={12} borderRadius={4} />
+          </View>
+        </View>
+      </View>
+
+      {/* Distribution card skeleton */}
+      <View style={[styles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)', borderColor: colors.border }]}>
+        <SkeletonBlock width={120} height={12} borderRadius={4} style={{ marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 14 }}>
+          {[...Array(5)].map((_, i) => (
+            <View key={i} style={{ alignItems: 'center', gap: 6 }}>
+              <SkeletonBlock width={36} height={36} borderRadius={18} />
+              <SkeletonBlock width={28} height={12} borderRadius={4} />
+            </View>
+          ))}
+        </View>
+        <SkeletonBlock width="100%" height={10} borderRadius={5} />
+      </View>
+    </Animated.View>
+  );
+}
 
 export default function MoodHistoryScreen() {
   const router = useRouter();
   const moodHistory = useStore(s => s.moodHistory);
   const focusHistory = useStore(s => s.focusHistory);
   const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
+  // BUG-NET-2 FIX: Gate the full render on moodLoaded so we show skeleton
+  // instead of a blank/zero-filled screen on first open or slow connection.
+  const moodLoaded = useStore(s => s.syncStatus.moodLoaded);
   const colors = useThemeColors();
 
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
@@ -154,6 +218,10 @@ export default function MoodHistoryScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* BUG-NET-2 FIX: Show skeleton while Firestore snapshot hasn't resolved yet */}
+        {!moodLoaded ? (
+          <MoodHistorySkeleton />
+        ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* ===== CALENDAR ===== */}
           <Animated.View
@@ -371,6 +439,7 @@ export default function MoodHistoryScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+        )} {/* end !moodLoaded ternary */}
       </SafeAreaView>
     </View>
   );

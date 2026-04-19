@@ -49,7 +49,7 @@ const HabitItem = React.memo(({ habit, streak, isCompletedToday, isSyncing, colo
         <TouchableOpacity
           key={i}
           activeOpacity={0.6}
-          hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           onPress={() => {
             if (!isFuture) onToggle(habit.id, dateString);
           }}

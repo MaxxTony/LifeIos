@@ -11,6 +11,8 @@ export const useProfileStats = () => {
   const focusSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
   const userLevel = useStore(s => s.level);
   const totalXP = useStore(s => s.totalXP);
+  const globalStreak = useStore(s => s.globalStreak || 0);
+  const weeklyXP = useStore(s => s.weeklyXP || 0);
 
   const stats = useMemo(() => {
     // 1. Lifetime Totals
@@ -82,9 +84,11 @@ export const useProfileStats = () => {
       moodStatus,
       moodEmoji,
       moodColor,
-      avgMood
+      avgMood,
+      globalStreak,
+      weeklyXP
     };
-  }, [habits, focusHistory, moodHistory, getStreak, focusSecondsToday, userLevel, totalXP]);
+  }, [habits, focusHistory, moodHistory, getStreak, focusSecondsToday, userLevel, totalXP, globalStreak, weeklyXP]);
 
   return stats;
 };

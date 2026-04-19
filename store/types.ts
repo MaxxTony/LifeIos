@@ -132,6 +132,13 @@ export interface UserState {
   lastActiveTimestamp: number;
   totalXP: number;
   level: number;
+  weeklyXP: number;
+  globalStreak: number;
+  lastActiveDate: string | null;
+  lastWeekResetDate: string | null;
+  lastLoginBonusDate: string | null;
+  streakFreezes: number;
+  globalConfetti: boolean;
   dailyQuests: Quest[];
   completedQuests: string[];
   proactivePrompt: { message: string; trigger: string; timestamp: number } | null;
@@ -169,7 +176,9 @@ export interface UserActions {
   setHasSeenWalkthrough: (seen: boolean) => void;
   setThemePreference: (theme: UserState['themePreference']) => void;
   setAccentColor: (color: string) => void;
+  triggerGlobalConfetti: () => void;
   updateNotificationSettings: (updates: Partial<UserState['notificationSettings']>) => void;
+  buyStreakFreeze: () => Promise<void>;
 
   // Tasks
   addTask: (text: string, startTime?: string, endTime?: string, priority?: Task['priority'], date?: string) => string;

@@ -9,7 +9,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
-export function FocusWidget() {
+export const FocusWidget = React.memo(function FocusWidget() {
   const router = useRouter();
   const colors = useThemeColors();
   // Selectors: FocusWidget legitimately re-renders every second when active,
@@ -135,7 +135,7 @@ export function FocusWidget() {
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

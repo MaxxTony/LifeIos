@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-export function DailyTasksWidget() {
+export const DailyTasksWidget = React.memo(function DailyTasksWidget() {
   const router = useRouter();
   const colors = useThemeColors();
   // Selectors: only re-render when tasks or toggleTask changes, not on focus ticks.
@@ -173,7 +173,7 @@ export function DailyTasksWidget() {
     </View>
 
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

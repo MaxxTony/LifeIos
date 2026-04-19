@@ -11,6 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lifeos.prime",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.lifeos.prime"
+        ]
+      },
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
@@ -57,10 +62,31 @@
       ],
       "expo-notifications",
       [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "StreakWidget",
+              "label": "LifeOS Streak",
+              "minWidth": "100dp",
+              "minHeight": "100dp",
+              "description": "View your global streak live",
+              "updatePeriodMillis": 3600000
+            }
+          ]
+        }
+      ],
+      [
         "@sentry/react-native/expo",
         {
           "organization": "lifeos",
           "project": "react-native"
+        }
+      ],
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "3DZVM2GN57"
         }
       ]
     ],
@@ -70,8 +96,26 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a21c2c05-ab8d-477f-97b2-5ff66062bc33"
+        "projectId": "a21c2c05-ab8d-477f-97b2-5ff66062bc33",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.lifeos.prime.widget",
+                  "targetName": "widget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.lifeos.prime"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
-    }
+    },
+    "owner": "becker0601"
   }
 }

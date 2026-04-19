@@ -4,8 +4,12 @@
       ".read": "auth != null",
       "$uid": {
         ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['userName', 'lastActive', 'status', 'isPublic']) && newData.child('isPublic').val() === true"
+        ".validate": "newData.hasChildren(['userName', 'lastActive', 'status', 'isPublic']) && newData.child('userName').isString() && newData.child('lastActive').isNumber() && newData.child('status').isString() && newData.child('isPublic').isBoolean() && newData.child('isPublic').val() === true"
       }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
     }
   }
 }

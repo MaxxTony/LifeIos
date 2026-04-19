@@ -1,6 +1,7 @@
 import { ProfileHero } from '@/components/Profile/ProfileHero';
 import { ProfileMenuItem } from '@/components/Profile/ProfileMenuItem';
 import { StatsBentoGrid } from '@/components/Profile/StatsBentoGrid';
+import { TrophyCabinet } from '@/components/Profile/TrophyCabinet';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
@@ -68,6 +69,9 @@ export default function ProfileScreen() {
             </View>
             <StatsBentoGrid />
           </Animated.View>
+
+          {/* Gamification Badges */}
+          <TrophyCabinet />
 
           {/* Preferences Section */}
           <Animated.View entering={FadeIn.delay(500).duration(600)} style={styles.section}>

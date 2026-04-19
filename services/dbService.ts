@@ -8,6 +8,10 @@ import {
   updateDoc,
   addDoc,
   query,
+  where,
+  orderBy,
+  limit,
+  documentId,
   onSnapshot,
   serverTimestamp,
   arrayUnion,
@@ -132,12 +136,24 @@ export const dbService = {
     await setDoc(doc(db, 'users', userId, 'dailyQuests', quest.id), sanitizeData(quest));
   },
 
-  deleteDailyQuests: async (userId: string) => {
+  // FIREBASE-2 FIX: Accept `beforeDate` (YYYY-MM-DD) and only delete quest docs
+  // whose IDs are strictly older than that date. Quest IDs follow the pattern
+  // `quest-{YYYY-MM-DD}-{idx}`, so a string comparison on documentId() is sufficient.
+  // This replaces the full getDocs() scan (reads every quest doc!) with a tiny targeted
+  // query — saves ~3 reads/user/day at essentially zero write cost at scale.
+  deleteDailyQuests: async (userId: string, beforeDate?: string) => {
     const collRef = collection(db, 'users', userId, 'dailyQuests');
-    const snap = await getDocs(collRef);
+
+    // Build the query: if beforeDate is supplied, only fetch docs whose ID is
+    // lexicographically less than `quest-{beforeDate}` (i.e. yesterday and earlier).
+    const q = beforeDate
+      ? query(collRef, where(documentId(), '<', `quest-${beforeDate}`))
+      : query(collRef); // fallback: fetch all (should only hit during legacy cleanup)
+
+    const snap = await getDocs(q);
     if (snap.empty) return;
 
-    // F-3 FIX: Chunked batch deletion to prevent Firestore limit crash (max 500 ops)
+    // Chunked batch deletion — stays within Firestore's 500-op batch limit
     const docs = snap.docs;
     for (let i = 0; i < docs.length; i += 499) {
       const batch = writeBatch(db);
@@ -288,5 +304,14 @@ export const dbService = {
         }
       }
     );
+  },
+
+  updateGlobalStats: async (userId: string, statsData: Record<string, any>) => {
+    const data = sanitizeData({
+      ...statsData,
+      lastUpdatedAt: serverTimestamp(),
+    });
+    // Set with merge ensures the document is created if it doesn't exist
+    await setDoc(doc(db, 'users', userId, 'stats', 'global'), data, { merge: true });
   },
 };

@@ -23,9 +23,11 @@ export default function Index() {
   useEffect(() => {
     let timer: any;
     if (!_hasHydrated || (isAuthenticated && !tasksLoaded && !forceContinue)) {
+      // BUG-NET-1 FIX: 5s threshold instead of 10s — users on slow connections
+      // should see recovery options sooner, not wait a full 10 seconds.
       timer = setTimeout(() => {
         setShowWatchdog(true);
-      }, 10000); // 10s timeout
+      }, 5000);
     } else {
       setShowWatchdog(false);
     }

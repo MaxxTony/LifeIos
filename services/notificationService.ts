@@ -246,6 +246,47 @@ export const notificationService = {
     }
   },
 
+  scheduleStreakWarningNotification: async () => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings, globalStreak } = useStore.getState();
+    if (!notificationSettings.push) return;
+    if (globalStreak <= 0) return; // Only warn if they actually have a streak going
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
+      await ensureChannel();
+      await notificationService.cancelStreakWarningNotification();
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🔥 Save your streak!',
+          body: `Your ${globalStreak}-day streak is about to die! Take 2 minutes to complete a habit.`,
+          sound: true,
+          data: { type: 'STREAK_WARNING' }
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: 22, // 10:00 PM
+          minute: 0,
+        },
+        identifier: 'streak-warning',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule streak warning notification:', e);
+    }
+  },
+
+  cancelStreakWarningNotification: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('streak-warning');
+    } catch (e) {
+      // Silence
+    }
+  },
+
   scheduleDailyMoodReminder: async () => {
     if (Platform.OS === 'web') return;
     const { notificationSettings, moodHistory, homeTimezone } = useStore.getState();
