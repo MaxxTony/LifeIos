@@ -51,7 +51,6 @@ export const aiActionHandler = {
         color: '#6366f1',
         targetDays: [0, 1, 2, 3, 4, 5, 6],
         reminderTime: null,
-        currentStreak: 0,
         goalDays: params.frequency === 'daily' ? 7 : 1,
       });
       analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'addHabit' });

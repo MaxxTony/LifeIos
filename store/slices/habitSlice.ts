@@ -63,6 +63,8 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
     const newHabits = state.habits.map(h => {
       if (h.id === id) {
         const today = dateStr || getTodayLocal();
+        // Prevent completing habits for future dates (XP farming guard)
+        if (today > getTodayLocal()) return h;
         if (h.pausedUntil && today <= h.pausedUntil) return h;
 
         const completedSet = new Set(h.completedDays);
@@ -219,6 +221,14 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
                 text2: `You hit a ${milestone.streak}-day streak for ${h.title}!`
               });
             });
+            // Request App Store review at meaningful streak milestones (7 & 30 days)
+            if (milestone.streak === 7 || milestone.streak === 30) {
+              import('expo-store-review').then(StoreReview => {
+                StoreReview.isAvailableAsync().then(available => {
+                  if (available) StoreReview.requestReview();
+                });
+              }).catch(() => {});
+            }
             get().actions.triggerProactivePrompt(
               'milestone',
               `Incredible consistency! You just hit a ${milestone.streak}-day streak for ${h.title}. How does it feel to be this focused?`

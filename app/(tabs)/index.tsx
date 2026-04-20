@@ -1,3 +1,4 @@
+import { AIInsightCard } from '@/components/AIInsightCard';
 import { DailyTasksWidget } from '@/components/DailyTasksWidget';
 import { DashboardAIButton } from '@/components/DashboardAIButton';
 import { FocusWidget } from '@/components/FocusWidget';
@@ -221,6 +222,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Dashboard Widgets */}
+          <AIInsightCard />
           <View style={{ marginBottom: Spacing.lg }}>
             <QuestDashboard />
           </View>

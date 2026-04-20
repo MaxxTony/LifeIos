@@ -52,6 +52,16 @@ export const migrateMoodHistory = (history: any): Record<string, MoodEntry> => {
   return map;
 };
 
+// Fisher-Yates unbiased shuffle — replaces sort(() => 0.5 - Math.random())
+export const shuffleArray = <T>(arr: T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
 export const QUEST_TEMPLATES = [
   { type: 'task' as const, title: 'Complete 3 Tasks', targetCount: 3, rewardXP: 50 },
   { type: 'task' as const, title: 'Complete 5 Tasks', targetCount: 5, rewardXP: 100 },
@@ -98,6 +108,29 @@ export const LEVEL_THRESHOLDS = [
   115000,  // L19 Transcendent
   140000,  // L20 Apex
 ];
+
+export const LEVEL_NAMES: Record<number, string> = {
+  1: 'Spark',
+  2: 'Seeker',
+  3: 'Challenger',
+  4: 'Pathfinder',
+  5: 'Striker',
+  6: 'Warrior',
+  7: 'Guardian',
+  8: 'Architect',
+  9: 'Enforcer',
+  10: 'Legend',
+  11: 'Phantom',
+  12: 'Titan',
+  13: 'Sovereign',
+  14: 'Ascendant',
+  15: 'Immortal',
+  16: 'Eclipse',
+  17: 'Ethereal',
+  18: 'Mythic',
+  19: 'Transcendent',
+  20: 'Apex',
+};
 
 export const computeLevel = (xp: number): number => {
   let level = 1;

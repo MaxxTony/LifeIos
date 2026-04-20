@@ -1,4 +1,5 @@
 import { CircularProgress } from '@/components/CircularProgress';
+import { ShareWeeklyCard } from '@/components/ShareWeeklyCard';
 import { FocusPulseChart } from '@/components/FocusPulseChart';
 import { HabitCalendar } from '@/components/HabitCalendar';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
@@ -325,7 +326,7 @@ export default function ProgressScreen() {
                 </View>
               </View>
             </PremiumCard>
-
+            <ShareWeeklyCard />
             <View style={styles.metricsGrid}>
               <MetricItem icon={<Brain size={18} color={colors.success} />} value={`${(focusSecondsToday / 3600).toFixed(1)}h`} label="Focus" color={colors.success} />
               <MetricItem icon={<Target size={18} color={colors.secondary} />} value={`${completedTasksCount}`} label="Tasks" color={colors.secondary} />
@@ -501,7 +502,7 @@ export default function ProgressScreen() {
                     </ScrollView>
                   )}
                   <Text style={[styles.selectedHabitTitle, { color: colors.text }]}>{habits[selectedHabitIndex]?.title}</Text>
-                  <HabitCalendar completedDays={habits[selectedHabitIndex]?.completedDays ?? []} createdAt={habits[selectedHabitIndex]?.createdAt ?? Date.now()} />
+                  <HabitCalendar {...habits[selectedHabitIndex]} />
                 </View>
               ) : (
                 <View style={styles.emptyState}><Ionicons name="calendar-outline" size={32} color={colors.textSecondary + '40'} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Start a habit to track your consistency.</Text></View>

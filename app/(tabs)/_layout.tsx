@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 /** @ts-ignore - experimental API */
 import { Typography } from '@/constants/theme';
@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useStore } from '@/store/useStore';
+import { LevelUpCelebration } from '@/components/LevelUpCelebration';
 
 /**
  * Custom Animated Tab Bar for Android and Legacy iOS
@@ -159,15 +161,40 @@ export default function TabsLayout() {
   // right chrome on iOS 27, 28, ... rather than silently falling back.
   const isModernIOS = Platform.OS === 'ios' && iosVersion >= 26;
 
+  // Level Up Watcher
+  const level = useStore(s => s.level);
+  const prevLevelRef = useRef<number>(level);
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [celebratedLevel, setCelebratedLevel] = useState(level);
+
+  useEffect(() => {
+    // Only celebrate if the level is actually higher (prevents celebration on 0 -> 1 hydration)
+    if (level > prevLevelRef.current && prevLevelRef.current > 0) {
+      setCelebratedLevel(level);
+      setShowLevelUp(true);
+    }
+    prevLevelRef.current = level;
+  }, [level]);
+
+  let content;
   if (Platform.OS === 'android') {
-    return <AndroidTabs />;
+    content = <AndroidTabs />;
+  } else if (isModernIOS) {
+    content = <IOSTabs />;
+  } else {
+    content = <LegacyIOSTabs />;
   }
 
-  if (isModernIOS) {
-    return <IOSTabs />;
-  }
-
-  return <LegacyIOSTabs />;
+  return (
+    <>
+      {content}
+      <LevelUpCelebration 
+        level={celebratedLevel} 
+        visible={showLevelUp} 
+        onClose={() => setShowLevelUp(false)} 
+      />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

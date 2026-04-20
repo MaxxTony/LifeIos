@@ -118,6 +118,16 @@ export const useStore = create<UserState>()(
     },
     {
       name: 'lifeos-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // v0→v1: pendingActions field added — default to empty array
+          if (!Array.isArray(persistedState.pendingActions)) {
+            persistedState.pendingActions = [];
+          }
+        }
+        return persistedState;
+      },
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => {
         const {
@@ -126,7 +136,6 @@ export const useStore = create<UserState>()(
           _lastRetryAt,
           _subscriptionGen,
           syncError,
-          proactivePrompt,
           recentXP,
           streakMilestones,
           lastMoodLog,
@@ -210,4 +219,25 @@ useStore.subscribe((state) => {
       widgetSyncService.syncWholeStoreToWidget(widgetData);
     }
   }, 500); // 500ms debounce — groups rapid changes from timer ticks
+});
+
+// Re-schedule morning brief when tasks or habits change so tomorrow's
+// notification shows fresh counts instead of stale data.
+let prevTaskCount = 0;
+let prevHabitCount = 0;
+let morningBriefDebounce: ReturnType<typeof setTimeout> | null = null;
+
+useStore.subscribe((state) => {
+  if (!state._hasHydrated || !state.userId) return;
+  const taskCount = state.tasks.length;
+  const habitCount = state.habits.length;
+  if (taskCount === prevTaskCount && habitCount === prevHabitCount) return;
+  prevTaskCount = taskCount;
+  prevHabitCount = habitCount;
+  if (morningBriefDebounce) clearTimeout(morningBriefDebounce);
+  morningBriefDebounce = setTimeout(() => {
+    import('@/services/notificationService').then(({ notificationService }) => {
+      notificationService.scheduleMorningBrief();
+    });
+  }, 3000); // 3s delay — wait for state to settle after bulk loads
 });

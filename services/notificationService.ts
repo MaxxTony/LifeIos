@@ -485,6 +485,226 @@ export const notificationService = {
     }
   },
 
+  scheduleMorningBrief: async () => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings, globalStreak, tasks, habits } = useStore.getState();
+    if (!notificationSettings.push) return;
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
+      await ensureChannel();
+
+      // Cancel old brief before re-scheduling so content stays fresh
+      await Notifications.cancelScheduledNotificationAsync('morning-brief').catch(() => {});
+
+      const today = getTodayLocal();
+      const todayDayOfWeek = new Date().getDay();
+
+      // Count tasks due today
+      const tasksDueToday = tasks.filter(t => t.date === today && !t.completed).length;
+
+      // Count habits due today (respects frequency)
+      const habitsDueToday = habits.filter(h => {
+        if (h.pausedUntil && today <= h.pausedUntil) return false;
+        if (h.completedDays.includes(today)) return false; // already done
+        if (h.frequency === 'daily') return true;
+        if (h.frequency === 'weekly') return (h.targetDays || []).includes(todayDayOfWeek);
+        if (h.frequency === 'monthly') return true;
+        return false;
+      }).length;
+
+      // Build dynamic title + body
+      let title = '🌅 Good morning!';
+      let body = "Let's make today count.";
+
+      const parts: string[] = [];
+      if (tasksDueToday > 0) parts.push(`${tasksDueToday} task${tasksDueToday > 1 ? 's' : ''} waiting`);
+      if (habitsDueToday > 0) parts.push(`${habitsDueToday} habit${habitsDueToday > 1 ? 's' : ''} to complete`);
+
+      if (globalStreak > 1) {
+        title = `🔥 Day ${globalStreak} streak — keep it alive!`;
+      } else if (globalStreak === 1) {
+        title = '🌅 Good morning! Day 1 of your new streak.';
+      }
+
+      if (parts.length > 0) {
+        body = `🎯 ${parts.join(' · ')}. Let's go!`;
+      } else if (habits.length === 0 && tasks.filter(t => t.date === today).length === 0) {
+        body = 'Open LifeOS and plan your day. 5 minutes = better results all day.';
+      } else {
+        body = "You're all caught up! Add a task or log your mood to earn XP. 💡";
+      }
+
+      const trigger: any = Platform.OS === 'ios'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            hour: 8,
+            minute: 0,
+            repeats: true,
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 8,
+            minute: 0,
+          };
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'MORNING_BRIEF' },
+          sound: true,
+        },
+        trigger,
+        identifier: 'morning-brief',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule morning brief:', e);
+    }
+  },
+
+  cancelMorningBrief: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('morning-brief');
+    } catch (e) {
+      // Silence
+    }
+  },
+
+  scheduleQuestFOMO: async () => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings, dailyQuests } = useStore.getState();
+    if (!notificationSettings.push) return;
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
+      await ensureChannel();
+      // Always cancel first — if all quests are done, we don't want a stale notification
+      await Notifications.cancelScheduledNotificationAsync('quest-fomo').catch(() => {});
+
+      const incompleteQuests = dailyQuests.filter(q => !q.completed);
+      if (incompleteQuests.length === 0) return; // all done — no FOMO needed
+
+      const totalXPLeft = incompleteQuests.reduce((sum, q) => sum + q.rewardXP, 0);
+      const questWord = incompleteQuests.length === 1 ? 'quest' : 'quests';
+
+      const title = `⏰ ${incompleteQuests.length} ${questWord} expiring at midnight!`;
+      const body = `${totalXPLeft} XP on the line. Complete them before the day resets. 🏆`;
+
+      const trigger: any = Platform.OS === 'ios'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            hour: 21,
+            minute: 0,
+            repeats: true,
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 21,
+            minute: 0,
+          };
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'QUEST_FOMO' },
+          sound: true,
+        },
+        trigger,
+        identifier: 'quest-fomo',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule quest FOMO notification:', e);
+    }
+  },
+
+  cancelQuestFOMO: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('quest-fomo');
+    } catch (e) {
+      // Silence
+    }
+  },
+
+  scheduleWeeklyLeaderboardAlert: async (userRank?: number) => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.push) return;
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+
+      await ensureChannel();
+      await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard').catch(() => {});
+
+      // Build rank-aware body copy
+      let title = '📊 Weekly XP resets tonight at midnight!';
+      let body = "Last chance to climb the leaderboard before Monday's reset. 🚀";
+
+      if (userRank !== undefined && userRank > 0) {
+        if (userRank === 1) {
+          title = '👑 You\'re #1! Defend your throne.';
+          body = "Weekly reset in 3 hours. Log one more habit to lock in your top spot. 🔥";
+        } else if (userRank <= 3) {
+          title = `🥇 You're #${userRank} on the leaderboard!`;
+          body = "Weekly reset in 3 hours — stay in the top 3. Complete a quest now. 💪";
+        } else if (userRank <= 10) {
+          title = `📊 You're #${userRank} — top 10 is yours.`;
+          body = "Weekly reset in 3 hours. Push one more habit or task to climb higher. 🏆";
+        } else {
+          title = `📊 Weekly reset in 3 hours! You're #${userRank}.`;
+          body = "Complete your quests to earn XP and climb the leaderboard tonight. ⚡";
+        }
+      }
+
+      // Fire every Sunday at 9 PM (weekday 1=Sun in expo, JS getDay()=0)
+      const trigger: any = Platform.OS === 'ios'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            weekday: 1, // Sunday (expo: 1=Sun)
+            hour: 21,
+            minute: 0,
+            repeats: true,
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: 1, // Sunday (expo: 1=Sun)
+            hour: 21,
+            minute: 0,
+          };
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'WEEKLY_LEADERBOARD' },
+          sound: true,
+        },
+        trigger,
+        identifier: 'weekly-leaderboard',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule weekly leaderboard alert:', e);
+    }
+  },
+
+  cancelWeeklyLeaderboardAlert: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard');
+    } catch (e) {
+      // Silence
+    }
+  },
+
   sendProactiveAI: async (title: string, body: string) => {
     if (Platform.OS === 'web') return;
     try {

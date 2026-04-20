@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { StateCreator } from 'zustand';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
-import { QUEST_TEMPLATES, computeLevel } from '../helpers';
+import { QUEST_TEMPLATES, computeLevel, shuffleArray } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { GamificationActions, UserState } from '../types';
 import { analyticsService } from '@/services/analyticsService';
@@ -185,7 +185,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
     if (lastResetDate === today && questsAreForToday) return;
 
-    const shuffled = [...QUEST_TEMPLATES].sort(() => 0.5 - Math.random());
+    const shuffled = shuffleArray(QUEST_TEMPLATES);
     const selected = shuffled.slice(0, 3).map((q, idx) => ({
       ...q,
       id: `quest-${today}-${idx}`,
@@ -300,16 +300,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     // Check for Level Up
     if (newLevel > state.level) {
       analyticsService.logMilestone(state.userId, 'level_up', { newLevel });
-      setTimeout(() => {
-        import('react-native-toast-message').then(Toast => {
-          Toast.default.show({
-            type: 'success',
-            text1: 'Level Up! ✨',
-            text2: `You reached Level ${newLevel}! Keep evolving.`
-          });
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }, 800);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
     const newStatData = { 
@@ -425,16 +416,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         const newLastWeekResetDate = isNewWeek ? currentMondayStr : state.lastWeekResetDate;
 
         if (newLevel > state.level) {
-          setTimeout(() => {
-            import('react-native-toast-message').then(Toast => {
-              Toast.default.show({
-                type: 'success',
-                text1: 'Level Up! ✨',
-                text2: `You reached Level ${newLevel}! Keep evolving.`
-              });
-            });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }, 1200);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
 
         newState.totalXP = newTotalXP;

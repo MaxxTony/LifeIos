@@ -10,7 +10,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import * as TaskManager from 'expo-task-manager';
+
 import { useEffect, useRef } from 'react';
 import { AppState, useColorScheme, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -29,7 +29,7 @@ import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 import { widgetTaskHandler } from '../widget/WidgetTaskHandler';
 
-initCrashAnalytics();
+if (!__DEV__) initCrashAnalytics();
 
 // Register the Android Widget background handler (ignored on iOS)
 if (Platform.OS === 'android') {
@@ -167,7 +167,7 @@ export default function RootLayout() {
         checkMissedTasks();
 
         // TEST A-1 & A-3: Foreground Session Validation
-        const { isAuthenticated, userId } = useStore.getState();
+        const { isAuthenticated } = useStore.getState();
         if (isAuthenticated && authService.currentUser) {
           const isValid = await authService.validateSession(authService.currentUser);
           if (!isValid) {
@@ -192,11 +192,38 @@ export default function RootLayout() {
       const { setLastActive } = useStore.getState().actions;
       setLastActive();
 
-      // Schedule comeback and streak warnings when user closes app or sets it up
+      // Schedule all re-engagement notifications on every hydration.
+      // Each function cancels its old notification before re-scheduling so content stays fresh.
       import('@/services/notificationService').then(({ notificationService }) => {
         notificationService.scheduleComebackNotifications();
         notificationService.scheduleStreakWarningNotification();
+        notificationService.scheduleMorningBrief();
+        notificationService.scheduleQuestFOMO();
       });
+
+      // Weekly leaderboard alert — schedule with live rank so copy is personalised.
+      // Fetch rank only on Sunday to avoid unnecessary Firestore reads every app open.
+      const leaderboardUserId = useStore.getState().userId;
+      if (leaderboardUserId) {
+        const todayDay = new Date().getDay(); // 0 = Sunday
+        import('@/services/notificationService').then(({ notificationService }) => {
+          if (todayDay === 0) {
+            // It's Sunday — fetch actual rank from leaderboard for personalised copy
+            import('@/services/socialService').then(({ socialService }) => {
+              socialService.getLeaderboard(leaderboardUserId).then(profiles => {
+                const sorted = [...profiles].sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0));
+                const rank = sorted.findIndex(p => p.userId === leaderboardUserId) + 1;
+                notificationService.scheduleWeeklyLeaderboardAlert(rank > 0 ? rank : undefined);
+              }).catch(() => {
+                notificationService.scheduleWeeklyLeaderboardAlert();
+              });
+            });
+          } else {
+            // Not Sunday — schedule without rank (no Firestore read needed)
+            notificationService.scheduleWeeklyLeaderboardAlert();
+          }
+        });
+      }
 
       // BUG-AUTH-3 FIX: Reschedule ALL habit notifications after reinstall.
       // After an OS reinstall or app cache clear, all locally-scheduled notifications
@@ -328,6 +355,12 @@ export default function RootLayout() {
         router.push({ pathname: '/tasks/[id]', params: { id: data.taskId } } as any);
       } else if (data?.type === 'PROACTIVE_AI') {
         router.push('/ai-chat');
+      } else if (data?.type === 'MORNING_BRIEF') {
+        router.replace('/(tabs)');
+      } else if (data?.type === 'QUEST_FOMO') {
+        router.replace('/(tabs)');
+      } else if (data?.type === 'WEEKLY_LEADERBOARD') {
+        router.push('/social-leaderboard');
       }
     });
 
