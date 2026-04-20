@@ -2,24 +2,23 @@ import { DailyTasksWidget } from '@/components/DailyTasksWidget';
 import { DashboardAIButton } from '@/components/DashboardAIButton';
 import { FocusWidget } from '@/components/FocusWidget';
 import { HabitGrid } from '@/components/HabitGrid';
+import { MoodFeedbackOverlay } from '@/components/MoodFeedbackOverlay';
 import { MoodTrend } from '@/components/MoodTrend';
 import { OnboardingWalkthrough } from '@/components/Onboarding/OnboardingWalkthrough';
+import { QuestDashboard } from '@/components/QuestDashboard';
 import { StreakCelebration } from '@/components/StreakCelebration';
 import { XPPopUp } from '@/components/XPPopUp';
-import { MoodFeedbackOverlay } from '@/components/MoodFeedbackOverlay';
-import { QuestDashboard } from '@/components/QuestDashboard';
-import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useProfileStats } from '@/hooks/useProfileStats';
+import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
   const hour = new Date().getHours();
@@ -117,7 +116,7 @@ export default function HomeScreen() {
 
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
-  
+
   useEffect(() => {
     if (isHydrated) {
       generateDailyQuests();
@@ -153,7 +152,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={{ padding: 14, borderRadius: BorderRadius.full, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
             onPress={async () => {
-              try { await AsyncStorage.removeItem('lifeos-storage'); } catch (_) {}
+              try { await AsyncStorage.removeItem('lifeos-storage'); } catch (_) { }
               useStore.setState({ _hasHydrated: true });
             }}
           >
@@ -198,7 +197,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => router.push('/(tabs)/profile')}
                 style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
@@ -244,7 +243,7 @@ export default function HomeScreen() {
           {/* Footer Spacer */}
           <View style={{ height: 40 }} />
         </Animated.ScrollView>
-        
+
         {/* Rewards Layer (Persistent) */}
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <OnboardingWalkthrough />

@@ -24,6 +24,8 @@ export interface Habit {
   color: string;
   frequency: 'daily' | 'weekly' | 'monthly';
   targetDays: number[]; // [0, 1, 2, 3, 4, 5, 6] for Sun-Sat
+  monthlyTarget?: number; // target completions per month if frequency === 'monthly'
+  monthlyDay?: number;    // specific day-of-month (1-31) for monthly habits (e.g. 7 = every 7th)
   reminderTime: string | null;
   goalDays: number;
   completedDays: string[]; // ISO Dates (e.g. "2024-04-10")
@@ -191,7 +193,7 @@ export interface UserActions {
   checkMissedTasks: () => void;
 
   // Habits
-  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => void;
+  addHabit: (habit: Omit<Habit, 'completedDays' | 'bestStreak' | 'currentStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => void;
   removeHabit: (id: string) => void;
   toggleHabit: (id: string, dateStr?: string) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;

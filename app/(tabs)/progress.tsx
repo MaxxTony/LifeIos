@@ -1,21 +1,21 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { CircularProgress } from '@/components/CircularProgress';
 import { FocusPulseChart } from '@/components/FocusPulseChart';
 import { HabitCalendar } from '@/components/HabitCalendar';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useProfileStats } from '@/hooks/useProfileStats';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Brain, Target, Zap, TrendingUp, Award, Info, Sparkles, Flame, ShieldAlert, PlusCircle } from 'lucide-react-native';
-import { useProfileStats } from '@/hooks/useProfileStats';
-import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { Award, Brain, Flame, Info, PlusCircle, ShieldAlert, Sparkles, Target, TrendingUp, Zap } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -146,11 +146,11 @@ export default function ProgressScreen() {
 
   // 1. Calculate Today's Stats
   const todayStr = getTodayLocal();
-  
+
   const todayTasks = tasks.filter(t => t.date === todayStr);
   const completedTasksCount = todayTasks.filter(t => t.completed).length;
   const totalTasksCount = todayTasks.length;
-  
+
   const completedHabitsCount = habits.filter(h => h.completedDays.includes(todayStr)).length;
   const totalHabitsCount = habits.length;
 
@@ -169,10 +169,10 @@ export default function ProgressScreen() {
     ? Math.round(activeMetrics.reduce((a, b) => a + b, 0) / activeMetrics.length)
     : 0;
 
-  const { 
-    level: userLevel, 
-    xpInCurrentLevel, 
-    xpProgress, 
+  const {
+    level: userLevel,
+    xpInCurrentLevel,
+    xpProgress,
     xpNeeded,
     globalStreak
   } = useProfileStats();
@@ -181,7 +181,7 @@ export default function ProgressScreen() {
   const focusChartData = useMemo(() => {
     const data = [];
     const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-    
+
     // Find the most recent Monday
     const today = new Date();
     const day = today.getDay();
@@ -203,7 +203,7 @@ export default function ProgressScreen() {
   const moodChartData = useMemo(() => {
     const data = [];
     const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-    
+
     // Find the most recent Monday
     const today = new Date();
     const day = today.getDay();
@@ -229,7 +229,7 @@ export default function ProgressScreen() {
   const lifeScoreChartData = useMemo(() => {
     const data = [];
     const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-    
+
     // Find the most recent Monday
     const today = new Date();
     const day = today.getDay();
@@ -261,7 +261,7 @@ export default function ProgressScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -285,7 +285,7 @@ export default function ProgressScreen() {
           {/* ZONE 1: DAILY PULSE */}
           <View style={styles.sectionZone}>
             <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Daily Pulse</Text>
-            
+
             <PremiumCard style={styles.heroCard}>
               <View style={styles.heroMain}>
                 <View style={styles.scoreInfo}>
@@ -296,15 +296,15 @@ export default function ProgressScreen() {
                     </TouchableOpacity>
                   </View>
                   <Text style={[styles.momentumValue, { color: colors.text }]}>{lifeScore}%</Text>
-                  
+
                   <View style={styles.momentumStats}>
-                    <Ionicons 
-                      name={momentum >= 0 ? 'trending-up' : 'trending-down'} 
-                      size={14} 
-                      color={momentum >= 0 ? colors.success : colors.danger} 
+                    <Ionicons
+                      name={momentum >= 0 ? 'trending-up' : 'trending-down'}
+                      size={14}
+                      color={momentum >= 0 ? colors.success : colors.danger}
                     />
                     <Text style={[
-                      styles.momentumText, 
+                      styles.momentumText,
                       { color: momentum >= 0 ? colors.success : colors.danger }
                     ]}>
                       {momentum >= 0 ? `+${momentum}%` : `${momentum}%`} from avg
@@ -327,15 +327,15 @@ export default function ProgressScreen() {
             </PremiumCard>
 
             <View style={styles.metricsGrid}>
-              <MetricItem icon={<Brain size={18} color={colors.success} />} value={`${(focusSecondsToday/3600).toFixed(1)}h`} label="Focus" color={colors.success} />
+              <MetricItem icon={<Brain size={18} color={colors.success} />} value={`${(focusSecondsToday / 3600).toFixed(1)}h`} label="Focus" color={colors.success} />
               <MetricItem icon={<Target size={18} color={colors.secondary} />} value={`${completedTasksCount}`} label="Tasks" color={colors.secondary} />
               <MetricItem icon={<Zap size={18} color={colors.danger} />} value={`${completedHabitsCount}`} label="Habits" color={colors.danger} />
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/social-leaderboard')}
               style={[
-                styles.leagueBanner, 
+                styles.leagueBanner,
                 { backgroundColor: colors.isDark ? '#2A1F45' : '#F7F4FE', borderColor: colors.primary + '30' }
               ]}
             >
@@ -353,10 +353,10 @@ export default function ProgressScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={buyStreakFreeze}
               style={[
-                styles.leagueBanner, 
+                styles.leagueBanner,
                 { backgroundColor: colors.isDark ? '#1F2937' : '#F1F5F9', borderColor: colors.border, marginTop: Spacing.sm }
               ]}
             >
@@ -371,7 +371,7 @@ export default function ProgressScreen() {
                   </Text>
                 </View>
               </View>
-              <View style={styles.leagueAction}>
+              <View style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}>
                 <PlusCircle size={20} color={streakFreezes >= 3 ? colors.textSecondary : "#38BDF8"} />
               </View>
             </TouchableOpacity>
@@ -380,7 +380,7 @@ export default function ProgressScreen() {
           {/* ZONE 2: GROWTH & EVOLUTION */}
           <View style={styles.sectionZone}>
             <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Growth & Evolution</Text>
-            
+
             <PremiumCard style={styles.xpCard}>
               <View style={styles.xpHeader}>
                 <View style={styles.xpTitleRow}>
@@ -389,11 +389,11 @@ export default function ProgressScreen() {
                 </View>
                 <Text style={[styles.xpSub, { color: colors.textSecondary }]}>{xpNeeded} XP to Level {userLevel + 1}</Text>
               </View>
-              
+
               <View style={[styles.xpProgressBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                <LinearGradient colors={[colors.primary, colors.secondary]} start={{x:0,y:0}} end={{x:1,y:0}} style={[styles.xpProgressBarFill, { width: `${xpProgress * 100}%` } ]} />
+                <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.xpProgressBarFill, { width: `${xpProgress * 100}%` }]} />
               </View>
-              
+
               <View style={styles.masteryGuide}>
                 <View style={styles.guideItem}>
                   <Target size={12} color={colors.secondary} />
@@ -426,7 +426,7 @@ export default function ProgressScreen() {
                     const hasData = m > 0;
                     const h = hasData ? m * 14 : 4;
                     const isToday = item.date === getTodayLocal();
-                    
+
                     return (
                       <View key={i} style={styles.moodBarContainer}>
                         <View style={[styles.moodBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
@@ -462,7 +462,7 @@ export default function ProgressScreen() {
                             style={[styles.barFill, { height: h }]}
                           />
                         </View>
-                        <Text style={[styles.barLabel, { 
+                        <Text style={[styles.barLabel, {
                           color: isToday ? colors.primary : colors.textSecondary,
                           fontWeight: isToday ? '800' : '600'
                         }]}>
@@ -588,10 +588,10 @@ const styles = StyleSheet.create({
   metricValue: { ...Typography.h3, fontSize: 16, fontWeight: '700' },
   metricLabel: { ...Typography.caption, fontSize: 9 },
   leagueBanner: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
-  leagueBannerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  leagueBannerContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   leagueIconWrapper: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(124, 92, 255, 0.1)', justifyContent: 'center', alignItems: 'center' },
-  leagueTextWrapper: { justifyContent: 'center' },
-  leagueTitle: { fontSize: 16, fontWeight: '800' },
+  leagueTextWrapper: { justifyContent: 'center', flex: 1 },
+  leagueTitle: { fontSize: 13, fontWeight: '800' },
   leagueSub: { fontSize: 12 },
   leagueAction: { backgroundColor: 'rgba(124, 92, 255, 0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   leagueActionText: { fontWeight: 'bold', fontSize: 12 },

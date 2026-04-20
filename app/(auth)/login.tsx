@@ -618,7 +618,7 @@ export default function LoginScreen() {
           <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.footer}>
             <View style={styles.divider}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textSecondary + '80' }]}>OR CONTINUE WITH</Text>
+              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR CONTINUE WITH</Text>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
 
@@ -641,7 +641,7 @@ export default function LoginScreen() {
 
             </View>
 
-            <Text style={[styles.terms, { color: colors.textSecondary + '60' }]}>
+            <Text style={[styles.terms, { color: colors.textSecondary }]}>
               By signing in, you agree to our Terms & Privacy Policy.
             </Text>
           </Animated.View>
@@ -773,7 +773,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 24,
-    opacity: 0.5,
   },
   line: {
     flex: 1,

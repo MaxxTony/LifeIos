@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 const DAYS = [
@@ -17,10 +18,31 @@ const DAYS = [
   { label: 'Su', value: 0 },
 ];
 
+/**
+ * Parses a reminder time string (e.g. "8:30 pm") into a Date object.
+ * Returns null if the string is invalid or empty.
+ */
+const parseReminderTimeToDate = (timeStr: string): Date | null => {
+  if (!timeStr) return null;
+  const cleaned = timeStr.trim().replace(/\s+/g, ' ').toUpperCase();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
+  if (!match) return null;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3];
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  else if (modifier === 'AM' && hours === 12) hours = 0;
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+};
+
 export default function ConfigScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const colors = useThemeColors();
+   const colors = useThemeColors();
+  const habits = useStore(s => s.habits);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   
   const [title, setTitle] = useState(params.title?.toString() || '');
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>(
@@ -33,8 +55,40 @@ export default function ConfigScreen() {
     }
     return [0, 1, 2, 3, 4, 5, 6];
   });
-  const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [reminderTime, setReminderTime] = useState(new Date());
+
+  
+  const [monthlyTarget, setMonthlyTarget] = useState<number>(() => {
+    if (params.monthlyTarget) {
+      try { return parseInt(params.monthlyTarget as string); } catch { /* fall through */ }
+    }
+    return 1;
+  });
+
+  const [monthlyDay, setMonthlyDay] = useState<number>(() => {
+    if (params.monthlyDay) {
+      try { return parseInt(params.monthlyDay as string); } catch { /* fall through */ }
+    }
+    return new Date().getDate();
+  });
+
+  // 'fixed' = specific day each month (e.g. 7th), 'count' = any X times per month
+  const [monthlyMode, setMonthlyMode] = useState<'fixed' | 'count'>(
+    params.monthlyDay ? 'fixed' : 'count'
+  );
+
+  const [showMonthlyDayPicker, setShowMonthlyDayPicker] = useState(false);
+
+  // Pre-populate reminder state from params (supports edit mode)
+  const [reminderEnabled, setReminderEnabled] = useState(
+    params.reminderEnabled === 'true'
+  );
+  const [reminderTime, setReminderTime] = useState<Date>(() => {
+    if (params.reminderTime) {
+      const parsed = parseReminderTimeToDate(params.reminderTime as string);
+      if (parsed) return parsed;
+    }
+    return new Date();
+  });
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   const toggleDay = (day: number) => {
@@ -72,8 +126,8 @@ export default function ConfigScreen() {
   const handleNext = () => {
     if (!title.trim()) return;
 
-    // MIN-01 FIX: Validate that at least one day is selected for weekly/monthly habits
-    if ((frequency === 'weekly' || frequency === 'monthly') && selectedDays.length === 0) {
+    // MIN-01 FIX: Validate that at least one day is selected for weekly habits
+    if (frequency === 'weekly' && selectedDays.length === 0) {
       Alert.alert(
         'No Days Selected',
         'Please select at least one day for your habit schedule.',
@@ -81,6 +135,23 @@ export default function ConfigScreen() {
       );
       return;
     }
+
+    // Prevent duplicate habit names
+    const isDuplicate = habits.some(h => 
+      h.title.trim().toLowerCase() === title.trim().toLowerCase() && 
+      (!params.habitId || h.id !== params.habitId)
+    );
+
+    if (isDuplicate) {
+      Alert.alert(
+        'Habit Already Exists',
+        'You already have a habit with this name. Please choose a different name to avoid confusion.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    setIsFinalizing(true);
 
     router.push({
       pathname: '/(habits)/goal',
@@ -90,6 +161,8 @@ export default function ConfigScreen() {
         icon: params.icon || '✨',
         frequency,
         selectedDays: JSON.stringify(selectedDays),
+        monthlyTarget: monthlyMode === 'fixed' ? '1' : monthlyTarget.toString(),
+        monthlyDay: monthlyMode === 'fixed' ? monthlyDay.toString() : '',
         reminderEnabled: reminderEnabled ? 'true' : 'false',
         reminderTime: reminderEnabled ? formatTime(reminderTime) : '',
       }
@@ -97,7 +170,8 @@ export default function ConfigScreen() {
   };
 
   // C-14: Prevent accidental exit with unsaved work
-  const isDirty = title.trim().length > 0;
+  const [initialTitle] = useState(params.title?.toString() || '');
+  const isDirty = title.trim() !== initialTitle.trim();
   const navigation = Platform.OS !== 'web' ? require('@react-navigation/native').useNavigation() : null;
   React.useEffect(() => {
     if (!navigation) return;
@@ -116,7 +190,7 @@ export default function ConfigScreen() {
       // We allow this without showing an alert to prevent "ghost alerts" during flow completion.
       if (!navigation.isFocused()) return;
       
-      if (!isDirty) return;
+      if (!isDirty || isFinalizing) return;
 
       e.preventDefault();
 
@@ -143,7 +217,9 @@ export default function ConfigScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Create a new habit</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {params.habitId ? 'Edit habit' : 'Create a new habit'}
+        </Text>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -182,24 +258,139 @@ export default function ConfigScreen() {
             ))}
           </View>
 
-          <View style={styles.daysRow}>
-            {DAYS.map((day) => {
-              const isActive = selectedDays.includes(day.value);
-              return (
-                <TouchableOpacity 
-                  key={day.label + day.value}
-                  onPress={() => toggleDay(day.value)}
-                  style={[
-                    styles.dayCircle, 
-                    { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', borderColor: colors.border },
-                    isActive && [styles.dayCircleActive, { backgroundColor: colors.primary, borderColor: colors.primary }]
-                  ]}
+          {frequency === 'weekly' && (
+            <View style={styles.daysRow}>
+              {DAYS.map((day) => {
+                const isActive = selectedDays.includes(day.value);
+                return (
+                  <TouchableOpacity 
+                    key={day.label + day.value}
+                    onPress={() => toggleDay(day.value)}
+                    style={[
+                      styles.dayCircle, 
+                      { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', borderColor: colors.border },
+                      isActive && [styles.dayCircleActive, { backgroundColor: colors.primary, borderColor: colors.primary }]
+                    ]}
+                  >
+                    <Text style={[styles.dayText, { color: colors.textSecondary }, isActive && styles.dayTextActive]}>{day.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {frequency === 'monthly' && (
+            <View style={[styles.monthlyStepperContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
+
+              {/* Mode toggle */}
+              <Text style={[styles.monthlyStepperLabel, { color: colors.text, marginBottom: 14 }]}>How do you want to track this?</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                <TouchableOpacity
+                  onPress={() => setMonthlyMode('fixed')}
+                  style={[{
+                    flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: 'center', borderWidth: 1,
+                    backgroundColor: monthlyMode === 'fixed' ? colors.primary : 'transparent',
+                    borderColor: monthlyMode === 'fixed' ? colors.primary : colors.border,
+                  }]}
                 >
-                  <Text style={[styles.dayText, { color: colors.textSecondary }, isActive && styles.dayTextActive]}>{day.label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: monthlyMode === 'fixed' ? '#FFF' : colors.textSecondary }}>📅 Fixed Date</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '500', color: monthlyMode === 'fixed' ? 'rgba(255,255,255,0.7)' : colors.textSecondary + '80', marginTop: 3 }}>e.g. every 7th</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+                <TouchableOpacity
+                  onPress={() => setMonthlyMode('count')}
+                  style={[{
+                    flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: 'center', borderWidth: 1,
+                    backgroundColor: monthlyMode === 'count' ? colors.primary : 'transparent',
+                    borderColor: monthlyMode === 'count' ? colors.primary : colors.border,
+                  }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: monthlyMode === 'count' ? '#FFF' : colors.textSecondary }}>🔢 Count Goal</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '500', color: monthlyMode === 'count' ? 'rgba(255,255,255,0.7)' : colors.textSecondary + '80', marginTop: 3 }}>e.g. 20 times/month</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Fixed Date mode */}
+              {monthlyMode === 'fixed' && (
+                <View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>The habit will be tracked on this specific date every month</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowMonthlyDayPicker(true)}
+                    style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 14 }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: '600' }}>Every month on the</Text>
+                    <View style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6 }}>
+                      <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>{monthlyDay}{monthlyDay === 1 ? 'st' : monthlyDay === 2 ? 'nd' : monthlyDay === 3 ? 'rd' : 'th'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Count Goal mode */}
+              {monthlyMode === 'count' && (
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 16 }}>Complete this habit any day — just hit your monthly count</Text>
+                  <View style={styles.stepperControls}>
+                    <TouchableOpacity
+                      onPress={() => setMonthlyTarget(prev => Math.max(1, prev - 1))}
+                      style={[styles.stepperBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
+                    >
+                      <Text style={[styles.stepperBtnText, { color: colors.text }]}>-</Text>
+                    </TouchableOpacity>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={[styles.stepperValue, { color: colors.primary }]}>{monthlyTarget}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>times / month</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setMonthlyTarget(prev => Math.min(30, prev + 1))}
+                      style={[styles.stepperBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
+                    >
+                      <Text style={[styles.stepperBtnText, { color: colors.text }]}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Day-of-month picker modal */}
+          <Modal
+            visible={showMonthlyDayPicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowMonthlyDayPicker(false)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setShowMonthlyDayPicker(false)}
+              style={styles.modalOverlay}
+            >
+              <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.modalHeader}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Pick a day of month</Text>
+                  <TouchableOpacity onPress={() => setShowMonthlyDayPicker(false)} style={[styles.doneBtnPill, { backgroundColor: colors.primaryTransparent }]}>
+                    <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 16, paddingHorizontal: 4 }}>
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                    <TouchableOpacity
+                      key={day}
+                      onPress={() => { setMonthlyDay(day); setShowMonthlyDayPicker(false); }}
+                      style={[{
+                        width: 44, height: 44, borderRadius: 12,
+                        justifyContent: 'center', alignItems: 'center',
+                        backgroundColor: monthlyDay === day ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'
+                      }]}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: monthlyDay === day ? '#FFF' : colors.text }}>{day}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', paddingBottom: 8 }}>Days 29–31 are skipped in short months</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
 
           <View style={[styles.reminderCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
             <View style={styles.reminderHeader}>
@@ -294,7 +485,9 @@ export default function ConfigScreen() {
           onPress={handleNext}
           disabled={!title.trim()}
         >
-          <Text style={[styles.nextBtnText, { color: '#FFF' }]}>Create habit</Text>
+          <Text style={[styles.nextBtnText, { color: '#FFF' }]}>
+            {params.habitId ? 'Update habit' : 'Create habit'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -400,6 +593,41 @@ const styles = StyleSheet.create({
   },
   dayTextActive: {
     color: '#FFF',
+  },
+  monthlyStepperContainer: {
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: 35,
+  },
+  monthlyStepperLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  stepperControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+  },
+  stepperBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperBtnText: {
+    fontSize: 24,
+    fontWeight: '500',
+    marginTop: -2,
+  },
+  stepperValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    width: 50,
+    textAlign: 'center',
   },
   reminderCard: {
     borderRadius: 20,

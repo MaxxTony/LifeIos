@@ -387,11 +387,11 @@ export default function OnboardingScreen() {
   const slides = [
     // ── Slide 1: Welcome ─────────────────────────────────────────────────
     <View style={styles.slide} key="slide-1">
-      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
         <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
       </TouchableOpacity>
 
-      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
+      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer} pointerEvents="none">
         <PulsingOrb />
       </Animated.View>
 
@@ -411,11 +411,11 @@ export default function OnboardingScreen() {
 
     // ── Slide 2: AI Coach ─────────────────────────────────────────────────
     <View style={styles.slide} key="slide-2">
-      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
         <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
       </TouchableOpacity>
 
-      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
+      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer} pointerEvents="none">
         <BrainVisual />
       </Animated.View>
 
@@ -475,11 +475,11 @@ export default function OnboardingScreen() {
 
     // ── Slide 4: Ready ───────────────────────────────────────────────────
     <View style={styles.slide} key="slide-4">
-      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
         <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
       </TouchableOpacity>
 
-      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer}>
+      <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.visualContainer} pointerEvents="none">
         <FinalHero />
       </Animated.View>
 
@@ -579,6 +579,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     paddingVertical: 8,
     paddingHorizontal: 12,
+    zIndex: 100,
   },
   skipText: {
     ...Typography.body,

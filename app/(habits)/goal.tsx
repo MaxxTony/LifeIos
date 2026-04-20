@@ -10,12 +10,7 @@ import { notificationService } from '@/services/notificationService';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
-const GOALS = [
-  { days: 7, label: 'Good', icon: '⭐' },
-  { days: 14, label: 'Great', icon: '🔥' },
-  { days: 30, label: 'Incredible', icon: '💫' },
-  { days: 50, label: 'Unstoppable', icon: '⚡' },
-];
+
 
 export default function GoalScreen() {
   const router = useRouter();
@@ -24,9 +19,36 @@ export default function GoalScreen() {
   const { actions: { addHabit, updateHabit } } = useStore();
 
   const isEditMode = !!params.habitId;
+  const frequency = (params.frequency as 'daily' | 'weekly' | 'monthly') || 'daily';
+
+  const GOALS = React.useMemo(() => {
+    if (frequency === 'weekly') {
+      return [
+        { value: 4, label: 'Good', icon: '⭐', unit: 'weeks' },
+        { value: 8, label: 'Great', icon: '🔥', unit: 'weeks' },
+        { value: 12, label: 'Incredible', icon: '💫', unit: 'weeks' },
+        { value: 24, label: 'Unstoppable', icon: '⚡', unit: 'weeks' },
+      ];
+    }
+    if (frequency === 'monthly') {
+      return [
+        { value: 3,  label: 'Good Start',   icon: '⭐', unit: 'months' },
+        { value: 6,  label: 'Committed',    icon: '🔥', unit: 'months' },
+        { value: 9,  label: 'Incredible',   icon: '💫', unit: 'months' },
+        { value: 12, label: 'Unstoppable',  icon: '⚡', unit: 'months' },
+      ];
+    }
+    return [
+      { value: 7, label: 'Good', icon: '⭐', unit: 'days' },
+      { value: 14, label: 'Great', icon: '🔥', unit: 'days' },
+      { value: 30, label: 'Incredible', icon: '💫', unit: 'days' },
+      { value: 50, label: 'Unstoppable', icon: '⚡', unit: 'days' },
+    ];
+  }, [frequency]);
+
   const [selectedGoal, setSelectedGoal] = useState(() => {
     const existing = parseInt(params.goalDays as string);
-    return isNaN(existing) ? 7 : existing;
+    return isNaN(existing) ? GOALS[0].value : existing;
   });
   const [saving, setSaving] = useState(false);
 
@@ -56,8 +78,10 @@ export default function GoalScreen() {
         icon: params.icon as string || '✨',
         category: params.category as string || 'General',
         color: params.color as string || colors.primary,
-        frequency: params.frequency as 'daily' | 'weekly' | 'monthly',
+        frequency,
         targetDays,
+        monthlyTarget: params.monthlyTarget ? parseInt(params.monthlyTarget as string) : undefined,
+        monthlyDay: (params.monthlyDay && params.monthlyDay !== '') ? parseInt(params.monthlyDay as string) : undefined,
         reminderTime,
         goalDays: selectedGoal,
       });
@@ -71,13 +95,15 @@ export default function GoalScreen() {
             params.icon as string || '✨',
             reminderTime,
             params.frequency as 'daily' | 'weekly' | 'monthly',
-            targetDays
+            targetDays,
+            params.monthlyDay ? parseInt(params.monthlyDay as string) : undefined
           );
         }
       }
 
       setSaving(false);
       router.dismissAll();
+      router.replace('/(tabs)');
       return;
     }
 
@@ -90,8 +116,10 @@ export default function GoalScreen() {
       icon: params.icon as string || '✨',
       category: params.category as string || 'General',
       color: params.color as string || colors.primary,
-      frequency: params.frequency as 'daily' | 'weekly' | 'monthly',
+      frequency,
       targetDays,
+      monthlyTarget: params.monthlyTarget ? parseInt(params.monthlyTarget as string) : undefined,
+      monthlyDay: params.monthlyDay ? parseInt(params.monthlyDay as string) : undefined,
       reminderTime,
       goalDays: selectedGoal,
     };
@@ -107,13 +135,15 @@ export default function GoalScreen() {
           habitData.icon,
           habitData.reminderTime,
           habitData.frequency,
-          habitData.targetDays
+          habitData.targetDays,
+          habitData.monthlyDay
         );
       }
     }
 
     setSaving(false);
     router.dismissAll();
+    router.replace('/(tabs)');
   };
 
   return (
@@ -133,27 +163,27 @@ export default function GoalScreen() {
           <View style={styles.goalsList}>
             {GOALS.map((goal) => (
               <TouchableOpacity
-                key={goal.days}
+                key={goal.value}
                 onPress={() => {
                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                   setSelectedGoal(goal.days);
+                   setSelectedGoal(goal.value);
                 }}
                 style={[
                   styles.goalCard,
                   { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border },
-                  selectedGoal === goal.days && [styles.goalCardActive, { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }]
+                  selectedGoal === goal.value && [styles.goalCardActive, { borderColor: colors.primary, backgroundColor: colors.primaryTransparent }]
                 ]}
                 activeOpacity={0.7}
               >
                 <View style={styles.goalInfo}>
-                  <View style={[styles.miniIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }, selectedGoal === goal.days && [styles.miniIconBgActive, { backgroundColor: colors.primary + '20' }]]}>
+                  <View style={[styles.miniIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }, selectedGoal === goal.value && [styles.miniIconBgActive, { backgroundColor: colors.primary + '20' }]]}>
                     <Text style={styles.goalIcon}>{goal.icon}</Text>
                   </View>
-                  <Text style={[styles.goalDays, { color: colors.textSecondary }, selectedGoal === goal.days && [styles.goalDaysActive, { color: colors.primary }]]}>
-                    {goal.days} days
+                  <Text style={[styles.goalDays, { color: colors.textSecondary }, selectedGoal === goal.value && [styles.goalDaysActive, { color: colors.primary }]]}>
+                    {goal.value} {goal.unit}
                   </Text>
                 </View>
-                <Text style={[styles.goalLabel, { color: colors.textSecondary + '80' }, selectedGoal === goal.days && [styles.goalLabelActive, { color: colors.primary + 'A0' }]]}>
+                <Text style={[styles.goalLabel, { color: colors.textSecondary + '80' }, selectedGoal === goal.value && [styles.goalLabelActive, { color: colors.primary + 'A0' }]]}>
                   {goal.label}
                 </Text>
               </TouchableOpacity>

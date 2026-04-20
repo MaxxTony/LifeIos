@@ -157,6 +157,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     } catch (err) {
       console.warn('[LifeOS] Failed to clear storage on logout:', err);
     }
+    // Cancel all scheduled local notifications so they don't fire while logged out
+    try {
+      const { notificationService } = await import('@/services/notificationService');
+      await notificationService.cancelAllNotifications();
+    } catch (err) {
+      console.warn('[LifeOS] Failed to cancel notifications on logout:', err);
+    }
     setSentryUser(null);
     set(LOGGED_OUT_STATE);
   },

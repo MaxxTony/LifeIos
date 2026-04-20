@@ -10,7 +10,7 @@ import { HabitCalendar } from '@/components/HabitCalendar';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info, Pencil, Coffee } from 'lucide-react-native';
+import { ChevronLeft, Trash2, Flame, Trophy, Calendar, Target, Bell, Info, Pencil, Coffee, Check, Lock, Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -44,6 +44,50 @@ export default function HabitDetailScreen() {
   const habit = habits.find(h => h.id === id);
   const isCompletedToday = habit?.completedDays.includes(getTodayLocal());
 
+  // Weekly-specific: scheduled day names (moved up to fix "used before declaration" error)
+  const ALL_DAYS_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const scheduledDays = (habit?.targetDays || []).map((d: number) => ALL_DAYS_LABELS[d]);
+
+  // ── Due-Day Validation Logic ──
+  const { isDueToday, lockMessage } = React.useMemo(() => {
+    if (!habit) return { isDueToday: true, lockMessage: '' };
+    const todayDate = new Date();
+    
+    if (habit.frequency === 'daily') return { isDueToday: true, lockMessage: '' };
+    
+    if (habit.frequency === 'weekly') {
+      const isDue = (habit.targetDays || []).includes(todayDate.getDay());
+      return { 
+        isDueToday: isDue, 
+        lockMessage: isDue ? '' : `Only scheduled for ${scheduledDays.join(', ')}` 
+      };
+    }
+    
+    if (habit.frequency === 'monthly') {
+      const isFixed = habit.monthlyDay && habit.monthlyDay > 0;
+      if (isFixed) {
+        const isTargetDate = todayDate.getDate() === habit.monthlyDay;
+        return { 
+          isDueToday: isTargetDate, 
+          lockMessage: isTargetDate ? '' : `Only available on the ${habit.monthlyDay}${habit.monthlyDay === 1 ? 'st' : habit.monthlyDay === 2 ? 'nd' : habit.monthlyDay === 3 ? 'rd' : 'th'} of each month` 
+        };
+      } else {
+        // Count Goal: locked if target reached for this month
+        const todayStr = getTodayLocal();
+        const currentMonthStr = todayStr.slice(0, 7);
+        const thisMonthCount = habit.completedDays.filter(d => d.startsWith(currentMonthStr)).length;
+        const reached = thisMonthCount >= (habit.monthlyTarget || 1);
+        return { 
+          isDueToday: !reached, 
+          lockMessage: reached ? 'Monthly target already reached! 🎉' : '' 
+        };
+      }
+    }
+    return { isDueToday: true, lockMessage: '' };
+  }, [habit, scheduledDays]);
+
+  const isLocked = !isDueToday && !isCompletedToday;
+
   // H-4 FIX: Auto-navigate back if habit is deleted (prevents being stuck in "Not Found")
   React.useEffect(() => {
     if (!habit) {
@@ -72,9 +116,35 @@ export default function HabitDetailScreen() {
   const bestStreak = habit.bestStreak || currentStreak;
   const totalCompletions = habit.completedDays.length;
   
+  const streakUnit = habit.frequency === 'daily' ? 'days' : habit.frequency === 'weekly' ? 'weeks' : 'months';
+
+  // Consistency rate adapted per frequency
   const daysSinceCreation = Math.max(1, Math.ceil((Date.now() - habit.createdAt) / (1000 * 60 * 60 * 24)));
-  // P-6 FIX: clamp to 100 — old habits or over-logged data could push this above 100%
-  const completionRate = Math.min(100, Math.round((totalCompletions / daysSinceCreation) * 100));
+  let completionRate = 0;
+  if (habit.frequency === 'daily') {
+    completionRate = Math.min(100, Math.round((totalCompletions / daysSinceCreation) * 100));
+  } else if (habit.frequency === 'weekly') {
+    // count weeks since creation, multiply by targetDays per week
+    const weeksSinceCreation = Math.max(1, Math.ceil(daysSinceCreation / 7));
+    const expectedPerWeek = habit.targetDays?.length || 1;
+    const totalExpected = weeksSinceCreation * expectedPerWeek;
+    completionRate = Math.min(100, Math.round((totalCompletions / totalExpected) * 100));
+  } else {
+    // monthly: months since creation × monthlyTarget
+    const monthsSinceCreation = Math.max(1, Math.ceil(daysSinceCreation / 30));
+    const expectedTotal = monthsSinceCreation * (habit.monthlyTarget || 1);
+    completionRate = Math.min(100, Math.round((totalCompletions / expectedTotal) * 100));
+  }
+
+  // Monthly-specific: this month's progress
+  const today = getTodayLocal();
+  const currentMonth = today.slice(0, 7);
+  const monthCompletions = habit.completedDays.filter(d => d.startsWith(currentMonth)).length;
+  const monthTarget = habit.monthlyTarget || 1;
+  const monthProgress = Math.min(1, monthCompletions / monthTarget);
+
+  // Weekly-specific: scheduled day names moved up to avoid TDZ error
+
 
   const handleDelete = () => {
     Alert.alert(
@@ -119,7 +189,7 @@ export default function HabitDetailScreen() {
 
                 <View style={styles.headerActions}>
                   <TouchableOpacity
-                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays) } })}
+                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays), monthlyTarget: habit.monthlyTarget != null ? String(habit.monthlyTarget) : '', monthlyDay: habit.monthlyDay != null ? String(habit.monthlyDay) : '', reminderEnabled: habit.reminderTime ? 'true' : 'false', reminderTime: habit.reminderTime || '' } })}
                     style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                     activeOpacity={0.7}
                   >
@@ -150,7 +220,7 @@ export default function HabitDetailScreen() {
 
                 <View style={styles.headerActions}>
                   <TouchableOpacity
-                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays) } })}
+                    onPress={() => router.push({ pathname: '/(habits)/config', params: { habitId: habit.id, title: habit.title, icon: habit.icon, category: habit.category, color: habit.color, frequency: habit.frequency, selectedDays: JSON.stringify(habit.targetDays), goalDays: String(habit.goalDays), monthlyTarget: habit.monthlyTarget != null ? String(habit.monthlyTarget) : '', monthlyDay: habit.monthlyDay != null ? String(habit.monthlyDay) : '', reminderEnabled: habit.reminderTime ? 'true' : 'false', reminderTime: habit.reminderTime || '' } })}
                     style={[styles.liquidBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]}
                     activeOpacity={0.7}
                   >
@@ -177,7 +247,7 @@ export default function HabitDetailScreen() {
                  <Flame size={16} color={colors.primary} fill={currentStreak > 0 ? colors.primary : 'transparent'} />
                  <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Current Streak</Text>
                </View>
-               <Text style={[styles.streakValue, { color: colors.text }]}>{currentStreak} <Text style={styles.unitText}>days</Text></Text>
+               <Text style={[styles.streakValue, { color: colors.text }]}>{currentStreak} <Text style={styles.unitText}>{streakUnit}</Text></Text>
             </PremiumCard>
             
             <PremiumCard style={styles.streakCard}>
@@ -185,9 +255,71 @@ export default function HabitDetailScreen() {
                  <Trophy size={16} color={colors.secondary} fill={bestStreak > 0 ? colors.secondary : 'transparent'} />
                  <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Best Streak</Text>
                </View>
-               <Text style={[styles.streakValue, { color: colors.text }]}>{bestStreak} <Text style={styles.unitText}>days</Text></Text>
+               <Text style={[styles.streakValue, { color: colors.text }]}>{bestStreak} <Text style={styles.unitText}>{streakUnit}</Text></Text>
             </PremiumCard>
           </View>
+
+          {/* Weekly Schedule Summary Card */}
+          {habit.frequency === 'weekly' && (
+            <PremiumCard style={{ marginBottom: 16, padding: 16 }}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 15 }]}>Weekly Schedule</Text>
+              </View>
+              <Text style={[{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }]}>Active on {habit.targetDays?.length || 0} day{(habit.targetDays?.length || 0) !== 1 ? 's' : ''} a week</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {ALL_DAYS_LABELS.map((label, i) => {
+                  const isActive = habit.targetDays?.includes(i);
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+                        isActive
+                          ? { backgroundColor: colors.primary }
+                          : { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }
+                      ]}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: isActive ? '#FFF' : colors.textSecondary + '50' }}>
+                        {label}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </PremiumCard>
+          )}
+
+          {/* Monthly Progress Card */}
+          {habit.frequency === 'monthly' && (
+            <PremiumCard style={{ marginBottom: 16, padding: 16 }}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="stats-chart" size={16} color={colors.primary} />
+                <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 15 }]}>This Month's Progress</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                  Target: <Text style={{ color: colors.text, fontWeight: '700' }}>{monthTarget} sessions/month</Text>
+                </Text>
+                <Text style={{ color: monthProgress >= 1 ? colors.success : colors.primary, fontWeight: '800', fontSize: 13 }}>
+                  {monthCompletions} / {monthTarget}
+                </Text>
+              </View>
+              <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                <LinearGradient
+                  colors={monthProgress >= 1 ? [colors.success, colors.success] : [colors.primary, colors.secondary]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ width: `${monthProgress * 100}%`, height: '100%', borderRadius: 5 }}
+                />
+              </View>
+              {monthProgress >= 1 && (
+                <Text style={{ color: colors.success, fontWeight: '800', fontSize: 13, marginTop: 8, textAlign: 'center' }}>🎉 Monthly target hit!</Text>
+              )}
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 8 }}>
+                Commitment: {habit.goalDays} month{habit.goalDays !== 1 ? 's' : ''}
+              </Text>
+            </PremiumCard>
+          )}
 
           {/* Habit Calendar Section */}
           <PremiumCard style={styles.calendarContainer}>
@@ -195,7 +327,15 @@ export default function HabitDetailScreen() {
               <Calendar size={18} color={colors.primary} />
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Activity Tracking</Text>
             </View>
-            <HabitCalendar completedDays={habit.completedDays} createdAt={habit.createdAt} />
+            <HabitCalendar
+              completedDays={habit.completedDays}
+              createdAt={habit.createdAt}
+              frequency={habit.frequency}
+              targetDays={habit.targetDays}
+              monthlyDay={habit.monthlyDay}
+              monthlyTarget={habit.monthlyTarget}
+              goalDays={habit.goalDays}
+            />
             <Text style={[styles.footerInfo, { color: colors.textSecondary }]}>
               Joined on {new Date(habit.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </Text>
@@ -230,42 +370,54 @@ export default function HabitDetailScreen() {
                <Text style={[styles.infoValue, { color: colors.text }]}>{totalCompletions} successful sessions</Text>
             </PremiumCard>
 
-            {/* F-2: Pause Habit Section */}
-            <PremiumCard style={styles.longInfoCard}>
-               <View style={styles.infoHead}>
-                 <Coffee size={14} color={colors.warning} />
-                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Habit Status</Text>
-               </View>
-               <View style={styles.pauseContent}>
-                 <View>
-                   <Text style={[styles.infoValue, { color: colors.text }]}>
-                     {habit.pausedUntil 
-                       ? `Paused until ${new Date(habit.pausedUntil).toLocaleDateString()}` 
-                       : 'Active'}
-                   </Text>
-                   <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
-                     {habit.pausedUntil 
-                       ? 'Streak is frozen and won\'t break.' 
-                       : 'Keep showing up to grow your streak!'}
-                   </Text>
-                 </View>
-                 <TouchableOpacity 
-                   style={[styles.pauseBtn, { backgroundColor: habit.pausedUntil ? colors.success + '15' : colors.warning + '15' }]}
-                   onPress={() => {
-                     if (habit.pausedUntil) {
-                       pauseHabit(habit.id, null);
-                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                     } else {
-                       setShowPausePicker(true);
-                     }
-                   }}
-                 >
-                   <Text style={[styles.pauseBtnText, { color: habit.pausedUntil ? colors.success : colors.warning }]}>
-                     {habit.pausedUntil ? 'Resume' : 'Pause'}
-                   </Text>
-                 </TouchableOpacity>
-               </View>
-            </PremiumCard>
+            {/* F-2: Pause Habit Section (Specialized per frequency) */}
+            {!(habit.frequency === 'monthly' && !(habit.monthlyDay && habit.monthlyDay > 0)) && (
+              <PremiumCard style={styles.longInfoCard}>
+                <View style={styles.infoHead}>
+                  <Coffee size={14} color={colors.warning} />
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Habit Status</Text>
+                </View>
+                <View style={styles.pauseContent}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {habit.pausedUntil 
+                        ? `Paused until ${new Date(habit.pausedUntil).toLocaleDateString()}` 
+                        : 'Active'}
+                    </Text>
+                    <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
+                      {habit.pausedUntil 
+                        ? 'Streak is frozen and won\'t break.' 
+                        : habit.frequency === 'monthly' 
+                          ? 'Skip this month if you can\'t make it.'
+                          : 'Keep showing up to grow your streak!'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={[styles.pauseBtn, { backgroundColor: habit.pausedUntil ? colors.success + '15' : colors.warning + '15' }]}
+                    onPress={() => {
+                      if (habit.pausedUntil) {
+                        pauseHabit(habit.id, null);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } else {
+                        if (habit.frequency === 'monthly') {
+                          // Skip This Month: set pausedUntil to last day of current month
+                          const now = new Date();
+                          const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                          pauseHabit(habit.id, formatLocalDate(lastDay));
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        } else {
+                          setShowPausePicker(true);
+                        }
+                      }
+                    }}
+                  >
+                    <Text style={[styles.pauseBtnText, { color: habit.pausedUntil ? colors.success : colors.warning }]}>
+                      {habit.pausedUntil ? 'Resume' : (habit.frequency === 'monthly' ? 'Skip Month' : 'Pause')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </PremiumCard>
+            )}
           </View>
 
           {Platform.OS === 'ios' ? (
@@ -306,6 +458,7 @@ export default function HabitDetailScreen() {
                     onChange={(event, date) => {
                       if (event.type === 'set' && date) {
                         pauseHabit(habit.id, formatLocalDate(date));
+                        setShowPausePicker(false);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       }
                     }}
@@ -333,30 +486,132 @@ export default function HabitDetailScreen() {
             )
           )}
 
-          <TouchableOpacity
-            style={[
-              styles.toggleBtn,
-              isCompletedToday
-                ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' }
-                : { borderColor: 'transparent' }
-            ]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              toggleHabit(habit.id);
-            }}
-            activeOpacity={0.8}
-          >
-            {isCompletedToday ? (
-              <View style={styles.completedContent}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
-                <Text style={[styles.toggleBtnText, { color: colors.success }]}>Completed ✓ — Tap to undo</Text>
-              </View>
-            ) : (
-              <LinearGradient colors={[colors.primary, colors.secondary]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.btnGradient}>
-                <Text style={[styles.toggleBtnText, { color: '#FFF' }]}>Spark My Habit ✨</Text>
-              </LinearGradient>
-            )}
-          </TouchableOpacity>
+          {/* ── Bottom CTA — adapts to frequency ── */}
+          {habit.frequency === 'monthly' ? (
+            // Monthly: big log-session button with today's count shown
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                isCompletedToday
+                  ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' }
+                  : isLocked 
+                    ? { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border, opacity: 0.6 }
+                    : { borderColor: 'transparent' }
+              ]}
+              onPress={() => {
+                if (isLocked) {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  import('react-native-toast-message').then(Toast => {
+                    Toast.default.show({
+                      type: 'info',
+                      text1: 'Habit Locked',
+                      text2: lockMessage,
+                      position: 'bottom'
+                    });
+                  });
+                  return;
+                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                toggleHabit(habit.id);
+              }}
+              activeOpacity={0.8}
+            >
+              {isCompletedToday ? (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.success }]}>
+                    <Check size={20} color="#FFF" strokeWidth={3} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.success }]}>Completed Today</Text>
+                    <Text style={[styles.toggleSub, { color: colors.success + '80' }]}>Well done! Keep it up tomorrow.</Text>
+                  </View>
+                </View>
+              ) : isLocked ? (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.textSecondary + '20', borderWidth: 1, borderColor: colors.border }]}>
+                    <Lock size={18} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.textSecondary }]}>Not Scheduled</Text>
+                    <Text style={[styles.toggleSub, { color: colors.textSecondary + '80' }]}>{lockMessage}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                    <Plus size={20} color="#FFF" strokeWidth={3} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.text }]}>Log Session</Text>
+                    <Text style={[styles.toggleSub, { color: colors.textSecondary }]}>Tap to record today's session</Text>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            // Daily / Weekly: standard today toggle
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                isCompletedToday
+                  ? { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderColor: colors.success + '40' }
+                  : isLocked 
+                    ? { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border, opacity: 0.6 }
+                    : { borderColor: 'transparent' }
+              ]}
+              onPress={() => {
+                if (isLocked) {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  import('react-native-toast-message').then(Toast => {
+                    Toast.default.show({
+                      type: 'info',
+                      text1: 'Habit Locked',
+                      text2: lockMessage,
+                      position: 'bottom'
+                    });
+                  });
+                  return;
+                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                toggleHabit(habit.id);
+              }}
+              activeOpacity={0.8}
+            >
+              {isCompletedToday ? (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.success }]}>
+                    <Check size={20} color="#FFF" strokeWidth={3} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.success }]}>Completed Today</Text>
+                    <Text style={[styles.toggleSub, { color: colors.success + '80' }]}>Well done! Keep it up tomorrow.</Text>
+                  </View>
+                </View>
+              ) : isLocked ? (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.textSecondary + '20', borderWidth: 1, borderColor: colors.border }]}>
+                    <Lock size={18} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.textSecondary }]}>Not Scheduled</Text>
+                    <Text style={[styles.toggleSub, { color: colors.textSecondary + '80' }]}>{lockMessage}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.toggleContent}>
+                  <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                    <Plus size={20} color="#FFF" strokeWidth={3} />
+                  </View>
+                  <View>
+                    <Text style={[styles.toggleTitle, { color: colors.text }]}>Log Session</Text>
+                    <Text style={[styles.toggleSub, { color: colors.textSecondary }]}>
+                      {habit.frequency === 'weekly' ? 'Tap to mark today done 🗓' : 'Tap to record today\'s session ✨'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -523,6 +778,29 @@ const styles = StyleSheet.create({
   toggleBtnText: {
     fontSize: 17,
     fontWeight: '800',
+  },
+  toggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+  checkCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toggleTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  toggleSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 1,
   },
   completedContent: {
     flexDirection: 'row',

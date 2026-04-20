@@ -1,5 +1,5 @@
-import SharedGroupPreferences from 'react-native-shared-group-preferences';
 import { Platform } from 'react-native';
+import SharedGroupPreferences from 'react-native-shared-group-preferences';
 
 const APP_GROUP = 'group.com.lifeos.prime';
 
@@ -18,7 +18,7 @@ export const widgetSyncService = {
         // We sync as a single JSON string to avoid multiple expensive bridge calls
         // and to keep the native side logic simple (one decode).
         await SharedGroupPreferences.setItem('widgetData', JSON.stringify(data), APP_GROUP);
-        console.log('[WidgetSync] iOS Pro Data synced to App Group');
+        // console.log('[WidgetSync] iOS Pro Data synced to App Group');
       } catch (error) {
         console.warn('[WidgetSync] iOS App Group sync failed', error);
       }

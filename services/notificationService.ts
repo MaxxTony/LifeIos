@@ -74,66 +74,135 @@ export const notificationService = {
     return true;
   },
 
-  scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[]) => {
+  scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[], monthlyDay?: number) => {
     if (Platform.OS === 'web') return;
 
-    const { notificationSettings, homeTimezone } = useStore.getState();
+    const { notificationSettings } = useStore.getState();
     if (!notificationSettings.push || !notificationSettings.habits) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
 
-      // 1. Prepare platform-specific channel (Async)
       await ensureChannel();
 
-      // 2. Cancel existing notifications for this habit to avoid duplicates
+      // Cancel all existing reminders for this habit first
       await notificationService.cancelHabitReminders(habitId);
 
-      // 3. Parse reminder time
+      // Fetch habit detail for advanced checks (pause, completion)
+      const habit = useStore.getState().habits.find(h => h.id === habitId);
+      if (!habit) return;
+
+      // ── Logic Polish: Respect Pause ──
+      const today = getTodayLocal();
+      if (habit.pausedUntil && today <= habit.pausedUntil) {
+        // Habit is currently paused; don't schedule reminders.
+        // They will be re-scheduled when the habit is resumed or edited.
+        return;
+      }
+
+      // Parse reminder time (e.g. "8:30 pm")
       const parsed = parseTimeString(time);
       if (!parsed) return;
       const { hours, minutes } = parsed;
 
-      // C-NOTIF-2: Handle Timezone locking
-      // If we have a home timezone, we MUST ensure the notification 
-      // fires at that absolute time. 
-      // Note: expo-notifications CALENDAR and WEEKLY triggers are local.
-      // To keep them "locked" to a home timezone while the device travels,
-      // we would technically need to reschedule on every timezone change.
-      // For now, we will schedule them as local triggers as they are more reliable 
-      // for "Alarms", but we calculate the target offset if needed.
-      
-      // 4. Schedule based on selected days (1=Sunday in expo-notifications)
-      for (const day of days) {
-        const expoDay = day + 1;
-
-        // Choose the correct trigger per platform
+      if (frequency === 'daily') {
+        // ── Daily: single DAILY trigger (one notification, fires every day) ──
         const trigger: any = Platform.OS === 'ios'
           ? {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            hour: hours,
-            minute: minutes,
-            repeats: true,
-            weekday: expoDay,
-          }
+              type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+              hour: hours,
+              minute: minutes,
+              repeats: true,
+            }
           : {
-            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-            weekday: expoDay,
-            hour: hours,
-            minute: minutes,
-            channelId: DEFAULT_CHANNEL_ID,
-          };
+              type: Notifications.SchedulableTriggerInputTypes.DAILY,
+              hour: hours,
+              minute: minutes,
+              channelId: DEFAULT_CHANNEL_ID,
+            };
 
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `${icon} Time for your habit!`,
-            body: `Don't break your streak for ${title}! Let's make it happen. 🔥`,
+            body: `Don't break your daily streak for ${title}! 🔥`,
             data: { habitId, type: 'HABIT_REMINDER' },
             sound: true,
           },
           trigger,
-          identifier: `habit-${habitId}-${day}`,
+          identifier: `habit-${habitId}-daily`,
+        });
+
+      } else if (frequency === 'weekly') {
+        // ── Weekly: one WEEKLY trigger per target weekday ──
+        // days[] contains JS getDay() values (0=Sun … 6=Sat)
+        // expo-notifications weekday: 1=Sun … 7=Sat, so expo = jsDay + 1
+        for (const day of days) {
+          const expoDay = day + 1; // convert JS day → expo day
+          const trigger: any = Platform.OS === 'ios'
+            ? {
+                type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+                hour: hours,
+                minute: minutes,
+                repeats: true,
+                weekday: expoDay,
+              }
+            : {
+                type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+                weekday: expoDay,
+                hour: hours,
+                minute: minutes,
+                channelId: DEFAULT_CHANNEL_ID,
+              };
+
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `${icon} Habit Day!`,
+              body: `It's your scheduled day for ${title} — keep it up! 🗓`,
+              data: { habitId, type: 'HABIT_REMINDER' },
+              sound: true,
+            },
+            trigger,
+            identifier: `habit-${habitId}-${day}`,
+          });
+        }
+
+      } else if (frequency === 'monthly') {
+        // ── Monthly: DATE trigger aimed at next occurrence of the scheduled day ──
+        // For count-goal mode (no fixed day), we fire on the 1st of next month as a reminder.
+        const now = new Date();
+        const targetDay = monthlyDay && monthlyDay > 0 ? monthlyDay : 1;
+
+        // Build next occurrence date
+        let nextDate = new Date(now.getFullYear(), now.getMonth(), targetDay, hours, minutes, 0, 0);
+        
+        // ── Logic Polish: Avoid Duplicate/Redundant Prompts ──
+        // If the habit is already completed today, we definitely don't want a reminder.
+        const isDoneToday = habit.completedDays.includes(today);
+        
+        if (nextDate <= now || isDoneToday) {
+          // Date has passed OR habit already completed today → schedule for next month
+          nextDate = new Date(now.getFullYear(), now.getMonth() + 1, targetDay, hours, minutes, 0, 0);
+        }
+
+        // Clamp to last valid day of that month (e.g. Feb 30 → Feb 28)
+        const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+        if (targetDay > lastDayOfMonth) {
+          nextDate.setDate(lastDayOfMonth);
+        }
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `${icon} Monthly Habit Reminder!`,
+            body: `Time to log this month's session for ${title}! 📅`,
+            data: { habitId, type: 'HABIT_REMINDER' },
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: nextDate,
+          },
+          identifier: `habit-${habitId}-monthly`,
         });
       }
     } catch (e) {
@@ -144,11 +213,25 @@ export const notificationService = {
   cancelHabitReminders: async (habitId: string) => {
     if (Platform.OS === 'web') return;
     try {
-      // M-05 FIX: Cancel by direct identifier instead of fetching all scheduled notifications.
-      // IDs are deterministic: habit-${habitId}-${dayIndex} for days 0–6.
-      const cancels = Array.from({ length: 7 }, (_, day) =>
-        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-${day}`).catch(() => {})
+      const cancels: Promise<void>[] = [];
+
+      // Cancel daily trigger
+      cancels.push(
+        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-daily`).catch(() => {})
       );
+
+      // Cancel weekly triggers (days 0–6)
+      for (let day = 0; day < 7; day++) {
+        cancels.push(
+          Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-${day}`).catch(() => {})
+        );
+      }
+
+      // Cancel monthly trigger
+      cancels.push(
+        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-monthly`).catch(() => {})
+      );
+
       await Promise.all(cancels);
     } catch (e) {
       // Silence cancel errors

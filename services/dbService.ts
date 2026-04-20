@@ -114,11 +114,20 @@ export const dbService = {
   },
 
   // Atomic Habit Completion
-  toggleHabitDate: async (userId: string, habitId: string, completedDays: string[]) => {
-    await updateDoc(doc(db, 'users', userId, 'habits', habitId), {
+  // HAB-XP FIX: xpAwardedDays MUST be persisted alongside completedDays.
+  // Previously only completedDays was written; when the Firestore onSnapshot fired
+  // it returned the old document (with empty/stale xpAwardedDays), silently resetting
+  // the XP guard and allowing repeated XP awards on done → undo → done in the same day.
+  toggleHabitDate: async (userId: string, habitId: string, completedDays: string[], xpAwardedDays: string[], currentStreak?: number, bestStreak?: number) => {
+    const updatePayload: any = {
       completedDays,
+      xpAwardedDays,
       lastUpdatedAt: serverTimestamp(),
-    });
+    };
+    if (currentStreak !== undefined) updatePayload.currentStreak = currentStreak;
+    if (bestStreak !== undefined) updatePayload.bestStreak = bestStreak;
+
+    await updateDoc(doc(db, 'users', userId, 'habits', habitId), updatePayload);
   },
 
   // Mood History

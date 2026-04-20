@@ -5,11 +5,12 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertTriangle, Calendar, CheckCircle, Circle, Flag, Pencil, Plus, Repeat, RotateCcw, Trash2, X } from 'lucide-react-native';
+import { AlertTriangle, Calendar, CheckCircle, Circle, Flag, Lock, Pencil, Plus, Repeat, RotateCcw, Trash2, X } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getTodayLocal } from '@/utils/dateUtils';
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -36,6 +37,8 @@ export default function TaskDetailScreen() {
       </View>
     );
   }
+
+  const isLocked = task.date > getTodayLocal() && !task.completed;
 
   const handleToggle = () => {
     const isUndo = task.completed;
@@ -246,24 +249,33 @@ export default function TaskDetailScreen() {
         {
           task.status !== 'missed' && (
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
-                {task.completed ? (
-                  <View style={[styles.gradientBtn, { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
-                    <RotateCcw size={20} color={colors.success} />
-                    <Text style={[styles.completeBtnText, { color: colors.success }]}>Undo Completion</Text>
-                  </View>
-                ) : (
-                  <LinearGradient
-                    colors={colors.gradient}
-                    style={styles.gradientBtn}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
-                  </LinearGradient>
-                )}
-              </TouchableOpacity>
+              {isLocked ? (
+                <View style={[styles.completeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 }]}>
+                  <Lock size={20} color={colors.textSecondary} />
+                  <Text style={[styles.completeBtnText, { color: colors.textSecondary }]}>
+                    Starts on {new Date(task.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.completeBtn} onPress={handleToggle}>
+                  {task.completed ? (
+                    <View style={[styles.gradientBtn, { backgroundColor: colors.isDark ? '#1a332a' : '#f0fdf4', borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
+                      <RotateCcw size={20} color={colors.success} />
+                      <Text style={[styles.completeBtnText, { color: colors.success }]}>Undo Completion</Text>
+                    </View>
+                  ) : (
+                    <LinearGradient
+                      colors={colors.gradient}
+                      style={styles.gradientBtn}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <CheckCircle size={20} color="#FFF" style={{ marginRight: 8 }} />
+                      <Text style={[styles.completeBtnText, { color: '#FFF' }]}>Mark as Completed</Text>
+                    </LinearGradient>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )
         }

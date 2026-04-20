@@ -215,7 +215,8 @@ export default function RootLayout() {
                   habit.icon || '📅',
                   habit.reminderTime,
                   habit.frequency || 'daily',
-                  habit.targetDays
+                  habit.targetDays,
+                  habit.monthlyDay
                 );
               }
             });

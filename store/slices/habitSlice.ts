@@ -7,7 +7,7 @@ import { fireSync } from '../syncHelper';
 import { analyticsService } from '@/services/analyticsService';
 
 export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], HabitActions> = (set, get) => ({
-  addHabit: (habitData: Omit<Habit, 'completedDays' | 'bestStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => {
+  addHabit: (habitData: Omit<Habit, 'completedDays' | 'bestStreak' | 'currentStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => {
     const newHabit: Habit = {
       ...habitData,
       id: habitData.id || Crypto.randomUUID(),
@@ -44,6 +44,10 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         { id },
         id
       );
+      // Clean up notifications immediately on removal
+      import('@/services/notificationService').then(({ notificationService }) => {
+        notificationService.cancelHabitReminders(id);
+      });
     }
 
     setTimeout(() => {
@@ -63,6 +67,24 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
 
         const completedSet = new Set(h.completedDays);
         const isCompleted = completedSet.has(today);
+
+        // ── Due-Day Validation ──
+        if (!isCompleted) {
+          const d = new Date(today.replace(/-/g, '/')); // Use / for cross-platform date parsing
+          if (h.frequency === 'weekly') {
+            if (!h.targetDays?.includes(d.getDay())) return h;
+          } else if (h.frequency === 'monthly') {
+            const isFixed = h.monthlyDay && h.monthlyDay > 0;
+            if (isFixed) {
+              if (d.getDate() !== h.monthlyDay) return h;
+            } else {
+              // Monthly Count Goal: cap completions at the target
+              const monthStr = today.slice(0, 7);
+              const monthCompletions = h.completedDays.filter(cd => cd.startsWith(monthStr)).length;
+              if (monthCompletions >= (h.monthlyTarget || 1)) return h;
+            }
+          }
+        }
         
         let newCompletedDays = isCompleted
           ? h.completedDays.filter(d => d !== today)
@@ -81,18 +103,59 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         const newCompletedSet = new Set(newCompletedDays);
         const startOffset = newCompletedSet.has(todayStrForStreak) ? 0 : 1;
         
-        for (let i = startOffset; i < 365; i++) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dStr = formatLocalDate(d);
+        if (h.frequency === 'monthly') {
+          // Count consecutive months (going back from current) where the monthly target was met or skipped.
+          const nowForStreak = new Date();
+          for (let m = 0; m < 24; m++) {
+            const d = new Date(nowForStreak.getFullYear(), nowForStreak.getMonth() - m, 1);
+            const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Monthly check: Was this month target met or was it skipped?
+            const monthCompletions = newCompletedDays.filter(cd => cd.startsWith(monthStr)).length;
+            const monthTarget = h.monthlyTarget || 1;
+            
+            // Advanced Pause Check: If fixed date, was the date within pausedUntil?
+            // If count goal, is the entire month within pausedUntil?
+            let isSkipped = false;
+            if (h.pausedUntil) {
+              if (h.monthlyDay && h.monthlyDay > 0) {
+                // Fixed date: check if that specific date is <= pausedUntil
+                const targetDateInMonth = `${monthStr}-${String(h.monthlyDay).padStart(2, '0')}`;
+                if (targetDateInMonth <= h.pausedUntil) isSkipped = true;
+              } else {
+                // Count goal: If last day of month is <= pausedUntil, the whole month was skipped
+                const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                const lastDayStr = formatLocalDate(lastDay);
+                if (lastDayStr <= h.pausedUntil) isSkipped = true;
+              }
+            }
 
-          if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
-          if (h.pausedUntil && dStr <= h.pausedUntil) continue;
+            if (monthCompletions >= monthTarget || isSkipped) {
+              // Streak continues if target met OR month skipped
+              if (!isSkipped || monthCompletions >= monthTarget) {
+                 // Only increment internal count if it wasn't purely skipped (optional detail)
+                 // Actually, if skipped, we just don't BREAK. 
+              }
+              currentStreak++;
+            } else if (m > 0) {
+              // Allow current month to still be in progress (m === 0)
+              break;
+            }
+          }
+        } else {
+          for (let i = startOffset; i < 365; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dStr = formatLocalDate(d);
 
-          if (newCompletedSet.has(dStr)) {
-            currentStreak++;
-          } else {
-            break;
+            if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
+            if (h.pausedUntil && dStr <= h.pausedUntil) continue;
+
+            if (newCompletedSet.has(dStr)) {
+              currentStreak++;
+            } else {
+              break;
+            }
           }
         }
 
@@ -122,7 +185,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
 
         if (state.userId) {
           fireSync(
-            () => dbService.toggleHabitDate(state.userId!, id, newCompletedDays),
+            () => dbService.toggleHabitDate(state.userId!, id, newCompletedDays, newXpAwardedDays, currentStreak, Math.max(h.bestStreak || 0, currentStreak)),
             'toggleHabit',
             state.userId,
             'habits',
@@ -167,6 +230,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           const { actions } = get();
           actions.checkQuestProgress('habit');
           actions.updateLifeScoreHistory();
+          actions.refreshHabitNotifications();
         }, 0);
 
         // C-06 FIX: Return milestone outside habit object so caller can add to root state queue.
@@ -209,6 +273,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
     const updatedHabit = newHabits.find(h => h.id === id);
     if (state.userId && updatedHabit) {
       fireSync(() => dbService.saveHabit(state.userId!, updatedHabit), 'pauseHabit', state.userId);
+      get().actions.refreshHabitNotifications();
     }
     return { habits: newHabits };
   }),
@@ -233,7 +298,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
       for (const habit of habits) {
         if (habit.reminderTime) {
           await notificationService.scheduleHabitReminder(
-            habit.id, habit.title, habit.icon, habit.reminderTime, habit.frequency, habit.targetDays
+            habit.id, habit.title, habit.icon, habit.reminderTime, habit.frequency, habit.targetDays, habit.monthlyDay
           );
         } else {
           await notificationService.cancelHabitReminders(habit.id);

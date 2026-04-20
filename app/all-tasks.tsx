@@ -2,6 +2,7 @@ import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
+import { Task } from '@/store/types';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -9,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
-import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { Platform, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,16 +18,6 @@ import { useIsFocused } from '@react-navigation/native';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as any;
 
-interface Task {
-  id: string;
-  text: string;
-  priority: 'high' | 'medium' | 'low';
-  date: string;
-  completed: boolean;
-  status: 'pending' | 'completed' | 'missed';
-  startTime?: string;
-  dueTime?: number;
-}
 
 interface Section {
   label: string;
@@ -90,6 +81,7 @@ const TaskItem = React.memo(({
             styles.checkbox,
             { borderColor: task.status === 'missed' ? colors.danger : priorityColors[task.priority] },
             task.completed && [styles.checkboxChecked, { backgroundColor: priorityColors[task.priority] }],
+            task.date > getTodayLocal() && !task.completed && { borderColor: colors.textSecondary, opacity: 0.5 }
           ]}
           onPress={() => onToggle(task.id)}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
@@ -100,6 +92,9 @@ const TaskItem = React.memo(({
           {task.completed && <Ionicons name="checkmark" size={14} color="#FFF" />}
           {task.status === 'missed' && !task.completed && (
             <Ionicons name="close" size={12} color={colors.danger} />
+          )}
+          {task.date > getTodayLocal() && !task.completed && (
+            <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
           )}
         </TouchableOpacity>
 
@@ -128,6 +123,12 @@ const TaskItem = React.memo(({
                 <Text style={[styles.metaText, { color: colors.textSecondary }]}>{task.startTime}</Text>
               </View>
             )}
+            <View style={[styles.metaItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+              <Ionicons name="calendar-outline" size={10} color={colors.textSecondary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
           </View>
         </View>
         <ChevronRight size={18} color={colors.textSecondary} opacity={0.5} />
@@ -143,6 +144,8 @@ export default function AllTasksScreen() {
   const tasks = useStore(s => s.tasks);
   const tasksLoaded = useStore(s => s.syncStatus.tasksLoaded);
   const toggleTask = useStore(s => s.actions.toggleTask);
+
+  const [activeTab, setActiveTab] = useState<'History' | 'Today' | 'Upcoming'>('Today');
 
   const today = useMemo(() => getTodayLocal(), [isFocused]);
   const priorityWeight = { high: 1, medium: 2, low: 3 };
@@ -182,7 +185,20 @@ export default function AllTasksScreen() {
   }, [today]);
 
   const sections = useMemo<Section[]>(() => {
-    const sorted = [...tasks].sort((a, b) => {
+    let filteredTasks = tasks;
+    if (activeTab === 'Today') {
+      filteredTasks = tasks.filter(t => t.status === 'pending' && t.date <= today);
+    } else if (activeTab === 'Upcoming') {
+      filteredTasks = tasks.filter(t => t.date > today);
+    } else if (activeTab === 'History') {
+      filteredTasks = tasks.filter(t => t.status === 'completed' || t.status === 'missed');
+    }
+
+    const sorted = [...filteredTasks].sort((a, b) => {
+      if (activeTab === 'History') {
+        if (a.date !== b.date) return a.date > b.date ? -1 : 1;
+        return 0; // maintain descending
+      }
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
@@ -190,25 +206,33 @@ export default function AllTasksScreen() {
       return (a.dueTime || 0) - (b.dueTime || 0);
     });
 
-    const sectionMap: Record<string, Task[]> = {
-      Overdue: [],
-      Today: [],
-      Tomorrow: [],
-      'This Week': [],
-      Later: [],
-    };
+    const sectionMap: Record<string, Task[]> = {};
 
-    for (const task of sorted) {
-      const label = getDateLabel(task.date, today, tomorrow, weekEnd);
-      if (sectionMap[label]) sectionMap[label].push(task as Task);
+    if (activeTab === 'History') {
+      sectionMap['Completed / Missed'] = sorted;
+    } else if (activeTab === 'Today') {
+      sectionMap['Overdue'] = [];
+      sectionMap['Today'] = [];
+      for (const task of sorted) {
+        if (task.date < today) sectionMap['Overdue'].push(task as Task);
+        else sectionMap['Today'].push(task as Task);
+      }
+    } else {
+      sectionMap['Tomorrow'] = [];
+      sectionMap['This Week'] = [];
+      sectionMap['Later'] = [];
+      for (const task of sorted) {
+        const label = getDateLabel(task.date, today, tomorrow, weekEnd);
+        if (sectionMap[label]) sectionMap[label].push(task as Task);
+      }
     }
 
     return Object.entries(sectionMap)
       .filter(([, t]) => t.length > 0)
       .map(([label, t]) => ({ label, data: t }));
-  }, [tasks, today, tomorrow, weekEnd]);
+  }, [tasks, today, tomorrow, weekEnd, activeTab]);
 
-  const totalCount = tasks.length;
+  const totalCount = sections.reduce((acc, curr) => acc + curr.data.length, 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -256,6 +280,17 @@ export default function AllTasksScreen() {
               </TouchableOpacity>
             </View>
           </BlurView>
+        </View>
+
+        <View style={[styles.tabContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+          {['History', 'Today', 'Upcoming'].map((tab) => (
+            <TouchableOpacity 
+              key={tab} 
+              style={[styles.tabButton, activeTab === tab && { backgroundColor: colors.isDark ? '#333' : '#FFF', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }]}
+              onPress={() => setActiveTab(tab as any)}>
+              <Text style={[styles.tabLabel, { color: activeTab === tab ? colors.text : colors.textSecondary }]}>{tab}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {!tasksLoaded ? (
@@ -362,6 +397,24 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
     paddingBottom: 60,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.md,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   sectionHeader: {
     flexDirection: 'row',

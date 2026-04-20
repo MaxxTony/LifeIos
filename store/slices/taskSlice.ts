@@ -95,6 +95,18 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
       const task = state.tasks.find(t => t.id === id);
       if (!task) return state;
 
+      const todayStr = getTodayLocal();
+      if (task.date > todayStr && !task.completed) {
+        import('react-native-toast-message').then(Toast => {
+          Toast.default.show({
+            type: 'info',
+            text1: 'Locked 🔒',
+            text2: `You cannot complete future tasks yet!`
+          });
+        });
+        return state;
+      }
+
       const nowCompleted = !task.completed;
       // XP guard: only award once per task lifetime. xpAwarded stays true even after un-toggle.
       const shouldAwardXP = nowCompleted && !task.xpAwarded;

@@ -49,7 +49,7 @@ service cloud.firestore {
       match /habits/{habitId} {
         allow read: if isOwner(userId);
         allow create, update: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['id', 'title', 'icon', 'category', 'color', 'frequency', 'targetDays', 'reminderTime', 'goalDays', 'completedDays', 'bestStreak', 'currentStreak', 'xpAwardedDays', 'createdAt', 'pausedUntil', 'serverCreatedAt', 'lastUpdatedAt'])
+          && request.resource.data.keys().hasOnly(['id', 'title', 'icon', 'category', 'color', 'frequency', 'targetDays', 'monthlyTarget', 'monthlyDay', 'reminderTime', 'goalDays', 'completedDays', 'bestStreak', 'currentStreak', 'xpAwardedDays', 'createdAt', 'pausedUntil', 'serverCreatedAt', 'lastUpdatedAt'])
           && request.resource.data.title is string;
         allow delete: if isOwner(userId);
       }

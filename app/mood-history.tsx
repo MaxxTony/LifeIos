@@ -445,7 +445,8 @@ export default function MoodHistoryScreen() {
               return <View style={{ height: 40 }} />;
             }}
           />
-        )} {/* end !moodLoaded ternary */}
+        )}
+
       </SafeAreaView>
     </View>
   );
