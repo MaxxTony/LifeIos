@@ -1,22 +1,21 @@
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { ChatConversation, chatService } from '@/services/chatService';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   Dimensions,
+  Modal,
   SectionList,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Modal
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from './ui/icon-symbol';
-import { useThemeColors } from '@/hooks/useThemeColors';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;

@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useAnimatedStyle, withRepeat, withSequence, withTiming, useSharedValue } from 'react-native-reanimated';
-import { Typography, BorderRadius, Colors } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
-export function DashboardAIButton() {
+// O6 FIX: Wrapped in React.memo. This component has no props and its internal
+// state (router, colors) doesn't change every second, so without memo it was
+// needlessly re-rendering on every focus timer tick.
+export const DashboardAIButton = React.memo(function DashboardAIButton() {
   const router = useRouter();
   const colors = useThemeColors();
   const glow = useSharedValue(0.8);
@@ -32,8 +34,8 @@ export function DashboardAIButton() {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.glowRing, { backgroundColor: colors.primary, shadowColor: colors.primary }, glowStyle]} />
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         activeOpacity={0.9}
         onPress={() => router.push('/ai-chat')}
         style={[styles.buttonWrap, { borderColor: colors.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }]}
@@ -52,7 +54,7 @@ export function DashboardAIButton() {
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -66,8 +68,8 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, 
-    shadowRadius: 20, 
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
     elevation: 10,
   },
   buttonWrap: {

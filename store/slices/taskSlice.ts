@@ -177,7 +177,12 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
           newState.recentXP = { amount, timestamp: Date.now() };
 
           if (state.userId) {
-            fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { totalXP: newTotalXP, level: newLevel }), 'xpUpdateTask', state.userId);
+            // O7 FIX: Also sync weeklyXP so the leaderboard stays accurate.
+            // Without this, weeklyXP in the cloud only updates on addXP() calls,
+            // not on in-slice atomic XP awards like task completion.
+            const newWeeklyXP = (state.weeklyXP || 0) + amount;
+            newState.weeklyXP = newWeeklyXP;
+            fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { totalXP: newTotalXP, level: newLevel, weeklyXP: newWeeklyXP }), 'xpUpdateTask', state.userId);
           }
         }
         analyticsService.logEvent(state.userId, 'task_completed', { priority: task.priority });

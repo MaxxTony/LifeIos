@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, limit, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, limit, serverTimestamp, orderBy, documentId } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export interface PublicProfile {
@@ -22,10 +22,13 @@ export interface FriendRequest {
 export const socialService = {
   searchUsers: async (searchQuery: string, currentUserId: string): Promise<PublicProfile[]> => {
     try {
+      // O9 FIX: Query against 'userNameLower' for case-insensitive search.
+      // userNameLower is written as name.toLowerCase() on every profile update.
+      const lowerQuery = searchQuery.toLowerCase();
       const q = query(
         collection(db, 'publicProfiles'),
-        where('userName', '>=', searchQuery),
-        where('userName', '<=', searchQuery + '\uf8ff'),
+        where('userNameLower', '>=', lowerQuery),
+        where('userNameLower', '<=', lowerQuery + '\uf8ff'),
         limit(20)
       );
       
@@ -74,12 +77,20 @@ export const socialService = {
       const requests = snap.docs.map(d => d.data() as FriendRequest);
       
       const profiles: PublicProfile[] = [];
-      for (const req of requests) {
-        const pSnap = await getDoc(doc(db, 'publicProfiles', req.fromUserId));
-        if (pSnap.exists()) {
-          profiles.push({ userId: pSnap.id, ...pSnap.data() } as PublicProfile);
+      
+      // O2 FIX: Batch profile reads using 'in' query instead of N individual getDoc() calls.
+      // Firestore 'in' supports up to 10 values per query — chunk accordingly.
+      const fromIds = requests.map(r => r.fromUserId).filter(Boolean);
+      if (fromIds.length > 0) {
+        for (let i = 0; i < fromIds.length; i += 10) {
+          const chunk = fromIds.slice(i, i + 10);
+          const batchSnap = await getDocs(
+            query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk))
+          );
+          batchSnap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
         }
       }
+      
       return { requests, profiles };
     } catch (e) {
       console.error('Error getting requests:', e);
@@ -120,11 +131,16 @@ export const socialService = {
       friendIds.add(userId);
 
       const profiles: PublicProfile[] = [];
-      for (const fId of Array.from(friendIds)) {
-        const pSnap = await getDoc(doc(db, 'publicProfiles', fId));
-        if (pSnap.exists()) {
-          profiles.push({ userId: pSnap.id, ...pSnap.data() } as PublicProfile);
-        }
+      const idArray = Array.from(friendIds);
+
+      // O3 FIX: Batch profile reads using 'in' query instead of N individual getDoc() calls.
+      // This reduces read cost from O(N) to O(ceil(N/10)) queries.
+      for (let i = 0; i < idArray.length; i += 10) {
+        const chunk = idArray.slice(i, i + 10);
+        const batchSnap = await getDocs(
+          query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk))
+        );
+        batchSnap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
       }
 
       return profiles.sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0));
@@ -134,11 +150,14 @@ export const socialService = {
     }
   },
 
-  // Fetches all LifeOS users for the Discover tab (limited to 50 recent active)
+  // Fetches all LifeOS users for the Discover tab (limited to 50 most recently active)
   getAllUsers: async (currentUserId: string): Promise<PublicProfile[]> => {
     try {
+      // O13 FIX: Added orderBy('lastActive', 'desc') so the most recently active
+      // users appear first instead of 50 users in arbitrary hash order.
       const q = query(
         collection(db, 'publicProfiles'),
+        orderBy('lastActive', 'desc'),
         limit(50)
       );
       const snap = await getDocs(q);

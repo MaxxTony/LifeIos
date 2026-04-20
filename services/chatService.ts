@@ -55,8 +55,12 @@ export const chatService = {
       return data;
     } catch (error) {
       console.error('Error getting conversations:', error);
-      const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
-      return cached ? JSON.parse(cached) : [];
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+        return cached ? JSON.parse(cached) : [];
+      } catch (e) {
+        return [];
+      }
     }
   },
 
@@ -96,8 +100,12 @@ export const chatService = {
     } catch (error) {
       console.error('Error getting messages:', error);
       if (!lastVisibleEntry) {
-        const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
-        if (cached) return { messages: JSON.parse(cached), lastVisible: null };
+        try {
+          const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+          if (cached) return { messages: JSON.parse(cached), lastVisible: null };
+        } catch (e) {
+          // ignore corrupted cache
+        }
       }
       return { messages: [], lastVisible: null };
     }

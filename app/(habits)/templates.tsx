@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CATEGORIES = ['Recommended', 'Popular', 'Health & Nutrition', 'Fitness', 'Growth', 'Mindfulness'];
 
@@ -53,7 +51,7 @@ export default function TemplatesScreen() {
 
   const filteredTemplates = HABIT_TEMPLATES.filter(t => {
     const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase());
-    
+
     let matchesCategory = false;
     if (activeCategory === 'Popular') {
       matchesCategory = !!t.popular;
@@ -62,14 +60,14 @@ export default function TemplatesScreen() {
     } else {
       matchesCategory = t.category === activeCategory;
     }
-    
+
     return matchesSearch && matchesCategory;
   });
 
   const handleSelect = (template: typeof HABIT_TEMPLATES[0]) => {
     router.push({
       pathname: '/(habits)/config',
-      params: { 
+      params: {
         title: template.title,
         icon: template.icon,
         category: template.category,
@@ -85,7 +83,7 @@ export default function TemplatesScreen() {
           <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>New Habit</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push('/(habits)/config')}
           style={[styles.headerAddBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
         >
@@ -109,19 +107,19 @@ export default function TemplatesScreen() {
           {CATEGORIES.map(cat => {
             // Hide Recommended if user has no struggles logged, but it's okay to keep as fallback
             if (cat === 'Recommended' && struggles.length === 0) return null;
-            
+
             return (
-              <TouchableOpacity 
-                key={cat} 
+              <TouchableOpacity
+                key={cat}
                 onPress={() => setActiveCategory(cat)}
                 style={[
-                  styles.categoryBtn, 
+                  styles.categoryBtn,
                   { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
                   activeCategory === cat && [styles.activeCategoryBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]
                 ]}
               >
-                {cat === 'Popular' && <Ionicons name="star" size={14} color={activeCategory === cat ? colors.primary : "#FFB84B"} style={{marginRight: 4}} />}
-                {cat === 'Recommended' && <Ionicons name="sparkles" size={14} color={activeCategory === cat ? colors.primary : colors.secondary} style={{marginRight: 4}} />}
+                {cat === 'Popular' && <Ionicons name="star" size={14} color={activeCategory === cat ? colors.primary : "#FFB84B"} style={{ marginRight: 4 }} />}
+                {cat === 'Recommended' && <Ionicons name="sparkles" size={14} color={activeCategory === cat ? colors.primary : colors.secondary} style={{ marginRight: 4 }} />}
                 <Text style={[styles.categoryText, { color: colors.textSecondary }, activeCategory === cat && { color: colors.primary }]}>{cat}</Text>
               </TouchableOpacity>
             );
@@ -132,14 +130,14 @@ export default function TemplatesScreen() {
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>{activeCategory}</Text>
         <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>
-          {activeCategory === 'Recommended' 
+          {activeCategory === 'Recommended'
             ? "Based on your onboarding data, these habits will help you the most."
             : "Start with proven habits that have helped thousands succeed"}
         </Text>
 
         {filteredTemplates.map((item, index) => (
-          <TouchableOpacity 
-            key={index} 
+          <TouchableOpacity
+            key={index}
             style={[styles.templateCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
             onPress={() => handleSelect(item)}
           >

@@ -37,7 +37,9 @@ export type AnalyticsEvent =
   | 'ai_message_sent'
   | 'ai_tool_call'
   | 'level_up'
-  | 'badge_unlocked';
+  | 'badge_unlocked'
+  | 'pomodoro_phase_complete'
+  | 'pomodoro_cycle_step';
 
 export const analyticsService = {
   logEvent: (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {

@@ -362,13 +362,11 @@ export const notificationService = {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
 
-      // 1. Cancel existing comeback notifications
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      for (const n of scheduled) {
-        if (n.identifier.startsWith('comeback-')) {
-          await Notifications.cancelScheduledNotificationAsync(n.identifier);
-        }
-      }
+      // 1. Cancel existing comeback notifications using deterministic IDs.
+      // O15 FIX: No longer fetches getAllScheduledNotificationsAsync() (which could
+      // return 100+ items). We know exactly which IDs we used — cancel them directly.
+      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
 
       // 2. Schedule 48h reminder
       await Notifications.scheduleNotificationAsync({

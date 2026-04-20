@@ -31,8 +31,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read:   if isOwner(userId);
       allow create, update: if isOwner(userId) && ownsPayload(userId)
-        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'totalXP', 'level', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles', '_migrationComplete', 'lastLoginBonusDate', 'streakFreezes'])
-        && (request.resource.data.totalXP is number || !('totalXP' in request.resource.data));
+        // O12 FIX: Removed 'totalXP' and 'level' from this allowlist.
+        // XP must only be written to users/{userId}/stats/global (the sub-collection),
+        // which is protected by a separate rule. Keeping them here allowed a user
+        // to self-edit their XP via the Firestore REST API with their own auth token.
+        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestone', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles', '_migrationComplete', 'lastLoginBonusDate', 'streakFreezes']);
       allow delete: if isOwner(userId);
 
       match /tasks/{taskId} {
@@ -102,7 +105,8 @@ service cloud.firestore {
       // Allows friends/users to read the public profile data
       allow read: if isSignedIn();
       allow write: if isOwner(profileId)
-        && (request.method == 'delete' || request.resource.data.keys().hasOnly(['level', 'weeklyXP', 'globalStreak', 'lastActive', 'userName', 'avatarUrl', 'lastUpdatedAt']));
+        // O9 FIX: Added 'userNameLower' to allowlist (used for case-insensitive search).
+        && (request.method == 'delete' || request.resource.data.keys().hasOnly(['level', 'weeklyXP', 'globalStreak', 'lastActive', 'userName', 'userNameLower', 'avatarUrl', 'lastUpdatedAt']));
     }
 
     match /friendRequests/{requestId} {

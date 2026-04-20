@@ -157,50 +157,57 @@ wireSyncErrorPublisher((err) => {
 wireStore(useStore);
 
 // --- Phase 9: Pro Widget Sync Subscriber ---
-// We use a throttle/debounce pattern handled by the native side mostly, 
-// but here we just subscribe to specific state changes.
+// O16 FIX: Added 500ms debounce so JSON.stringify doesn't fire on every 1s
+// focus timer tick. Instead, groups consecutive rapid changes before syncing.
 let lastSyncDataSerialized = '';
+let widgetSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 useStore.subscribe((state) => {
   if (!state._hasHydrated || !state.userId) return;
 
-  const today = getTodayLocal();
-  const todayTasks = state.tasks.filter(t => t.date === today);
-  const todayHabits = state.habits.filter(h => {
-    const dayOfWeek = new Date().getDay();
-    return h.targetDays.includes(dayOfWeek);
-  });
-  const completedHabitsToday = state.habits.filter(h => h.completedDays.includes(today)).length;
+  // Debounce: clear any pending timer and re-set it
+  if (widgetSyncDebounceTimer) clearTimeout(widgetSyncDebounceTimer);
 
-  const widgetData = {
-    tasks: todayTasks
-      .filter(t => !t.completed)
-      .sort((a, b) => {
-        const pMap = { high: 0, medium: 1, low: 2 };
-        return pMap[a.priority] - pMap[b.priority];
-      })
-      .slice(0, 4)
-      .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
-    habitProgress: {
-      completed: completedHabitsToday,
-      total: todayHabits.length || 1,
-    },
-    focus: {
-      isActive: state.focusSession.isActive,
-      totalSecondsToday: state.focusSession.totalSecondsToday,
-      goalSeconds: (state.focusGoalHours || 8) * 3600,
-      lastStartTime: state.focusSession.lastStartTime,
-    },
-    stats: {
-      level: state.level,
-      totalXP: state.totalXP,
-      streak: state.globalStreak,
-    },
-    lastUpdated: Date.now(),
-  };
+  widgetSyncDebounceTimer = setTimeout(() => {
+    const today = getTodayLocal();
+    const todayTasks = state.tasks.filter(t => t.date === today);
+    const todayHabits = state.habits.filter(h => {
+      const dayOfWeek = new Date().getDay();
+      return h.targetDays.includes(dayOfWeek);
+    });
+    const completedHabitsToday = state.habits.filter(h => h.completedDays.includes(today)).length;
 
-  const serialized = JSON.stringify(widgetData);
-  if (serialized !== lastSyncDataSerialized) {
-    lastSyncDataSerialized = serialized;
-    widgetSyncService.syncWholeStoreToWidget(widgetData);
-  }
+    const widgetData = {
+      tasks: todayTasks
+        .filter(t => !t.completed)
+        .sort((a, b) => {
+          const pMap = { high: 0, medium: 1, low: 2 };
+          return pMap[a.priority] - pMap[b.priority];
+        })
+        .slice(0, 4)
+        .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
+      habitProgress: {
+        completed: completedHabitsToday,
+        total: todayHabits.length || 1,
+      },
+      focus: {
+        isActive: state.focusSession.isActive,
+        totalSecondsToday: state.focusSession.totalSecondsToday,
+        goalSeconds: (state.focusGoalHours || 8) * 3600,
+        lastStartTime: state.focusSession.lastStartTime,
+      },
+      stats: {
+        level: state.level,
+        totalXP: state.totalXP,
+        streak: state.globalStreak,
+      },
+      lastUpdated: Date.now(),
+    };
+
+    const serialized = JSON.stringify(widgetData);
+    if (serialized !== lastSyncDataSerialized) {
+      lastSyncDataSerialized = serialized;
+      widgetSyncService.syncWholeStoreToWidget(widgetData);
+    }
+  }, 500); // 500ms debounce — groups rapid changes from timer ticks
 });

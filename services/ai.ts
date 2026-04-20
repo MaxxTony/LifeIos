@@ -6,7 +6,8 @@ import { httpsCallable } from 'firebase/functions';
 import { aiActionHandler } from './aiActionHandler';
 
 const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
 if (!USE_AI_PROXY && !__DEV__) {
   throw new Error('[FATAL] Gemini API key must not be used directly in production. USE_AI_PROXY must be true.');
@@ -36,7 +37,7 @@ const getCurrentAppContext = () => {
     d.setDate(d.getDate() - i);
     return d.toISOString().split('T')[0];
   });
-  
+
   const moodHistory: Record<string, any> = {};
   last7Days.forEach(day => {
     if (state.moodHistory[day]) moodHistory[day] = state.moodHistory[day].mood;
@@ -66,7 +67,7 @@ const getCurrentAppContext = () => {
   };
 
   const snapshot = `CURRENT APP STATE SNAPSHOT (${today}):\n${JSON.stringify(context, null, 2)}`;
-  
+
   // C-AI-2: Enforce hard character limit to prevent proxy failures & protect PII
   return snapshot.length > 2000 ? snapshot.substring(0, 1997) + '...' : snapshot;
 };

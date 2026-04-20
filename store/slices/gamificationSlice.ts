@@ -335,6 +335,8 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         globalStreak: newGlobalStreak,
         lastActive: Date.now(),
         userName: state.userName || 'Anonymous',
+        // O9 FIX: Keep userNameLower in sync for case-insensitive search.
+        userNameLower: (state.userName || 'Anonymous').toLowerCase(),
         avatarUrl: state.avatarUrl || null
       }, { merge: true }), 'publicProfileSync', state.userId);
     }
@@ -408,7 +410,20 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       if (totalXPToAdd > 0) {
         const newTotalXP = state.totalXP + totalXPToAdd;
         const newLevel = computeLevel(newTotalXP);
-        
+
+        // XP-01 FIX: Compute weeklyXP here so the leaderboard stays accurate
+        // even when XP is awarded directly from quest completion (not via addXP).
+        const todayDate = new Date();
+        const dayOfWeek = todayDate.getDay() || 7;
+        const diffToMonday = todayDate.getDate() - dayOfWeek + 1;
+        const currentMonday = new Date(todayDate);
+        currentMonday.setDate(diffToMonday);
+        const currentMondayStr = formatLocalDate(currentMonday);
+
+        const isNewWeek = state.lastWeekResetDate !== currentMondayStr;
+        const newWeeklyXP = isNewWeek ? totalXPToAdd : (state.weeklyXP || 0) + totalXPToAdd;
+        const newLastWeekResetDate = isNewWeek ? currentMondayStr : state.lastWeekResetDate;
+
         if (newLevel > state.level) {
           setTimeout(() => {
             import('react-native-toast-message').then(Toast => {
@@ -424,11 +439,20 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
         newState.totalXP = newTotalXP;
         newState.level = newLevel;
+        newState.weeklyXP = newWeeklyXP;
+        newState.lastWeekResetDate = newLastWeekResetDate;
         newState.recentXP = { amount: totalXPToAdd, timestamp: Date.now() };
         newState.completedQuests = [...state.completedQuests, ...completedQuestsThisTick].slice(-100);
 
         if (state.userId) {
-          fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { totalXP: newTotalXP, level: newLevel }), 'xpUpdateQuests', state.userId);
+          // XP-01 FIX: Include weeklyXP in the Firestore sync so the leaderboard
+          // reflects quest XP immediately without waiting for the next addXP() call.
+          fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', {
+            totalXP: newTotalXP,
+            level: newLevel,
+            weeklyXP: newWeeklyXP,
+            lastWeekResetDate: newLastWeekResetDate,
+          }), 'xpUpdateQuests', state.userId);
         }
       }
 

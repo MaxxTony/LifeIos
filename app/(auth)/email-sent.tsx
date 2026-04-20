@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ImageBackground, Dimensions, Linking, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Mail, Check, Inbox } from 'lucide-react-native';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { Typography } from '@/constants/theme';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Check, Inbox } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Dimensions, ImageBackground, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
@@ -76,8 +75,8 @@ export default function EmailSentScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            onPress={() => router.replace('/(auth)/login')} 
+          <TouchableOpacity
+            onPress={() => router.replace('/(auth)/login')}
             style={[styles.secondaryButton, { borderColor: colors.border }]}
           >
             <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back to Login</Text>
@@ -107,8 +106,8 @@ export default function EmailSentScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  successIconOuter: { 
-    width: 120, height: 120, borderRadius: 60, padding: 8, 
+  successIconOuter: {
+    width: 120, height: 120, borderRadius: 60, padding: 8,
     backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 32,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)'
   },
@@ -117,7 +116,7 @@ const styles = StyleSheet.create({
   title: { ...Typography.h1, fontSize: 32, marginBottom: 16 },
   subtitle: { ...Typography.body, textAlign: 'center', fontSize: 16, lineHeight: 24 },
   buttonGroup: { width: '100%', gap: 16, marginBottom: 40 },
-  primaryButton: { 
+  primaryButton: {
     height: 58, borderRadius: 16, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
     shadowOpacity: 0.3, shadowRadius: 10, elevation: 5

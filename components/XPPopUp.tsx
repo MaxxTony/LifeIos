@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, Dimensions } from 'react-native';
-import Animated, { 
-  useAnimatedStyle, 
-  useSharedValue, 
-  withTiming, 
-  Easing,
-  runOnJS
-} from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import { useStore } from '@/store/useStore';
-import { Typography, Spacing } from '@/constants/theme';
+import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
+import React, { useEffect, useState } from 'react';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
+} from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -27,14 +26,14 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
   useEffect(() => {
     // Entrance & Continuous Float
     opacity.value = withTiming(1, { duration: 300 });
-    scale.value = withTiming(1, { 
-      duration: 500, 
-      easing: Easing.out(Easing.back(1.5)) 
+    scale.value = withTiming(1, {
+      duration: 500,
+      easing: Easing.out(Easing.back(1.5))
     });
-    
-    translateY.value = withTiming(-120, { 
-      duration: 2500, 
-      easing: Easing.linear 
+
+    translateY.value = withTiming(-120, {
+      duration: 2500,
+      easing: Easing.linear
     }, (finished) => {
       if (finished) {
         runOnJS(onFinish)();
@@ -58,11 +57,11 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
   }));
 
   return (
-    <Animated.View 
+    <Animated.View
       style={[
-        styles.xpItem, 
-        animatedStyle, 
-        { 
+        styles.xpItem,
+        animatedStyle,
+        {
           backgroundColor: colors.isDark ? 'rgba(50, 50, 80, 0.95)' : 'rgba(255, 255, 255, 0.95)',
           borderColor: colors.primary,
           shadowColor: colors.primary,
@@ -102,10 +101,10 @@ export const XPPopUp = () => {
   return (
     <View style={styles.container} pointerEvents="box-none">
       {activeXPs.map((xp) => (
-        <XPFloatingItem 
-          key={xp.id} 
-          amount={xp.amount} 
-          onFinish={() => removeItem(xp.id)} 
+        <XPFloatingItem
+          key={xp.id}
+          amount={xp.amount}
+          onFinish={() => removeItem(xp.id)}
         />
       ))}
     </View>

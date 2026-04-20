@@ -199,23 +199,11 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     // C-STORE-4 FIX: Collect ALL unsubscribers in a local array first.
     // If an error occurs midway, we still update the store with what we have
     // so they can be cleaned up on the next logout/login.
+    // O1 FIX: Removed eager publicProfile upsert here — it was firing a
+    // duplicate write every app open. The onSnapshot callback below already
+    // upserts on every non-cached Firestore read, which covers the same case
+    // within ~500ms of open. One write per session is sufficient.
     const collected: (() => void)[] = [];
-
-    // SOCIAL: Upsert publicProfile so user appears in Discover tab immediately.
-    // Runs every app open — light setDoc(merge:true) with current profile data.
-    const state = get();
-    setDoc(
-      doc(db, 'publicProfiles', userId),
-      {
-        userName: state.userName || 'Unknown',
-        avatarUrl: state.avatarUrl || null,
-        level: state.level || 1,
-        weeklyXP: state.weeklyXP || 0,
-        globalStreak: state.globalStreak || 0,
-        lastActive: Date.now(),
-      },
-      { merge: true }
-    ).catch(err => console.warn('[LifeOS] publicProfile upsert failed:', err));
 
     try {
       // Root Profile Subscription
@@ -303,10 +291,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           // Fires on every app open with real username + avatar from Firestore.
           if (!data._fromCache) {
             const currentState = get();
+            const displayName = data.userName || currentState.userName || 'Unknown';
             setDoc(
               doc(db, 'publicProfiles', userId),
               {
-                userName: data.userName || currentState.userName || 'Unknown',
+                userName: displayName,
+                // O9 FIX: Keep lowercase version for case-insensitive search queries.
+                userNameLower: displayName.toLowerCase(),
                 avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : (currentState.avatarUrl || null),
                 level: currentState.level || 1,
                 weeklyXP: currentState.weeklyXP || 0,
@@ -475,7 +466,9 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           }
           
           if (statsDoc.globalStreak !== undefined) updates.globalStreak = statsDoc.globalStreak;
-          if (statsDoc.weeklyXP !== undefined) updates.weeklyXP = statsDoc.weeklyXP;
+          // O5 FIX: Use Math.max to prevent a device that was offline from
+          // overwriting a higher weeklyXP earned on another device.
+          if (statsDoc.weeklyXP !== undefined) updates.weeklyXP = Math.max(statsDoc.weeklyXP, get().weeklyXP);
           if (statsDoc.lastActiveDate !== undefined) updates.lastActiveDate = statsDoc.lastActiveDate;
           if (statsDoc.lastWeekResetDate !== undefined) updates.lastWeekResetDate = statsDoc.lastWeekResetDate;
           
@@ -493,10 +486,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         // in other users' Discover tab. This fires even if user has never earned XP.
         try {
           const state = get();
+          const displayName = state.userName || 'Unknown';
           await setDoc(
             doc(db, 'publicProfiles', userId),
             {
-              userName: state.userName || 'Unknown',
+              userName: displayName,
+              // O9 FIX: Keep lowercase version for case-insensitive search queries.
+              userNameLower: displayName.toLowerCase(),
               avatarUrl: state.avatarUrl || null,
               level: state.level || 1,
               weeklyXP: state.weeklyXP || 0,

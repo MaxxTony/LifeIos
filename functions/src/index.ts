@@ -299,16 +299,48 @@ export const scheduledConversationCleanup = onSchedule('0 0 * * *', async () => 
 
   const batch = db.batch();
   const parentConvPaths = new Set<string>();
+  // O4 FIX: Collect Storage image URLs from messages before deleting them.
+  // Without this, images uploaded in chat stayed in Storage permanently.
+  const imageUrlsToDelete: string[] = [];
 
   messagesToPrune.docs.forEach((doc) => {
     batch.delete(doc.ref);
     // Path: users/{uid}/conversations/{convId}/messages/{msgId}
     const parentPath = doc.ref.parent.parent?.path;
     if (parentPath) parentConvPaths.add(parentPath);
+    // Collect imageUrl if present and valid
+    const data = doc.data();
+    if (data.imageUrl && typeof data.imageUrl === 'string' && data.imageUrl.includes('firebasestorage')) {
+      imageUrlsToDelete.push(data.imageUrl);
+    }
   });
 
   await batch.commit();
   console.log(`[LifeOS Cleanup] Deleted ${messagesToPrune.size} stale messages.`);
+
+  // O4 FIX: Delete Storage objects for pruned messages.
+  // Fire-and-forget — storage cleanup failures don't affect message deletion.
+  if (imageUrlsToDelete.length > 0) {
+    const storageBucket = admin.storage().bucket();
+    await Promise.all(
+      imageUrlsToDelete.map(async (url) => {
+        try {
+          // Extract the Storage path from the download URL
+          const match = url.match(/\/o\/([^?]+)/);
+          if (!match) return;
+          const storagePath = decodeURIComponent(match[1]);
+          await storageBucket.file(storagePath).delete();
+          console.log(`[LifeOS Cleanup] Deleted Storage image: ${storagePath}`);
+        } catch (err: any) {
+          // 404 = already deleted, safe to ignore
+          if (err?.code !== 404 && err?.code !== 'storage/object-not-found') {
+            console.warn(`[LifeOS Cleanup] Storage delete failed for image: ${err?.message}`);
+          }
+        }
+      })
+    );
+    console.log(`[LifeOS Cleanup] Processed ${imageUrlsToDelete.length} Storage image deletions.`);
+  }
 
   // C-12 FIX: Delete parent conversation documents if they are now empty
   for (const convPath of parentConvPaths) {
