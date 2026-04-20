@@ -1,5 +1,6 @@
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
+import { analyticsService } from './analyticsService';
 
 /**
  * C-AI-3 FIX: Strict validation guards for AI-triggered actions.
@@ -24,6 +25,7 @@ export const aiActionHandler = {
         params.priority || 'medium',
         getTodayLocal()
       );
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'addTask' });
       return { success: true, message: `Successfully added task: ${params.text}` };
     } catch (error: any) {
       console.error('AI Add Task Error:', error);
@@ -52,6 +54,7 @@ export const aiActionHandler = {
         currentStreak: 0,
         goalDays: params.frequency === 'daily' ? 7 : 1,
       });
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'addHabit' });
       return { success: true, message: `Successfully created habit: ${params.title}` };
     } catch (error: any) {
       console.error('AI Add Habit Error:', error);
@@ -79,6 +82,7 @@ export const aiActionHandler = {
         emotions: params.emotions,
         activities: params.activities
       });
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'setMood' });
       return { success: true, message: `Logged mood level ${moodValue}` };
     } catch (error: any) {
       console.error('AI Set Mood Error:', error);
@@ -100,6 +104,7 @@ export const aiActionHandler = {
     try {
       const { id, ...updates } = params;
       store.actions.updateTask(id, updates);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateTask' });
       return { success: true, message: `Updated task ${id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to update task: ${error.message}` };
@@ -119,6 +124,7 @@ export const aiActionHandler = {
 
     try {
       store.actions.removeTask(params.id);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'removeTask' });
       return { success: true, message: `Removed task ${params.id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to remove task: ${error.message}` };
@@ -139,6 +145,7 @@ export const aiActionHandler = {
     try {
       const { id, ...updates } = params;
       store.actions.updateHabit(id, updates);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateHabit' });
       return { success: true, message: `Updated habit ${id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to update habit: ${error.message}` };
@@ -158,6 +165,7 @@ export const aiActionHandler = {
 
     try {
       store.actions.removeHabit(params.id);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'removeHabit' });
       return { success: true, message: `Removed habit ${params.id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to remove habit: ${error.message}` };

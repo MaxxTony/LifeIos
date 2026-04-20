@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { analyticsService } from '@/services/analyticsService';
 import {
   Dimensions,
   Image,
@@ -344,9 +345,14 @@ export default function OnboardingScreen() {
   const colors = useThemeColors();
   const { onboardingData, actions: { setOnboardingData, completeOnboarding } } = useStore();
 
+  useEffect(() => {
+    analyticsService.logEvent(null, 'onboarding_start');
+  }, []);
+
   const slideOpacity = useSharedValue(1);
 
   const goToSlide = useCallback((index: number) => {
+    analyticsService.logEvent(null, 'screen_view', { screenName: `onboarding_slide_${index + 1}` });
     slideOpacity.value = withTiming(0, { duration: 180 }, () => {
       runOnJS(setCurrentSlide)(index);
       slideOpacity.value = withTiming(1, { duration: 300 });
@@ -358,6 +364,7 @@ export default function OnboardingScreen() {
     if (currentSlide < TOTAL_SLIDES - 1) {
       goToSlide(currentSlide + 1);
     } else {
+      analyticsService.logMilestone(null, 'onboarding_complete', { strugglesCount: selectedStruggles.length });
       setOnboardingData({ struggles: selectedStruggles });
       completeOnboarding();
       router.replace('/(auth)/login');
@@ -365,6 +372,7 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
+    analyticsService.logEvent(null, 'onboarding_skip', { lastSlide: currentSlide + 1 });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     completeOnboarding();
     router.replace('/(auth)/login');

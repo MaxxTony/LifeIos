@@ -20,17 +20,30 @@ export type AnalyticsEvent =
   | 'habit_toggled'
   | 'focus_session_start'
   | 'focus_session_stop'
+  | 'focus_paused'
+  | 'focus_abandoned'
   | 'mood_logged'
   | 'quest_completed'
   | 'screen_view'
   | 'app_open'
-  | 'error_occurred';
+  | 'error_occurred'
+  | 'onboarding_start'
+  | 'onboarding_complete'
+  | 'onboarding_skip'
+  | 'signup_success'
+  | 'signup_failure'
+  | 'login_success'
+  | 'login_failure'
+  | 'ai_message_sent'
+  | 'ai_tool_call'
+  | 'level_up'
+  | 'badge_unlocked';
 
 export const analyticsService = {
   logEvent: (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {
     try {
       // Strip any PII fields before sending — only safe metadata goes to Sentry
-      const { title, text, note, reason, body, content, ...safeParams } = params;
+      const { title, text, note, reason, body, content, name, ...safeParams } = params;
       Sentry.addBreadcrumb({
         category: 'analytics',
         message: event,
@@ -41,6 +54,22 @@ export const analyticsService = {
       // Sentry itself failing is non-critical — silently ignore
     }
     if (__DEV__) console.log(`[Analytics] ${event}:`, params);
+  },
+
+  /**
+   * For major conversion points (Signup, Level Up).
+   * Appears as a standalone "Event" in Sentry dashboard, not just a breadcrumb.
+   */
+  logMilestone: (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {
+    try {
+      const { title, text, note, reason, body, content, name, ...safeParams } = params;
+      Sentry.captureMessage(`Milestone: ${event}`, {
+        level: 'info',
+        tags: { event, userId: userId || 'anonymous' },
+        extra: safeParams,
+      });
+    } catch (err) {}
+    if (__DEV__) console.log(`[Analytics-Milestone] ${event}:`, params);
   },
 
   logScreenView: (userId: string | null, screenName: string) => {

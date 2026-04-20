@@ -82,7 +82,7 @@ service cloud.firestore {
       match /stats/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
-          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate']));
+          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate', 'lastUpdatedAt']));
       }
 
       match /lifeScoreHistory/{date} {
@@ -102,7 +102,7 @@ service cloud.firestore {
       // Allows friends/users to read the public profile data
       allow read: if isSignedIn();
       allow write: if isOwner(profileId)
-        && (request.method == 'delete' || request.resource.data.keys().hasOnly(['level', 'weeklyXP', 'globalStreak', 'lastActive', 'userName', 'avatarUrl']));
+        && (request.method == 'delete' || request.resource.data.keys().hasOnly(['level', 'weeklyXP', 'globalStreak', 'lastActive', 'userName', 'avatarUrl', 'lastUpdatedAt']));
     }
 
     match /friendRequests/{requestId} {

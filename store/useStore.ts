@@ -9,6 +9,8 @@ import { createFocusSlice } from './slices/focusSlice';
 import { createMoodSlice } from './slices/moodSlice';
 import { createGamificationSlice } from './slices/gamificationSlice';
 import { wireSyncErrorPublisher, wireStore } from './syncHelper';
+import { widgetSyncService } from '@/services/widgetSyncService';
+import { getTodayLocal } from '@/utils/dateUtils';
 
 export const useStore = create<UserState>()(
   persist(
@@ -81,6 +83,9 @@ export const useStore = create<UserState>()(
         globalStreak: 0,
         lastActiveDate: null,
         lastWeekResetDate: null,
+        lastLoginBonusDate: null,
+        streakFreezes: 0,
+        globalConfetti: false,
         dailyQuests: [],
         completedQuests: [],
         proactivePrompt: null,
@@ -150,3 +155,52 @@ wireSyncErrorPublisher((err) => {
 
 // C-NET-2 FIX: Inject store reference explicitly to resolve circular dependency
 wireStore(useStore);
+
+// --- Phase 9: Pro Widget Sync Subscriber ---
+// We use a throttle/debounce pattern handled by the native side mostly, 
+// but here we just subscribe to specific state changes.
+let lastSyncDataSerialized = '';
+useStore.subscribe((state) => {
+  if (!state._hasHydrated || !state.userId) return;
+
+  const today = getTodayLocal();
+  const todayTasks = state.tasks.filter(t => t.date === today);
+  const todayHabits = state.habits.filter(h => {
+    const dayOfWeek = new Date().getDay();
+    return h.targetDays.includes(dayOfWeek);
+  });
+  const completedHabitsToday = state.habits.filter(h => h.completedDays.includes(today)).length;
+
+  const widgetData = {
+    tasks: todayTasks
+      .filter(t => !t.completed)
+      .sort((a, b) => {
+        const pMap = { high: 0, medium: 1, low: 2 };
+        return pMap[a.priority] - pMap[b.priority];
+      })
+      .slice(0, 4)
+      .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
+    habitProgress: {
+      completed: completedHabitsToday,
+      total: todayHabits.length || 1,
+    },
+    focus: {
+      isActive: state.focusSession.isActive,
+      totalSecondsToday: state.focusSession.totalSecondsToday,
+      goalSeconds: (state.focusGoalHours || 8) * 3600,
+      lastStartTime: state.focusSession.lastStartTime,
+    },
+    stats: {
+      level: state.level,
+      totalXP: state.totalXP,
+      streak: state.globalStreak,
+    },
+    lastUpdated: Date.now(),
+  };
+
+  const serialized = JSON.stringify(widgetData);
+  if (serialized !== lastSyncDataSerialized) {
+    lastSyncDataSerialized = serialized;
+    widgetSyncService.syncWholeStoreToWidget(widgetData);
+  }
+});

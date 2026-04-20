@@ -7,6 +7,7 @@ import { db } from '@/firebase/config';
 import { QUEST_TEMPLATES, computeLevel } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { GamificationActions, UserState } from '../types';
+import { analyticsService } from '@/services/analyticsService';
 
 // C-03 FIX: Module-level re-entrancy guard prevents simultaneous double resets.
 let isResetting = false;
@@ -298,6 +299,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
     // Check for Level Up
     if (newLevel > state.level) {
+      analyticsService.logMilestone(state.userId, 'level_up', { newLevel });
       setTimeout(() => {
         import('react-native-toast-message').then(Toast => {
           Toast.default.show({
@@ -369,6 +371,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         const updated = { ...q, currentCount: Math.min(newCount, q.targetCount) };
 
         if (isFinished) {
+          analyticsService.logEvent(state.userId, 'quest_completed', { questId: q.id, type: q.type });
           // C-STORE-6 FIX: Mark completed and award XP ATOMICALLY
           updated.completed = true;
           totalXPToAdd += q.rewardXP;

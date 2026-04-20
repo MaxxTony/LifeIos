@@ -2,6 +2,7 @@ import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
+import { analyticsService } from '@/services/analyticsService';
 import { useStore } from '@/store/useStore';
 import { AntDesign } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -225,6 +226,7 @@ export default function LoginScreen() {
           }
         }
 
+        analyticsService.logMilestone(user.uid, 'login_success', { method: 'google' });
         completeOnboarding();
         setAuth(user.uid, user.displayName || existingProfile?.userName || 'User', sessionToken);
 
@@ -236,6 +238,7 @@ export default function LoginScreen() {
 
         router.replace('/(tabs)');
       } else if (error?.includes('Network') || error?.includes('network')) {
+        analyticsService.logEvent(null, 'login_failure', { method: 'google', reason: 'network' });
         Toast.show({
           type: 'info',
           text1: 'Poor Connection',
@@ -243,6 +246,7 @@ export default function LoginScreen() {
           visibilityTime: 5000,
         });
       } else {
+        analyticsService.logEvent(null, 'login_failure', { method: 'google', error: error || 'unknown' });
         Toast.show({
           type: 'error',
           text1: 'Login Failed',
@@ -328,6 +332,7 @@ export default function LoginScreen() {
           if (!profileCreated) return;
         }
 
+        analyticsService.logMilestone(user.uid, isSignUp ? 'signup_success' : 'login_success', { method: 'email' });
         completeOnboarding();
         setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User', sessionToken);
 
@@ -350,6 +355,7 @@ export default function LoginScreen() {
           visibilityTime: 5000,
         });
       } else {
+        analyticsService.logEvent(null, isSignUp ? 'signup_failure' : 'login_failure', { method: 'email', reason: error || 'unknown' });
         Toast.show({
           type: 'error',
           text1: isSignUp ? 'Registration Error' : 'Login Error',
@@ -357,6 +363,7 @@ export default function LoginScreen() {
         });
       }
     } catch (err: any) {
+      analyticsService.logEvent(null, isSignUp ? 'signup_failure' : 'login_failure', { method: 'email', error: err?.message || 'unexpected' });
       Toast.show({
         type: 'error',
         text1: 'Unexpected Error',

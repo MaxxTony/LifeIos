@@ -235,7 +235,7 @@ export type AuthActions = Pick<UserActions,
   'setHasHydrated' | 'completeOnboarding' | 'setAuth' | 'setOnboardingData' |
   'updateProfile' | 'logout' | 'setHasSeenWalkthrough' | 'setThemePreference' |
   'setAccentColor' | 'updateNotificationSettings' | 'subscribeToCloud' |
-  'clearSyncError' | 'retrySync' | 'hydrateFromCloud'
+  'clearSyncError' | 'retrySync' | 'hydrateFromCloud' | 'triggerGlobalConfetti' | 'buyStreakFreeze'
 >;
 
 export type TaskActions = Pick<UserActions,

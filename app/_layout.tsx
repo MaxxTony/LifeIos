@@ -143,8 +143,8 @@ export default function RootLayout() {
       // cloudflare.com/cdn-cgi/trace is a neutral ~500B text endpoint available globally.
       const checkConnection = async () => {
         try {
-          await fetch('https://www.cloudflare.com/cdn-cgi/trace', { method: 'HEAD', cache: 'no-store' });
-          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: false } }));
+          const resp = await fetch('https://www.cloudflare.com/cdn-cgi/trace', { method: 'GET', cache: 'no-store' });
+          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: !resp.ok } }));
         } catch {
           useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: true } }));
         }

@@ -102,10 +102,14 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
         if (newMode === 'work') {
           newMode = 'break';
           newTimeLeft = state.focusSession.pomodoroBreakDuration;
+          analyticsService.logEvent(state.userId, 'error_occurred', { reason: 'pomodoro_work_complete' }); // Alternative categorization
+          analyticsService.logEvent(state.userId, 'screen_view', { screenName: 'pomodoro_break_start' });
         } else {
           newMode = 'work';
           newTimeLeft = state.focusSession.pomodoroWorkDuration;
+          analyticsService.logEvent(state.userId, 'screen_view', { screenName: 'pomodoro_work_start' });
         }
+        analyticsService.logEvent(state.userId, 'quest_completed', { type: 'focus', subtype: 'pomodoro_phase' }); // Reuse quest_completed as a Generic Milestone
       }
     }
 

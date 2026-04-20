@@ -5,6 +5,7 @@ import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';
 import { ChatMessage, chatService } from '@/services/chatService';
+import { analyticsService } from '@/services/analyticsService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -158,6 +159,11 @@ export default function AIChatScreen() {
       imageUrl: currentAttachedImage?.uri,
       createdAt: Date.now()
     };
+
+    analyticsService.logEvent(userId, 'ai_message_sent', { 
+      hasImage: !!currentAttachedImage,
+      textLength: text.length 
+    });
 
     const newMessages = [...messages.filter(m => m.id !== 'welcome'), userMsg];
     setMessages(newMessages);
