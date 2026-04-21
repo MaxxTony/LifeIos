@@ -120,11 +120,19 @@ export interface UserState {
   accentColor: string | null;
   homeTimezone: string | null;
   notificationSettings: {
-    push: boolean;
-    tasks: boolean;
-    habits: boolean;
-    mood: boolean;
-    proactive: boolean;
+    masterEnabled: boolean;
+    habitReminders: boolean;
+    taskReminders: boolean;
+    missedTaskAlert: boolean;
+    morningBrief: boolean;
+    streakWarning: boolean;
+    questCompleted: boolean;
+    weeklyLeaderboard: boolean;
+    dailyMoodCheckin: boolean;
+    aiCoachNudge: boolean;
+    pomodoroAlert: boolean;
+    comeback48h: boolean;
+    comeback7d: boolean;
   };
   recentXP: { amount: number; timestamp: number } | null;
   // C-06 FIX: Queue so multiple simultaneous streak milestones all display.

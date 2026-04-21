@@ -68,7 +68,7 @@ export default function ConfigScreen() {
     if (params.monthlyDay) {
       try { return parseInt(params.monthlyDay as string); } catch { /* fall through */ }
     }
-    return new Date().getDate();
+    return Math.min(new Date().getDate(), 28);
   });
 
   // 'fixed' = specific day each month (e.g. 7th), 'count' = any X times per month
@@ -455,7 +455,7 @@ export default function ConfigScreen() {
                       display="spinner"
                       onChange={onTimeChange}
                       textColor={colors.text}
-                      themeVariant={colors.isDark ? "dark" : "light"}
+                      themeVariant={Platform.OS === 'ios' ? (colors.isDark ? "dark" : "light") : undefined}
                     />
                   </View>
                 </TouchableOpacity>

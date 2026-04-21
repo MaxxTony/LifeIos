@@ -65,12 +65,14 @@ function MonthlyCalendar({ completedDays, createdAt, monthlyDay, goalDays }: {
       {months.map((m) => {
         const isCompleted = completedSet.has(m.targetDateStr);
         const targetDate = new Date(m.targetDateStr);
-        const isFuture = targetDate > today;
         const isToday = m.targetDateStr === todayStr;
+        const isFuture = targetDate > today && !isToday;
+        const isMissed = !isCompleted && !isFuture && !isToday;
 
         let bgColor = colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
         if (isCompleted) bgColor = colors.success + '18';
         if (isFuture) bgColor = colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)';
+        if (isToday && !isCompleted) bgColor = colors.primary + '10';
 
         return (
           <View
@@ -91,16 +93,16 @@ function MonthlyCalendar({ completedDays, createdAt, monthlyDay, goalDays }: {
             <View style={[
               mStyles.badge,
               {
-                backgroundColor: isCompleted ? colors.success : isFuture ? 'transparent' : colors.danger + '20',
-                borderWidth: isFuture ? 1 : 0,
-                borderColor: colors.border,
+                backgroundColor: isCompleted ? colors.success : isToday ? colors.primary + '25' : isFuture ? 'transparent' : colors.danger + '20',
+                borderWidth: (isFuture || (isToday && !isCompleted)) ? 1 : 0,
+                borderColor: isToday ? colors.primary + '40' : colors.border,
               }
             ]}>
               <Text style={{
                 fontSize: 11, fontWeight: '800',
-                color: isCompleted ? '#FFF' : isFuture ? colors.textSecondary : colors.danger
+                color: isCompleted ? '#FFF' : isToday ? colors.primary : isFuture ? colors.textSecondary : colors.danger
               }}>
-                {isCompleted ? '✓ Done' : isFuture ? 'Upcoming' : '✗ Missed'}
+                {isCompleted ? '✓ Done' : isToday ? 'Due Today' : isFuture ? 'Upcoming' : '✗ Missed'}
               </Text>
             </View>
           </View>

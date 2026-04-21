@@ -8,7 +8,8 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withTiming
+  withTiming,
+  cancelAnimation
 } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -45,7 +46,12 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
       opacity.value = withTiming(0, { duration: 500 });
     }, 1800);
 
-    return () => clearTimeout(fadeOutTimer);
+    return () => {
+      clearTimeout(fadeOutTimer);
+      cancelAnimation(opacity);
+      cancelAnimation(translateY);
+      cancelAnimation(scale);
+    };
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({

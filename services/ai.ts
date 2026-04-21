@@ -360,7 +360,8 @@ export const getMoodInsight = async (moodData: any[]) => {
   if (!USE_AI_PROXY && !genAI) return null;
 
   try {
-    const summary = JSON.stringify(moodData);
+    const safeData = moodData.slice(-30);
+    const summary = JSON.stringify(safeData);
     const prompt = `Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`;
 
     if (USE_AI_PROXY) {

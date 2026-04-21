@@ -31,7 +31,7 @@ import {
   User,
   X
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -80,6 +80,7 @@ export default function EditProfileScreen() {
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
   const [customOccupation, setCustomOccupation] = useState('');
   const [isOccupationInputFocused, setIsOccupationInputFocused] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const COMMON_OCCUPATIONS = [
     { label: 'Student', icon: '🎓' },
@@ -557,6 +558,7 @@ export default function EditProfileScreen() {
                 </View>
 
                 <ScrollView
+                  ref={scrollViewRef}
                   style={{ flex: 1 }}
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
@@ -613,7 +615,10 @@ export default function EditProfileScreen() {
                         placeholderTextColor={colors.textSecondary + '60'}
                         value={customOccupation}
                         onChangeText={setCustomOccupation}
-                        onFocus={() => setIsOccupationInputFocused(true)}
+                        onFocus={() => {
+                          setIsOccupationInputFocused(true);
+                          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+                        }}
                         onBlur={() => setIsOccupationInputFocused(false)}
                       />
                       {(isOccupationInputFocused || customOccupation.length > 0) && (
@@ -639,7 +644,7 @@ export default function EditProfileScreen() {
                   </View>
 
                   {/* Extra space for scrolling when keyboard is open */}
-                  {isOccupationInputFocused && <View style={{ height: 100 }} />}
+                  {isOccupationInputFocused && <View style={{ height: 200 }} />}
                 </ScrollView>
 
                 <TouchableOpacity

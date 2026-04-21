@@ -13,11 +13,12 @@ import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
+import { getTodayLocal } from '@/utils/dateUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -123,6 +124,23 @@ export default function HomeScreen() {
       generateDailyQuests();
     }
   }, [isHydrated]);
+
+  // T-27 FIX: Midnight Crossing Refresh
+  const [lastCheckDate, setLastCheckDate] = useState(getTodayLocal());
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        const today = getTodayLocal();
+        if (today !== lastCheckDate) {
+          // Date changed! Refresh stats and tasks
+          setLastCheckDate(today);
+          useStore.getState().actions.checkMissedTasks();
+          generateDailyQuests();
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [lastCheckDate]);
 
   // C-13: Watchdog — if persisted storage is corrupt or the rehydrate promise
   // never resolves, users were stuck on the skeleton forever. After 10s we

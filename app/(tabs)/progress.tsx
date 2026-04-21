@@ -1,7 +1,7 @@
 import { CircularProgress } from '@/components/CircularProgress';
-import { ShareWeeklyCard } from '@/components/ShareWeeklyCard';
 import { FocusPulseChart } from '@/components/FocusPulseChart';
 import { HabitCalendar } from '@/components/HabitCalendar';
+import { ShareWeeklyCard } from '@/components/ShareWeeklyCard';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useProfileStats } from '@/hooks/useProfileStats';
@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Award, Brain, Flame, Info, PlusCircle, ShieldAlert, Sparkles, Target, TrendingUp, Zap } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -181,18 +181,18 @@ export default function ProgressScreen() {
   // Formatting Data...
   const focusChartData = useMemo(() => {
     const data = [];
-    const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-    // Find the most recent Monday
+    // Find the most recent Sunday
     const today = new Date();
     const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today);
-    monday.setDate(diff);
+    const diff = today.getDate() - day;
+    const sunday = new Date(today);
+    sunday.setDate(diff);
 
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
       const dStr = formatLocalDate(d);
       let seconds = focusHistory?.[dStr] || 0;
       if (dStr === formatLocalDate(new Date())) seconds = focusSecondsToday;
@@ -355,7 +355,16 @@ export default function ProgressScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={buyStreakFreeze}
+              onPress={() => {
+                Alert.alert(
+                  'Confirm Purchase',
+                  'Buy Streak Freeze for 1,000 XP?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Buy', onPress: buyStreakFreeze }
+                  ]
+                );
+              }}
               style={[
                 styles.leagueBanner,
                 { backgroundColor: colors.isDark ? '#1F2937' : '#F1F5F9', borderColor: colors.border, marginTop: Spacing.sm }
@@ -490,22 +499,27 @@ export default function ProgressScreen() {
             <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Mastery</Text>
             <PremiumCard style={styles.heatmapCard}>
               <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: Spacing.md }]}>Habit Consistency</Text>
-              {habits.length > 0 ? (
-                <View>
-                  {habits.length > 1 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.habitSelector} contentContainerStyle={styles.habitSelectorContent}>
-                      {habits.map((h, i) => (
-                        <TouchableOpacity key={h.id} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedHabitIndex(i); }} style={[styles.habitChip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }, selectedHabitIndex === i && { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
-                          <Text style={[styles.habitChipText, { color: selectedHabitIndex === i ? colors.primary : colors.textSecondary }]}>{h.icon} {h.title}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
-                  <Text style={[styles.selectedHabitTitle, { color: colors.text }]}>{habits[selectedHabitIndex]?.title}</Text>
-                  <HabitCalendar {...habits[selectedHabitIndex]} />
-                </View>
-              ) : (
-                <View style={styles.emptyState}><Ionicons name="calendar-outline" size={32} color={colors.textSecondary + '40'} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Start a habit to track your consistency.</Text></View>
+              {habits.length > 0 ? (() => {
+                const safeIndex = selectedHabitIndex < habits.length ? selectedHabitIndex : Math.max(0, habits.length - 1);
+                const habit = habits[safeIndex];
+                if (!habit) return null;
+                return (
+                  <View>
+                    {habits.length > 1 && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.habitSelector} contentContainerStyle={styles.habitSelectorContent}>
+                        {habits.map((h, i) => (
+                          <TouchableOpacity key={h.id} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedHabitIndex(i); }} style={[styles.habitChip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }, selectedHabitIndex === i && { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                            <Text style={[styles.habitChipText, { color: selectedHabitIndex === i ? colors.primary : colors.textSecondary }]}>{h.icon} {h.title}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+                    <Text style={[styles.selectedHabitTitle, { color: colors.text }]}>{habit.title}</Text>
+                    <HabitCalendar {...habit} />
+                  </View>
+                );
+              })() : (
+                <View style={styles.emptyState}><Ionicons name="calendar-outline" size={32} color={colors.textSecondary} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Start a habit to track your consistency.</Text></View>
               )}
             </PremiumCard>
           </View>

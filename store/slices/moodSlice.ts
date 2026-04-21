@@ -42,26 +42,28 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
         }
       }
 
-      const today = getTodayLocal();
-      import('@/services/notificationService').then(({ notificationService }) => {
-        notificationService.scheduleDailyMoodReminder();
-      });
+      const todayLocal = getTodayLocal();
+      if (dateKey === todayLocal) {
+        import('@/services/notificationService').then(({ notificationService }) => {
+          notificationService.scheduleDailyMoodReminder();
+        });
 
-      setTimeout(() => {
-        const { actions } = get();
-        // Quest progress: count 2 if note provided (for "Log with Note" quest), else 1
-        actions.checkQuestProgress('mood', !!extras?.note ? 2 : 1);
-        actions.updateLifeScoreHistory();
-        if (mood <= 2) {
-          actions.triggerProactivePrompt(
-            'low_mood',
-            "I'm sorry to hear you're having a rough time today. 🌿 I'm here if you want to talk it out or just need a moment of zen."
-          );
-        }
-      }, 0);
+        setTimeout(() => {
+          const { actions } = get();
+          // Quest progress: count 2 if note provided (for "Log with Note" quest), else 1
+          actions.checkQuestProgress('mood', !!extras?.note ? 2 : 1);
+          actions.updateLifeScoreHistory();
+          if (mood <= 2) {
+            actions.triggerProactivePrompt(
+              'low_mood',
+              "I'm sorry to hear you're having a rough time today. 🌿 I'm here if you want to talk it out or just need a moment of zen."
+            );
+          }
+        }, 0);
+      }
 
       return {
-        mood: newHistory[today]?.mood ?? null,
+        mood: newHistory[todayLocal]?.mood ?? null,
         moodHistory: newHistory,
         lastMoodLog: { mood, timestamp: Date.now() }
       };

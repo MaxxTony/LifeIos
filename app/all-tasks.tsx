@@ -194,16 +194,22 @@ export default function AllTasksScreen() {
       filteredTasks = tasks.filter(t => t.status === 'completed' || t.status === 'missed');
     }
 
-    const sorted = [...filteredTasks].sort((a, b) => {
+      const sorted = [...filteredTasks].sort((a, b) => {
       if (activeTab === 'History') {
         if (a.date !== b.date) return a.date > b.date ? -1 : 1;
-        return 0; // maintain descending
+        return (b.dueTime || 0) - (a.dueTime || 0); // T-25: Sub-sort historical by time desc
       }
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      
+      // T-25 FIX: Sub-sort by Time (dueTime) FIRST, then Priority fallback
+      if (a.dueTime !== b.dueTime) {
+        return (a.dueTime || Infinity) - (b.dueTime || Infinity);
+      }
+      
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
       }
-      return (a.dueTime || 0) - (b.dueTime || 0);
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
 
     const sectionMap: Record<string, Task[]> = {};
@@ -293,55 +299,76 @@ export default function AllTasksScreen() {
           ))}
         </View>
 
-        {!tasksLoaded ? (
-          <View style={{ padding: Spacing.md }}><TasksSkeleton /></View>
-        ) : (
-          <AnimatedSectionList
-            sections={sections}
-            keyExtractor={(item: Task) => item.id}
-            renderItem={({ item: task }: { item: Task }) => (
-              <TaskItem
-                task={task}
-                priorityColors={priorityColors}
-                onToggle={handleToggle}
-                router={router}
-              />
-            )}
-            renderSectionHeader={({ section: { label, data } }: { section: Section }) => (
-              <View style={styles.sectionHeader}>
-                <Text style={[
-                  styles.sectionLabel,
-                  { 
-                    color: label === 'Overdue' ? colors.danger : 
-                           (label === 'Today' ? colors.primary : colors.textSecondary) 
-                  }
-                ]}>
-                  {label}
-                </Text>
-                <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-                  {data.length}
-                </Text>
+        {/* T-24 FIX: Offline Skeletons Timeout */}
+        {(() => {
+          const [timedOut, setTimedOut] = React.useState(false);
+          React.useEffect(() => {
+            if (tasksLoaded) return;
+            const t = setTimeout(() => setTimedOut(true), 5000);
+            return () => clearTimeout(t);
+          }, [tasksLoaded]);
+
+          if (!tasksLoaded && !timedOut) {
+            return <View style={{ padding: Spacing.md }}><TasksSkeleton /></View>;
+          }
+          
+          if (!tasksLoaded && timedOut) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Ionicons name="cloud-offline-outline" size={24} color={colors.textSecondary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8 }}>Working with local cache only...</Text>
               </View>
-            )}
-            contentContainerStyle={styles.scrollContent}
-            stickySectionHeadersEnabled={false}
-            // Optimization props for large lists
-            initialNumToRender={10}
-            windowSize={5}
-            maxToRenderPerBatch={5}
-            removeClippedSubviews={Platform.OS === 'android'}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '10' }]}>
-                  <Ionicons name="sparkles" size={32} color={colors.primary} />
+            );
+          }
+
+          return (
+            <AnimatedSectionList
+              sections={sections}
+              keyExtractor={(item: Task) => item.id}
+              renderItem={({ item: task }: { item: Task }) => (
+                <TaskItem
+                  task={task}
+                  priorityColors={priorityColors}
+                  onToggle={handleToggle}
+                  router={router}
+                />
+              )}
+              renderSectionHeader={({ section: { label, data } }: { section: Section }) => (
+                <View style={styles.sectionHeader}>
+                  <Text style={[
+                    styles.sectionLabel,
+                    { 
+                      color: label === 'Overdue' ? colors.danger : 
+                             (label === 'Today' ? colors.primary : colors.textSecondary) 
+                    }
+                  ]}>
+                    {label}
+                  </Text>
+                  <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
+                    {data.length}
+                  </Text>
                 </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>No tasks yet</Text>
-                <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap + to schedule your first task ✨</Text>
-              </View>
-            }
-          />
-        )}
+              )}
+              contentContainerStyle={styles.scrollContent}
+              stickySectionHeadersEnabled={false}
+              // Optimization props for large lists
+              initialNumToRender={10}
+              windowSize={5}
+              maxToRenderPerBatch={5}
+              removeClippedSubviews={Platform.OS === 'android'}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '10' }]}>
+                    <Ionicons name="sparkles" size={32} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.emptyText, { color: colors.text }]}>No tasks yet</Text>
+                  <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap + to schedule your first task ✨</Text>
+                </View>
+              }
+            />
+          );
+        })()}
       </SafeAreaView>
     </View>
   );

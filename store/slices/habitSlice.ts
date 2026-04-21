@@ -72,17 +72,32 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
 
         // ── Due-Day Validation ──
         if (!isCompleted) {
-          const d = new Date(today.replace(/-/g, '/')); // Use / for cross-platform date parsing
+          // T-31: Improved date parsing to be timezone-resilient (Local components)
+          const [y, m, d_num] = today.split('-').map(Number);
+          const d_obj = new Date(y, m - 1, d_num);
+          const jsDay = d_obj.getDay();
+          const dayOfMonth = d_obj.getDate();
+
           if (h.frequency === 'weekly') {
-            if (!h.targetDays?.includes(d.getDay())) return h;
+            // Allow toggling today regardless of schedule if user explicitly taps it? 
+            // Or strictly follow schedule. User screenshots show Tuesday IS a target.
+            if (!h.targetDays?.includes(jsDay)) return h;
           } else if (h.frequency === 'monthly') {
             const isFixed = h.monthlyDay && h.monthlyDay > 0;
             if (isFixed) {
-              if (d.getDate() !== h.monthlyDay) return h;
+              if (dayOfMonth !== h.monthlyDay) return h;
             } else {
               // Monthly Count Goal: cap completions at the target
               const monthStr = today.slice(0, 7);
-              const monthCompletions = h.completedDays.filter(cd => cd.startsWith(monthStr)).length;
+              const isFixed = h.monthlyDay && h.monthlyDay > 0;
+              const monthCompletions = h.completedDays.filter(cd => {
+                if (!cd.startsWith(monthStr)) return false;
+                if (isFixed) {
+                  const dayNum = parseInt(cd.split('-')[2], 10);
+                  return dayNum === h.monthlyDay;
+                }
+                return true;
+              }).length;
               if (monthCompletions >= (h.monthlyTarget || 1)) return h;
             }
           }
@@ -113,7 +128,15 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
             const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             
             // Monthly check: Was this month target met or was it skipped?
-            const monthCompletions = newCompletedDays.filter(cd => cd.startsWith(monthStr)).length;
+            const isFixed = h.monthlyDay && h.monthlyDay > 0;
+            const monthCompletions = newCompletedDays.filter(cd => {
+              if (!cd.startsWith(monthStr)) return false;
+              if (isFixed) {
+                const dayNum = parseInt(cd.split('-')[2], 10);
+                return dayNum === h.monthlyDay;
+              }
+              return true;
+            }).length;
             const monthTarget = h.monthlyTarget || 1;
             
             // Advanced Pause Check: If fixed date, was the date within pausedUntil?

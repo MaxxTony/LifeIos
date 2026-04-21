@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Calendar, Clock, Flag, X } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Defined at module scope to avoid recreation on every render
@@ -61,11 +61,12 @@ export default function CreateTaskScreen() {
 
   const formatTime = (d: Date) => {
     if (!d || isNaN(d.getTime())) return 'Not set';
-    return d.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    let hours = d.getHours();
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${minutes} ${ampm}`;
   };
 
   const formatDate = (d: Date) => {
@@ -79,10 +80,14 @@ export default function CreateTaskScreen() {
     // C-14: Clear any navigation guards before moving back.
     // We use a flag or just let the back() handle it.
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const finalEndTime = startTime >= endTime ? new Date(startTime.getTime() + 30 * 60000) : endTime;
+    if (startTime >= endTime) setEndTime(finalEndTime);
+
     const taskId = addTask(
       text.trim(),
       formatTime(startTime),
-      formatTime(endTime),
+      formatTime(finalEndTime),
       priority,
       formatLocalDate(date)
     );
@@ -104,9 +109,11 @@ export default function CreateTaskScreen() {
 
     // C-14 FIX: On native-stack, 'beforeRemove' can conflict with native gestures (like drag-to-dismiss).
     // We disable the gesture when dirty to avoid the "removed natively but didn't get removed from JS state" error.
-    navigation.setOptions({
-      gestureEnabled: !isDirty,
-    });
+    if (Platform.OS === 'ios') {
+      navigation.setOptions({
+        gestureEnabled: !isDirty,
+      });
+    }
 
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
       // If we are intentionally saving or nothing has changed, don't block
@@ -166,6 +173,7 @@ export default function CreateTaskScreen() {
                 placeholderTextColor={colors.textSecondary + '70'}
                 value={text}
                 onChangeText={setText}
+                maxLength={250}
                 autoFocus
                 multiline
               />
@@ -289,7 +297,7 @@ export default function CreateTaskScreen() {
                         minimumDate={new Date()}
                         onChange={(e, d) => { if (d) setDate(d); }}
                         textColor={colors.text}
-                        themeVariant={colors.isDark ? "dark" : "light"}
+                        themeVariant={Platform.OS === 'ios' ? (colors.isDark ? "dark" : "light") : undefined}
                       />
                     ) : (
                       <DateTimePicker
@@ -312,7 +320,7 @@ export default function CreateTaskScreen() {
                           }
                         }}
                         textColor={colors.text}
-                        themeVariant={colors.isDark ? "dark" : "light"}
+                        themeVariant={Platform.OS === 'ios' ? (colors.isDark ? "dark" : "light") : undefined}
                       />
                     )}
                   </View>
@@ -360,7 +368,11 @@ export default function CreateTaskScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Create Task</Text>
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Create Task</Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>

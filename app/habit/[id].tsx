@@ -40,6 +40,7 @@ export default function HabitDetailScreen() {
   const pauseHabit = useStore(s => s.actions.pauseHabit);
   
   const [showPausePicker, setShowPausePicker] = React.useState(false);
+  const isTogglingRef = React.useRef(false);
   
   const habit = habits.find(h => h.id === id);
   const isCompletedToday = habit?.completedDays.includes(getTodayLocal());
@@ -72,10 +73,16 @@ export default function HabitDetailScreen() {
           lockMessage: isTargetDate ? '' : `Only available on the ${habit.monthlyDay}${habit.monthlyDay === 1 ? 'st' : habit.monthlyDay === 2 ? 'nd' : habit.monthlyDay === 3 ? 'rd' : 'th'} of each month` 
         };
       } else {
-        // Count Goal: locked if target reached for this month
-        const todayStr = getTodayLocal();
-        const currentMonthStr = todayStr.slice(0, 7);
-        const thisMonthCount = habit.completedDays.filter(d => d.startsWith(currentMonthStr)).length;
+        const currentMonthStr = getTodayLocal().slice(0, 7);
+        const isFixedMode = habit.monthlyDay && habit.monthlyDay > 0;
+        const thisMonthCount = habit.completedDays.filter(d => {
+          if (!d.startsWith(currentMonthStr)) return false;
+          if (isFixedMode) {
+            const dayNum = parseInt(d.split('-')[2], 10);
+            return dayNum === habit.monthlyDay;
+          }
+          return true;
+        }).length;
         const reached = thisMonthCount >= (habit.monthlyTarget || 1);
         return { 
           isDueToday: !reached, 
@@ -139,7 +146,15 @@ export default function HabitDetailScreen() {
   // Monthly-specific: this month's progress
   const today = getTodayLocal();
   const currentMonth = today.slice(0, 7);
-  const monthCompletions = habit.completedDays.filter(d => d.startsWith(currentMonth)).length;
+  const isFixedMode = habit.monthlyDay && habit.monthlyDay > 0;
+  const monthCompletions = habit.completedDays.filter(d => {
+    if (!d.startsWith(currentMonth)) return false;
+    if (isFixedMode) {
+      const dayNum = parseInt(d.split('-')[2], 10);
+      return dayNum === habit.monthlyDay;
+    }
+    return true;
+  }).length;
   const monthTarget = habit.monthlyTarget || 1;
   const monthProgress = Math.min(1, monthCompletions / monthTarget);
 
@@ -511,8 +526,11 @@ export default function HabitDetailScreen() {
                   });
                   return;
                 }
+                if (isTogglingRef.current) return;
+                isTogglingRef.current = true;
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 toggleHabit(habit.id);
+                setTimeout(() => { isTogglingRef.current = false; }, 500);
               }}
               activeOpacity={0.8}
             >
@@ -572,8 +590,11 @@ export default function HabitDetailScreen() {
                   });
                   return;
                 }
+                if (isTogglingRef.current) return;
+                isTogglingRef.current = true;
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 toggleHabit(habit.id);
+                setTimeout(() => { isTogglingRef.current = false; }, 500);
               }}
               activeOpacity={0.8}
             >

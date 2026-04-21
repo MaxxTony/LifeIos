@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, limit, serverTimestamp, orderBy, documentId } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, limit, serverTimestamp, orderBy, documentId, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export interface PublicProfile {
@@ -118,8 +118,8 @@ export const socialService = {
 
   getLeaderboard: async (userId: string): Promise<PublicProfile[]> => {
     try {
-      const q1 = query(collection(db, 'friendRequests'), where('fromUserId', '==', userId), where('status', '==', 'accepted'));
-      const q2 = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'accepted'));
+      const q1 = query(collection(db, 'friendRequests'), where('fromUserId', '==', userId), where('status', '==', 'accepted'), limit(100));
+      const q2 = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'accepted'), limit(100));
       
       const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
       
@@ -174,6 +174,92 @@ export const socialService = {
     }
   },
 
+  // ─── Real-time Subscriptions ───────────────────────────────────────────────
+
+  // Subscribe to friend requests (incoming and outgoing)
+  subscribeToRequests: (userId: string, callback: (data: { incoming: { req: FriendRequest, profile: PublicProfile }[], outgoing: FriendRequest[] }) => void) => {
+    const qIn = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'pending'));
+    const qOut = query(collection(db, 'friendRequests'), where('fromUserId', '==', userId), where('status', '==', 'pending'));
+
+    let incomingReqs: FriendRequest[] = [];
+    let outgoingReqs: FriendRequest[] = [];
+
+    const update = async () => {
+      const profiles: PublicProfile[] = [];
+      const fromIds = incomingReqs.map(r => r.fromUserId).filter(Boolean);
+      
+      if (fromIds.length > 0) {
+        const batchSnap = await getDocs(query(collection(db, 'publicProfiles'), where(documentId(), 'in', fromIds.slice(0, 10))));
+        batchSnap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
+      }
+
+      callback({
+        incoming: incomingReqs.map(req => ({
+          req,
+          profile: profiles.find(p => p.userId === req.fromUserId) || { userId: req.fromUserId, userName: 'Loading...', avatarUrl: null, level: 1, weeklyXP: 0, globalStreak: 0, lastActive: 0 }
+        })),
+        outgoing: outgoingReqs
+      });
+    };
+
+    const unsub1 = onSnapshot(qIn, (snap) => {
+      incomingReqs = snap.docs.map(d => d.data() as FriendRequest);
+      update();
+    });
+
+    const unsub2 = onSnapshot(qOut, (snap) => {
+      outgoingReqs = snap.docs.map(d => d.data() as FriendRequest);
+      update();
+    });
+
+    return () => { unsub1(); unsub2(); };
+  },
+
+  // Subscribe to leaderboard (Friends + Me)
+  subscribeToLeaderboard: (userId: string, callback: (profiles: PublicProfile[]) => void) => {
+    // 1. Listen to friendships
+    const q1 = query(collection(db, 'friendRequests'), where('fromUserId', '==', userId), where('status', '==', 'accepted'));
+    const q2 = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'accepted'));
+
+    let friendIds = new Set<string>([userId]);
+    let unsubProfiles: (() => void) | null = null;
+
+    const setupProfileListener = (ids: string[]) => {
+      if (unsubProfiles) unsubProfiles();
+      if (ids.length === 0) {
+        callback([]);
+        return;
+      }
+
+      // Firestore 'in' limit is 30 for onSnapshot (usually)
+      const chunk = ids.slice(0, 30);
+      unsubProfiles = onSnapshot(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)), (snap) => {
+        const profiles: PublicProfile[] = [];
+        snap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
+        callback(profiles.sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0)));
+      });
+    };
+
+    const onFriendChange = () => {
+      setupProfileListener(Array.from(friendIds));
+    };
+
+    const unsub1 = onSnapshot(q1, (snap) => {
+      snap.docs.forEach(d => friendIds.add(d.data().toUserId));
+      onFriendChange();
+    });
+
+    const unsub2 = onSnapshot(q2, (snap) => {
+      snap.docs.forEach(d => friendIds.add(d.data().fromUserId));
+      onFriendChange();
+    });
+
+    return () => {
+      unsub1();
+      unsub2();
+      if (unsubProfiles) unsubProfiles();
+    };
+  },
   // Gets all friend requests sent by me (pending)
   getSentRequests: async (userId: string): Promise<FriendRequest[]> => {
     try {

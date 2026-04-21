@@ -4,7 +4,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { getFocusQuote } from '@/services/ai';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -13,15 +13,22 @@ import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FocusDetailScreen() {
-  useKeepAwake();
   const router = useRouter();
-  // Selectors: focusSession re-renders every second (it shows a live clock — intentional).
-  // updateFocusTime is NOT needed here; the global timer in _layout.tsx handles it.
   const focusSession = useStore(s => s.focusSession);
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const toggleFocusSession = useStore(s => s.actions.toggleFocusSession);
   const togglePomodoro = useStore(s => s.actions.togglePomodoro);
   const colors = useThemeColors();
+
+  // T-30 FIX: Dynamic Keep-Awake to save battery
+  useEffect(() => {
+    if (focusSession.isActive) {
+      activateKeepAwakeAsync();
+    } else {
+      deactivateKeepAwake();
+    }
+    return () => { deactivateKeepAwake(); };
+  }, [focusSession.isActive]);
   
   const [mounted, setMounted] = useState(false);
   const [aiQuote, setAiQuote] = useState<string | null>(null);

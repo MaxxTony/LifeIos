@@ -39,16 +39,20 @@ export default function MoodLogScreen() {
 
   const toggleActivity = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedActivities(prev => 
-      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
-    );
+    setSelectedActivities(prev => {
+      if (prev.includes(id)) return prev.filter(a => a !== id);
+      if (prev.length >= 10) return prev;
+      return [...prev, id];
+    });
   };
 
   const toggleEmotion = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedEmotions(prev =>
-      prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]
-    );
+    setSelectedEmotions(prev => {
+      if (prev.includes(id)) return prev.filter(e => e !== id);
+      if (prev.length >= 10) return prev;
+      return [...prev, id];
+    });
   };
 
   const handleSave = () => {

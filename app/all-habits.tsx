@@ -50,16 +50,19 @@ function DailyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTogg
   const today = getTodayLocal();
   const todayObj = new Date();
   const day = todayObj.getDay();
-  const diff = todayObj.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(todayObj); monday.setDate(diff);
+  const diff = todayObj.getDate() - day;
+  const sunday = new Date(todayObj); sunday.setDate(diff);
   const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i); return formatLocalDate(d);
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i); return formatLocalDate(d);
   });
-  const LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  
+  // T-26 FIX: Filter completions to only show if frequency is daily
+  const habitCompletions = new Set(habit.completedDays);
   return (
     <View style={row.wrapper}>
       {weekDates.map((dateStr, i) => {
-        const isCompleted = habit.completedDays.includes(dateStr);
+        const isCompleted = habit.frequency === 'daily' && habitCompletions.has(dateStr);
         const isToday = dateStr === today;
         const isFuture = dateStr > today;
         return (
@@ -91,12 +94,12 @@ function WeeklyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTog
   const today = getTodayLocal();
   const todayObj = new Date();
   const day = todayObj.getDay();
-  const diff = todayObj.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(todayObj); monday.setDate(diff);
+  const diff = todayObj.getDate() - day;
+  const sunday = new Date(todayObj); sunday.setDate(diff);
   const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i); return formatLocalDate(d);
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i); return formatLocalDate(d);
   });
-  const LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const ALL_DAYS_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const scheduledDays = (habit.targetDays || []).map((d: number) => ALL_DAYS_LABELS[d]);
   const targetSet = new Set(habit.targetDays as number[]);
@@ -104,9 +107,10 @@ function WeeklyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTog
   return (
     <View style={row.wrapper}>
       {weekDates.map((dateStr, i) => {
-        const jsDay = i === 6 ? 0 : i + 1;
+        const jsDay = i; // 0 is Sunday, 1 is Monday ... etc.
         const isTarget = targetSet.has(jsDay);
-        const isCompleted = habit.completedDays.includes(dateStr);
+        // T-26 FIX: Filter completions to only show if frequency is weekly
+        const isCompleted = habit.frequency === 'weekly' && habit.completedDays.includes(dateStr);
         const isToday = dateStr === today;
         const isFuture = dateStr > today;
         return (
@@ -282,7 +286,7 @@ const HabitItem = React.memo(({ habit, onToggle, onDelete, getStreak, colors, ro
           <View style={[styles.iconBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)' }]}>
             <Text style={styles.icon}>{habit.icon}</Text>
           </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ flex: 1, marginLeft: 10, overflow: 'hidden', flexShrink: 1 }}>
             <Text style={[styles.title, { color: isCompletedToday ? colors.success : colors.text }]} numberOfLines={1}>
               {habit.title}
             </Text>
@@ -332,10 +336,18 @@ export default function AllHabitsScreen() {
   const getStreak = useStore(s => s.actions.getStreak);
 
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
+  const toggleLockRef = useRef<Set<string>>(new Set());
 
   const handleToggle = useCallback((id: string, dateStr: string) => {
+    if (toggleLockRef.current.has(id)) return;
+    toggleLockRef.current.add(id);
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id, dateStr);
+
+    setTimeout(() => {
+      toggleLockRef.current.delete(id);
+    }, 500);
   }, [toggleHabit]);
 
   const handleDelete = useCallback((id: string, title: string) => {
@@ -422,24 +434,46 @@ export default function AllHabitsScreen() {
           )}
         </View>
 
-        {!habitsLoaded ? (
-          <View style={{ padding: Spacing.md, paddingTop: 16 }}>
-            <HabitsSkeleton />
-          </View>
-        ) : (
-          <FlatList
-            data={listData}
-            keyExtractor={(item, i) => item.type === 'header' ? `header-${i}` : item.habit.id}
-            renderItem={renderItem}
-            ListEmptyComponent={<EmptyState />}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={10}
-            windowSize={5}
-            maxToRenderPerBatch={6}
-            removeClippedSubviews={Platform.OS === 'android'}
-          />
-        )}
+        {(() => {
+          const [timedOut, setTimedOut] = React.useState(false);
+          React.useEffect(() => {
+            if (habitsLoaded) return;
+            const t = setTimeout(() => setTimedOut(true), 5000);
+            return () => clearTimeout(t);
+          }, [habitsLoaded]);
+
+          if (!habitsLoaded && !timedOut) {
+            return (
+              <View style={{ padding: Spacing.md, paddingTop: 16 }}>
+                <HabitsSkeleton />
+              </View>
+            );
+          }
+          
+          if (!habitsLoaded && timedOut) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center', marginTop: 40 }}>
+                <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 12 }}>Working with local cache only...</Text>
+              </View>
+            );
+          }
+
+          return (
+            <FlatList
+              data={listData}
+              keyExtractor={(item, i) => item.type === 'header' ? `header-${i}` : item.habit.id}
+              renderItem={renderItem}
+              ListEmptyComponent={<EmptyState />}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={10}
+              windowSize={5}
+              maxToRenderPerBatch={6}
+              removeClippedSubviews={Platform.OS === 'android'}
+            />
+          );
+        })()}
       </SafeAreaView>
 
       {/* Floating Add Button */}

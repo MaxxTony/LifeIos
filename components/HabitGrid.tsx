@@ -146,21 +146,27 @@ function MonthlyHabitBlock({ habit, colors, onToggle }: { habit: any; colors: an
   const today = getTodayLocal();
   const todayObj = new Date();
   const currentMonth = today.slice(0, 7);
-  const monthCompletions = (habit.completedDays as string[]).filter(d => d.startsWith(currentMonth)).length;
+  const isFixed = habit.monthlyDay && habit.monthlyDay > 0;
+
+  // T-32: For Fixed Mode, only count the specific target date as a completion for the progress bar
+  const monthCompletions = (habit.completedDays as string[]).filter(d => {
+    if (!d.startsWith(currentMonth)) return false;
+    if (isFixed) {
+      const dayNum = parseInt(d.split('-')[2], 10);
+      return dayNum === habit.monthlyDay;
+    }
+    return true;
+  }).length;
   const target = habit.monthlyTarget || 1;
   const progress = Math.min(monthCompletions / target, 1);
   const isLoggedToday = habit.completedDays.includes(today);
 
-  // ── Due-Day Validation Logic (Summary) ──
-  const isFixed = habit.monthlyDay && habit.monthlyDay > 0;
-  const isLocked = !isLoggedToday && (
-    (isFixed && todayObj.getDate() !== habit.monthlyDay) || // Not the target date
-    (!isFixed && monthCompletions >= target)               // Target reached
-  );
-  
-  const lockMessage = isFixed 
+  const isDueToday = isFixed ? todayObj.getDate() === habit.monthlyDay : monthCompletions < target;
+  const isLocked = !isLoggedToday && !isDueToday;
+
+  const lockMessage = isFixed
     ? `Only on the ${habit.monthlyDay}${habit.monthlyDay === 1 ? 'st' : habit.monthlyDay === 2 ? 'nd' : habit.monthlyDay === 3 ? 'rd' : 'th'}`
-    : 'Target reached';
+    : 'Monthly target reached';
 
   const goalMonths = habit.goalDays || 3;
   const monthLabel = goalMonths === 1 ? '1 month' : `${goalMonths} months`;
@@ -222,7 +228,7 @@ function MonthlyHabitBlock({ habit, colors, onToggle }: { habit: any; colors: an
       >
         {isLoggedToday
           ? <Ionicons name="checkmark" size={16} color="#FFF" />
-          : isLocked 
+          : isLocked
             ? <Ionicons name="lock-closed" size={14} color={colors.textSecondary} />
             : <Ionicons name="add" size={18} color={colors.primary} />
         }
@@ -353,9 +359,18 @@ export const HabitGrid = React.memo(function HabitGrid() {
   const colors = useThemeColors();
   const router = useRouter();
 
+  const toggleLockRef = React.useRef<Set<string>>(new Set());
+
   const handleToggle = React.useCallback((id: string, dateStr: string) => {
+    if (toggleLockRef.current.has(id)) return;
+    toggleLockRef.current.add(id);
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id, dateStr);
+
+    setTimeout(() => {
+      toggleLockRef.current.delete(id);
+    }, 500);
   }, [toggleHabit]);
 
   return (

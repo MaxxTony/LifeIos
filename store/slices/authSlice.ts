@@ -52,11 +52,19 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   accentColor: null as string | null,
   homeTimezone: null as string | null,
   notificationSettings: {
-    push: true,
-    tasks: true,
-    habits: true,
-    mood: true,
-    proactive: true,
+    masterEnabled: true,
+    habitReminders: true,
+    taskReminders: true,
+    missedTaskAlert: true,
+    morningBrief: true,
+    streakWarning: true,
+    questCompleted: true,
+    weeklyLeaderboard: true,
+    dailyMoodCheckin: true,
+    aiCoachNudge: true,
+    pomodoroAlert: true,
+    comeback48h: true,
+    comeback7d: true,
   },
   onboardingData: { struggles: [] },
   recentXP: null,
@@ -592,16 +600,90 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     return { hasSeenWalkthrough: seen };
   }),
   updateNotificationSettings: (updates) => {
-    const next = { ...get().notificationSettings, ...updates };
+    const state = get();
+    const prev = state.notificationSettings;
+    const next = { ...prev, ...updates };
+    
     set({ notificationSettings: next });
-    if (updates.push === false) {
-      import('@/services/notificationService').then(({ notificationService }) => notificationService.cancelAllNotifications());
-    }
-    if (updates.mood !== undefined || updates.push !== undefined) {
-      import('@/services/notificationService').then(({ notificationService }) => notificationService.scheduleDailyMoodReminder());
-    }
-    if (get().userId) {
-      fireSync(() => dbService.saveUserProfile(get().userId!, { notificationSettings: next }), 'updateNotificationSettings', get().userId);
+
+    // Side-effects: Handle real-time cancellation/rescheduling
+    import('@/services/notificationService').then(({ notificationService }) => {
+      // ━━ MASTER TOGGLE ━━
+      if (updates.masterEnabled === false) {
+        notificationService.cancelAllNotifications();
+        return; 
+      }
+      
+      if (updates.masterEnabled === true) {
+        // Re-schedule everything
+        state.actions.refreshHabitNotifications();
+        state.tasks.forEach(t => {
+          if (!t.completed && t.startTime && t.date >= getTodayLocal()) {
+            notificationService.scheduleTaskNotification(t.id, t.text, t.startTime, t.date);
+          }
+        });
+        notificationService.scheduleMorningBrief();
+        notificationService.scheduleDailyMoodReminder();
+        notificationService.scheduleStreakWarningNotification();
+        notificationService.scheduleQuestFOMO();
+        notificationService.scheduleWeeklyLeaderboardAlert();
+        notificationService.scheduleComebackNotifications();
+        return;
+      }
+
+      // If Master is OFF, don't trigger individual side effects (they are already canceled)
+      if (!next.masterEnabled) return;
+
+      // ━━ GRANULAR TOGGLES ━━
+      
+      // Habits
+      if (updates.habitReminders === true) {
+        state.actions.refreshHabitNotifications();
+      } else if (updates.habitReminders === false) {
+        state.habits.forEach(h => notificationService.cancelHabitReminders(h.id));
+      }
+
+      // Tasks
+      if (updates.taskReminders === true) {
+        state.tasks.forEach(t => {
+          if (!t.completed && t.startTime && t.date >= getTodayLocal()) {
+            notificationService.scheduleTaskNotification(t.id, t.text, t.startTime, t.date);
+          }
+        });
+      } else if (updates.taskReminders === false) {
+        state.tasks.forEach(t => notificationService.cancelTaskNotification(t.id));
+      }
+
+      // Wellness
+      if (updates.dailyMoodCheckin === true) notificationService.scheduleDailyMoodReminder();
+      else if (updates.dailyMoodCheckin === false) notificationService.cancelMoodReminder();
+
+      // Morning Brief
+      if (updates.morningBrief === true) notificationService.scheduleMorningBrief();
+      else if (updates.morningBrief === false) notificationService.cancelMorningBrief();
+
+      // Streaks & XP
+      if (updates.streakWarning === true) notificationService.scheduleStreakWarningNotification();
+      else if (updates.streakWarning === false) notificationService.cancelStreakWarningNotification();
+
+      if (updates.questCompleted === true) notificationService.scheduleQuestFOMO();
+      else if (updates.questCompleted === false) notificationService.cancelQuestFOMO();
+
+      if (updates.weeklyLeaderboard === true) notificationService.scheduleWeeklyLeaderboardAlert();
+      else if (updates.weeklyLeaderboard === false) notificationService.cancelWeeklyLeaderboardAlert();
+
+      // Re-engagement
+      if (updates.comeback48h === true || updates.comeback7d === true) {
+        notificationService.scheduleComebackNotifications();
+      } else if (updates.comeback48h === false && updates.comeback7d === false) {
+        // Technically comeback schedules both, but we can't easily cancel only one 
+        // without deterministic IDs. scheduleComebackNotifications handles its own cancellations.
+        notificationService.scheduleComebackNotifications(); 
+      }
+    });
+
+    if (state.userId) {
+      fireSync(() => dbService.saveUserProfile(state.userId!, { notificationSettings: next }), 'updateNotificationSettings', state.userId);
     }
   },
   buyStreakFreeze: async () => {

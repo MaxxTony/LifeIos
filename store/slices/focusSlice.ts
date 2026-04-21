@@ -96,7 +96,7 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
         import('@/services/notificationService').then(({ notificationService }) => {
           const title = newMode === 'work' ? '☕ Break Time!' : '🔥 Focus Time!';
           const body  = newMode === 'work' ? 'Work session complete! Take a break.' : 'Break over! Time to focus.';
-          notificationService.sendProactiveAI(title, body);
+          notificationService.sendProactiveAI(title, body, 'pomodoro');
         });
 
         if (newMode === 'work') {

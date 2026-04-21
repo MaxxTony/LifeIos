@@ -4,6 +4,16 @@ import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
+
+// T-28: Global throttle for haptics to prevent jam
+let lastHapticTime = 0;
+const throttleHaptic = (type: Haptics.NotificationFeedbackType) => {
+  const now = Date.now();
+  if (now - lastHapticTime > 200) {
+    Haptics.notificationAsync(type);
+    lastHapticTime = now;
+  }
+};
 import { parseTimeString, computeLevel } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { analyticsService } from '@/services/analyticsService';
@@ -180,7 +190,7 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
                   text2: `You reached Level ${newLevel}! Keep evolving.`
                 });
               });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              throttleHaptic(Haptics.NotificationFeedbackType.Success);
             }, 800);
           }
           

@@ -45,7 +45,25 @@ export const authService = {
   generateAndSaveSessionToken: async (userId: string) => {
     const token = Crypto.randomUUID();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    await dbService.saveUserProfile(userId, { sessionToken: token, homeTimezone: tz } as any);
+    await dbService.saveUserProfile(userId, { 
+      sessionToken: token, 
+      homeTimezone: tz,
+      notificationSettings: {
+        masterEnabled: true,
+        habitReminders: true,
+        taskReminders: true,
+        missedTaskAlert: true,
+        morningBrief: true,
+        streakWarning: true,
+        questCompleted: true,
+        weeklyLeaderboard: true,
+        dailyMoodCheckin: true,
+        aiCoachNudge: true,
+        pomodoroAlert: true,
+        comeback48h: true,
+        comeback7d: true,
+      }
+    } as any);
     return token;
   },
 
@@ -127,6 +145,19 @@ export const authService = {
         await dbService.saveUserProfile(user.uid, { sessionToken: null } as any);
       } catch (err) {
         console.warn('[LifeOS Auth] Failed to clear sessionToken during deletion:', err);
+      }
+
+      // Bug 15 FIX: Cleanup avatar artifacts before deleting the auth
+      try {
+        const { useStore } = await import('@/store/useStore');
+        const { storageService } = await import('./storageService');
+        const state = useStore.getState();
+        if (state.avatarUrl) {
+          await storageService.deleteImage(state.avatarUrl);
+        }
+        await storageService.clearOrphanedAvatar(user.uid);
+      } catch (err) {
+        console.warn('[LifeOS Auth] Failed to clear avatar artifacts during deletion:', err);
       }
 
       await deleteUser(user);

@@ -45,7 +45,7 @@ export const analyticsService = {
   logEvent: (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {
     try {
       // Strip any PII fields before sending — only safe metadata goes to Sentry
-      const { title, text, note, reason, body, content, name, ...safeParams } = params;
+      const { title, text, note, reason, body, content, name, description, taskName, ...safeParams } = params;
       Sentry.addBreadcrumb({
         category: 'analytics',
         message: event,
@@ -64,7 +64,7 @@ export const analyticsService = {
    */
   logMilestone: (userId: string | null, event: AnalyticsEvent, params: Record<string, any> = {}) => {
     try {
-      const { title, text, note, reason, body, content, name, ...safeParams } = params;
+      const { title, text, note, reason, body, content, name, description, taskName, ...safeParams } = params;
       Sentry.captureMessage(`Milestone: ${event}`, {
         level: 'info',
         tags: { event, userId: userId || 'anonymous' },

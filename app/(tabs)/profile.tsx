@@ -6,6 +6,8 @@ import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
+import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import {
   Bell,
@@ -20,7 +22,7 @@ import {
   User
 } from 'lucide-react-native';
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
@@ -28,6 +30,24 @@ export default function ProfileScreen() {
   const themePreference = useStore(s => s.themePreference);
   const colors = useThemeColors();
   const router = useRouter();
+
+  const [notifStatus, setNotifStatus] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotifStatus(status);
+    };
+    checkStatus();
+  }, []);
+
+  const openSettings = () => {
+    if (Platform.OS === 'ios') {
+      Linking.openURL('app-settings:');
+    } else {
+      Linking.openSettings();
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -144,6 +164,22 @@ export default function ProfileScreen() {
             </View>
           </Animated.View>
 
+          {/* System Permissions Check (T-29 FIX) */}
+          {notifStatus === 'denied' && (
+            <Animated.View entering={FadeIn.delay(800)} style={[styles.permissionAlert, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '30' }]}>
+              <View style={styles.permissionIcon}>
+                <Ionicons name="notifications-off-outline" size={20} color={colors.danger} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: colors.text }]}>Notifications Disabled</Text>
+                <Text style={[styles.permissionSub, { color: colors.textSecondary }]}>You're missing out on habit and task reminders.</Text>
+              </View>
+              <TouchableOpacity onPress={openSettings} style={[styles.settingsBtn, { backgroundColor: colors.danger }]}>
+                <Text style={styles.settingsBtnText}>Fix</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
           {/* Account Actions */}
           <Animated.View entering={FadeIn.delay(700).duration(600)} style={styles.section}>
             <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
@@ -192,16 +228,16 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   sectionHeader: {
-    ...Typography.labelSmall,
+    fontFamily: 'Outfit-Bold',
     fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginBottom: 16,
+    letterSpacing: 1.5,
+    marginBottom: 0,
+    opacity: 0.5,
   },
   menuList: {
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -223,4 +259,39 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginTop: 4,
   },
+  permissionAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: Spacing.xl,
+    gap: 12,
+  },
+  permissionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permissionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  permissionSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  settingsBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  settingsBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '800',
+  }
 });

@@ -445,14 +445,14 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
   triggerProactivePrompt: (trigger: string, message: string) => {
     const { notificationSettings } = get();
-    if (!notificationSettings.proactive) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.aiCoachNudge) return;
     set({ proactivePrompt: { message, trigger, timestamp: Date.now() } });
     import('@/services/notificationService').then(({ notificationService }) => {
       let title = "LifeOS Assistant ✨";
       if (trigger === 'low_mood') title = "LifeOS Care 🌿";
       else if (trigger === 'missed_task') title = "LifeOS Insight 🚀";
       else if (trigger === 'habit_streak') title = "LifeOS Habit 🧘‍♂️";
-      notificationService.sendProactiveAI(title, message);
+      notificationService.sendProactiveAI(title, message, 'ai');
     });
   },
 

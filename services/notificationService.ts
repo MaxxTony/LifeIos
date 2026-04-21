@@ -78,7 +78,7 @@ export const notificationService = {
     if (Platform.OS === 'web') return;
 
     const { notificationSettings } = useStore.getState();
-    if (!notificationSettings.push || !notificationSettings.habits) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.habitReminders) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
@@ -241,7 +241,7 @@ export const notificationService = {
   scheduleMissedTaskNotification: async (taskText: string) => {
     if (Platform.OS === 'web') return;
     const { notificationSettings } = useStore.getState();
-    if (!notificationSettings.push || !notificationSettings.tasks) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.missedTaskAlert) return;
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
@@ -264,7 +264,7 @@ export const notificationService = {
     if (Platform.OS === 'web') return;
 
     const { notificationSettings } = useStore.getState();
-    if (!notificationSettings.push || !notificationSettings.tasks) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.taskReminders) return;
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
@@ -332,8 +332,9 @@ export const notificationService = {
   scheduleStreakWarningNotification: async () => {
     if (Platform.OS === 'web') return;
     const { notificationSettings, globalStreak } = useStore.getState();
-    if (!notificationSettings.push) return;
-    if (globalStreak <= 0) return; // Only warn if they actually have a streak going
+    if (!notificationSettings.masterEnabled || !notificationSettings.streakWarning) return;
+    if (globalStreak <= 0) return; 
+
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
@@ -372,8 +373,8 @@ export const notificationService = {
 
   scheduleDailyMoodReminder: async () => {
     if (Platform.OS === 'web') return;
-    const { notificationSettings, moodHistory, homeTimezone } = useStore.getState();
-    if (!notificationSettings.push || !notificationSettings.mood) {
+    const { notificationSettings, moodHistory } = useStore.getState();
+    if (!notificationSettings.masterEnabled || !notificationSettings.dailyMoodCheckin) {
       await notificationService.cancelMoodReminder();
       return;
     }
@@ -441,6 +442,13 @@ export const notificationService = {
 
   scheduleComebackNotifications: async () => {
     if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.masterEnabled || (!notificationSettings.comeback48h && !notificationSettings.comeback7d)) {
+      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
+      return;
+    }
+
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
@@ -452,34 +460,38 @@ export const notificationService = {
       await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
 
       // 2. Schedule 48h reminder
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "We miss you! 🌿",
-          body: "Your streak is waiting. Let's get back on track with your goals today. 🔥",
-          data: { type: 'COMEBACK' },
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        },
-        identifier: 'comeback-48h',
-      });
+      if (notificationSettings.comeback48h) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "We miss you! 🌿",
+            body: "Your streak is waiting. Let's get back on track with your goals today. 🔥",
+            data: { type: 'COMEBACK' },
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: 48 * 3600,
+          },
+          identifier: 'comeback-48h',
+        });
+      }
 
       // 3. Schedule 7 day reminder
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Level Up Pending... 🚀",
-          body: "It's been a week! Check in now to see your progress and stay consistent.",
-          data: { type: 'COMEBACK' },
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-        identifier: 'comeback-7d',
-      });
+      if (notificationSettings.comeback7d) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Level Up Pending... 🚀",
+            body: "It's been a week! Check in now to see your progress and stay consistent.",
+            data: { type: 'COMEBACK' },
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: 7 * 24 * 3600,
+          },
+          identifier: 'comeback-7d',
+        });
+      }
     } catch (e) {
       console.warn('Failed to schedule comeback notifications:', e);
     }
@@ -488,7 +500,7 @@ export const notificationService = {
   scheduleMorningBrief: async () => {
     if (Platform.OS === 'web') return;
     const { notificationSettings, globalStreak, tasks, habits } = useStore.getState();
-    if (!notificationSettings.push) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.morningBrief) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
@@ -577,7 +589,7 @@ export const notificationService = {
   scheduleQuestFOMO: async () => {
     if (Platform.OS === 'web') return;
     const { notificationSettings, dailyQuests } = useStore.getState();
-    if (!notificationSettings.push) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.questCompleted) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
@@ -636,7 +648,7 @@ export const notificationService = {
   scheduleWeeklyLeaderboardAlert: async (userRank?: number) => {
     if (Platform.OS === 'web') return;
     const { notificationSettings } = useStore.getState();
-    if (!notificationSettings.push) return;
+    if (!notificationSettings.masterEnabled || !notificationSettings.weeklyLeaderboard) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
@@ -705,8 +717,14 @@ export const notificationService = {
     }
   },
 
-  sendProactiveAI: async (title: string, body: string) => {
+  sendProactiveAI: async (title: string, body: string, type: 'ai' | 'pomodoro' = 'ai') => {
     if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    
+    if (!notificationSettings.masterEnabled) return;
+    if (type === 'ai' && !notificationSettings.aiCoachNudge) return;
+    if (type === 'pomodoro' && !notificationSettings.pomodoroAlert) return;
+
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
