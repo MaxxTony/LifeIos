@@ -83,7 +83,7 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
 
 const MAX_ACTIVE_POPUPS = 3;
 
-export const XPPopUp = () => {
+export const XPPopUp = React.memo(function XPPopUp() {
   const recentXP = useStore(s => s.recentXP);
   const dismissXP = useStore(s => s.actions.dismissXP);
   const [activeXPs, setActiveXPs] = useState<{ id: number; amount: number }[]>([]);
@@ -115,7 +115,7 @@ export const XPPopUp = () => {
       ))}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

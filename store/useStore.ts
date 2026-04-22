@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserState } from './types';
+import { createShardedStorage } from './shardedStorage';
+import { formatLocalDate } from '@/utils/dateUtils';
 import { createAuthSlice } from './slices/authSlice';
 import { createTaskSlice } from './slices/taskSlice';
 import { createHabitSlice } from './slices/habitSlice';
@@ -26,6 +27,7 @@ export const useStore = create<UserState>()(
       return {
         // Initial State
         _hasHydrated: false,
+        _authStateResolved: false,
         hasCompletedOnboarding: false,
         isAuthenticated: false,
         userId: null,
@@ -66,11 +68,19 @@ export const useStore = create<UserState>()(
         accentColor: null,
         homeTimezone: null,
         notificationSettings: {
-          push: true,
-          tasks: true,
-          habits: true,
-          mood: true,
-          proactive: true,
+          masterEnabled: true,
+          habitReminders: true,
+          taskReminders: true,
+          missedTaskAlert: true,
+          morningBrief: true,
+          streakWarning: true,
+          questCompleted: true,
+          weeklyLeaderboard: true,
+          dailyMoodCheckin: true,
+          aiCoachNudge: true,
+          pomodoroAlert: true,
+          comeback48h: true,
+          comeback7d: true,
         },
         recentXP: null,
         streakMilestones: [],
@@ -100,6 +110,7 @@ export const useStore = create<UserState>()(
           habitsLoaded: false,
           moodLoaded: false,
           focusLoaded: false,
+          profileLoaded: false,
           isOffline: false,
           lastCloudSync: null,
         },
@@ -118,21 +129,39 @@ export const useStore = create<UserState>()(
     },
     {
       name: 'lifeos-storage',
-      version: 1,
+      version: 2,
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
-          // v0→v1: pendingActions field added — default to empty array
           if (!Array.isArray(persistedState.pendingActions)) {
             persistedState.pendingActions = [];
           }
         }
+        if (version <= 1) {
+          // v1→v2: replace wrong notification settings keys with correct ones
+          persistedState.notificationSettings = {
+            masterEnabled: true,
+            habitReminders: true,
+            taskReminders: true,
+            missedTaskAlert: true,
+            morningBrief: true,
+            streakWarning: true,
+            questCompleted: true,
+            weeklyLeaderboard: true,
+            dailyMoodCheckin: true,
+            aiCoachNudge: true,
+            pomodoroAlert: true,
+            comeback48h: true,
+            comeback7d: true,
+          };
+        }
         return persistedState;
       },
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => createShardedStorage('lifeos-storage')),
       partialize: (state) => {
         const {
           _syncUnsubscribes,
           _hasHydrated,
+          _authStateResolved,
           _lastRetryAt,
           _subscriptionGen,
           syncError,
@@ -141,14 +170,39 @@ export const useStore = create<UserState>()(
           lastMoodLog,
           actions,
           // C-STORE-1 Fix: NEVER persist PII or sensitive session credentials to AsyncStorage in plaintext.
-          // These will be re-hydrated from the Cloud on login/reconnect.
           sessionToken,
           email,
           phoneNumber,
           birthday,
           ...rest
         } = state;
-        return rest;
+
+        // Prune history to last 90 days so the persisted blob stays small.
+        // Older entries are always available from Firestore when needed.
+        const cutoff = formatLocalDate(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
+        const prunedMoodHistory = Object.fromEntries(
+          Object.entries(rest.moodHistory || {}).filter(([k]) => k >= cutoff)
+        );
+        const prunedFocusHistory = Object.fromEntries(
+          Object.entries(rest.focusHistory || {}).filter(([k]) => k >= cutoff)
+        );
+        const prunedLifeScoreHistory = Object.fromEntries(
+          Object.entries(rest.lifeScoreHistory || {}).filter(([k]) => k >= cutoff)
+        );
+
+        // Keep all incomplete tasks + completed tasks from last 30 days only.
+        const taskCutoff = formatLocalDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+        const prunedTasks = rest.tasks.filter(
+          (t) => !t.completed || (t.date && t.date >= taskCutoff)
+        );
+
+        return {
+          ...rest,
+          moodHistory: prunedMoodHistory,
+          focusHistory: prunedFocusHistory,
+          lifeScoreHistory: prunedLifeScoreHistory,
+          tasks: prunedTasks,
+        };
       },
       onRehydrateStorage: () => (state) => {
         state?.actions.setHasHydrated(true);
@@ -182,9 +236,9 @@ useStore.subscribe((state) => {
     const todayTasks = state.tasks.filter(t => t.date === today);
     const todayHabits = state.habits.filter(h => {
       const dayOfWeek = new Date().getDay();
-      return h.targetDays.includes(dayOfWeek);
+      return (h.targetDays ?? []).includes(dayOfWeek);
     });
-    const completedHabitsToday = state.habits.filter(h => h.completedDays.includes(today)).length;
+    const completedHabitsToday = state.habits.filter(h => (h.completedDays ?? []).includes(today)).length;
 
     const widgetData = {
       tasks: todayTasks

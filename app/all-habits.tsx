@@ -102,7 +102,7 @@ function WeeklyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTog
   const LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const ALL_DAYS_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const scheduledDays = (habit.targetDays || []).map((d: number) => ALL_DAYS_LABELS[d]);
-  const targetSet = new Set(habit.targetDays as number[]);
+  const targetSet = new Set((habit.targetDays ?? []) as number[]);
 
   return (
     <View style={row.wrapper}>

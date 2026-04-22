@@ -110,19 +110,19 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
             widgetSyncService.syncStreak(newGlobalStreak);
           });
 
+          // If a focus session is actively running at midnight, preserve it rather than
+          // killing it silently. Reset the daily counter so the new day starts at 0,
+          // but keep isActive/pomodoroMode intact so the user's session continues.
+          const focusReset = state.focusSession.isActive
+            ? { totalSecondsToday: 0, sessionStartSeconds: 0, lastStartTime: Date.now() }
+            : { totalSecondsToday: 0, isActive: false as const, lastStartTime: null, pomodoroMode: 'work' as const, pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration };
+
           return {
             lastResetDate,
             globalStreak: newGlobalStreak,
             streakFreezes: newStreakFreezes,
             tasks: newTasks,
-            focusSession: {
-              ...state.focusSession,
-              totalSecondsToday: 0,
-              isActive: false,
-              lastStartTime: null,
-              pomodoroMode: 'work',
-              pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration
-            },
+            focusSession: { ...state.focusSession, ...focusReset },
             focusHistory: newFocusHistory,
             dailyQuests: [],
           };
@@ -179,11 +179,22 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   }),
 
   generateDailyQuests: () => {
-    const { lastResetDate, dailyQuests, userId } = get();
+    const { lastResetDate, dailyQuests, userId, syncStatus } = get();
     const today = getTodayLocal();
-    const questsAreForToday = dailyQuests.length > 0 && dailyQuests.every(q => q.id.includes(today));
+    
+    // C-SYNC-QUEST FIX: If we are online and quests haven't loaded from cloud yet, 
+    // WAIT for the sync listener to provide them instead of generating fresh ones 
+    // which causes a race condition and "resets" the user's progress.
+    if (userId && !syncStatus.questsLoaded && !syncStatus.isOffline) {
+      console.log('[LifeOS Quests] Waiting for cloud sync before generating...');
+      return;
+    }
 
+    const questsAreForToday = dailyQuests.length > 0 && dailyQuests.every(q => q.id.includes(today));
     if (lastResetDate === today && questsAreForToday) return;
+
+    // If we have quests from cloud (loaded via subscribeToCloud), don't overwrite them
+    if (questsAreForToday) return;
 
     const shuffled = shuffleArray(QUEST_TEMPLATES);
     const selected = shuffled.slice(0, 3).map((q, idx) => ({
@@ -192,7 +203,6 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       currentCount: 0,
       completed: false,
       date: today,
-      // M-09 FIX: Clamp XP reward to valid range (1–500) to guard against bad template data.
       rewardXP: Math.max(1, Math.min(q.rewardXP, 500)),
     }));
 
@@ -246,6 +256,11 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     const todayStr = getTodayLocal();
     let newGlobalStreak = state.globalStreak || 0;
     let newLastActiveDate = state.lastActiveDate;
+
+    // Reset comeback notifications on any activity (XP gain)
+    import('@/services/notificationService').then(({ notificationService }) => {
+      notificationService.scheduleComebackNotifications();
+    });
 
     // 1. Check Global Streak
     if (state.lastActiveDate !== todayStr) {
@@ -399,6 +414,11 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       // If we awarded XP, also calculate level up atomically
       const newState: Partial<UserState> = { dailyQuests: newQuests };
       if (totalXPToAdd > 0) {
+        // Reset comeback notifications on activity
+        import('@/services/notificationService').then(({ notificationService }) => {
+          notificationService.scheduleComebackNotifications();
+        });
+
         const newTotalXP = state.totalXP + totalXPToAdd;
         const newLevel = computeLevel(newTotalXP);
 

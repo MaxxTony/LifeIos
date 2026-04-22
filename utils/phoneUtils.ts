@@ -52,18 +52,34 @@ export const DEFAULT_COUNTRY: CountryConfig = {
 };
 
 /**
- * Detects the country configuration based on the input string starting with "+"
+ * Detects the country configuration based on the input string.
+ * Now handles numbers with or without "+" and provides fallbacks.
  */
 export const detectCountry = (text: string): CountryConfig => {
-  if (!text.startsWith('+')) return DEFAULT_COUNTRY;
+  const digits = text.replace(/\D/g, '');
+  if (!digits) return DEFAULT_COUNTRY;
   
-  // Sort by code length descending to match longest prefixes first (e.g., +1 242 vs +1)
+  const hasPlus = text.startsWith('+');
+  
+  // Sort by code length descending to match longest prefixes first
   const sortedCountries = [...COUNTRY_DATA].sort((a, b) => b.code.length - a.code.length);
   
+  // 1. Exact Match (with or without +)
   for (const country of sortedCountries) {
-    if (text.startsWith(country.code)) {
-      return country;
+    const codeDigits = country.code.replace(/\D/g, '');
+    if (hasPlus) {
+      if (digits.startsWith(codeDigits)) return country;
+    } else {
+      // If user starts typing a known country code without +
+      if (digits.startsWith(codeDigits)) return country;
     }
+  }
+  
+  // 2. DOMESTIC FALLBACK (Contextual detection)
+  // If no prefix matched but it looks like a domestic number (e.g. 10 digits)
+  // we default to India (+91) as it's the primary user base.
+  if (digits.length >= 10 && !hasPlus) {
+    return COUNTRY_DATA.find(c => c.code === '+91') || DEFAULT_COUNTRY;
   }
   
   return DEFAULT_COUNTRY;
@@ -94,14 +110,12 @@ export const applyMask = (digits: string, mask: string): string => {
 export const isPhoneValid = (text: string): boolean => {
   if (!text) return false;
   const country = detectCountry(text);
-  const digitsOnly = text.replace(country.code, '').replace(/\D/g, '');
+  const digitsOnly = text.replace(/\+/g, '').replace(country.code.replace(/\+/g, ''), '').replace(/\D/g, '');
   
-  // If we know the country, check for specific length
   if (country.code) {
     return digitsOnly.length === country.maxLength;
   }
   
-  // For unknown countries, follow generic E.164 rule (7 - 15 digits)
   return digitsOnly.length >= 7 && digitsOnly.length <= 15;
 };
 
@@ -109,33 +123,35 @@ export const isPhoneValid = (text: string): boolean => {
  * Main function to handle phone number input and return formatted version
  */
 export const formatPhoneInput = (text: string) => {
-  // 1. Maintain the "+" prefix
-  let cleaned = text;
-  if (text.length > 0 && !text.startsWith('+')) {
-    cleaned = '+' + text.replace(/\D/g, '');
-  }
+  let digits = text.replace(/\D/g, '');
+  const hasPlus = text.startsWith('+');
 
-  // 2. Detect country
-  const country = detectCountry(cleaned);
-  const prefix = country.code;
+  // 1. Detect country based on what we have so far
+  const country = detectCountry(text);
+  const codeDigits = country.code.replace(/\D/g, '');
   
-  // 3. Strict Truncation: Never allow more than specified maxLength for the country
-  // or the global maximum of 15 digits.
-  const digitsAfterPrefix = cleaned
-    .slice(prefix.length)
-    .replace(/\D/g, '')
-    .slice(0, country.code ? country.maxLength : 15);
+  let finalPrefix = country.code;
+  let suffixDigits = '';
+
+  // 2. Logic: Did the user type the code or just the domestic number?
+  if (digits.startsWith(codeDigits)) {
+    // User typed the country code (with or without +)
+    suffixDigits = digits.slice(codeDigits.length).slice(0, country.maxLength);
+  } else {
+    // User typed a domestic number without the code
+    suffixDigits = digits.slice(0, country.maxLength);
+  }
   
-  // 4. Apply mask to digits after prefix
-  const formattedSuffix = applyMask(digitsAfterPrefix, country.mask);
+  // 3. Format the suffix with the mask
+  const formattedSuffix = applyMask(suffixDigits, country.mask);
   
-  // 5. Final formatted result
-  const formatted = prefix ? `${prefix} ${formattedSuffix}`.trim() : cleaned.slice(0, 16); 
+  // 4. Construct final string
+  const formatted = finalPrefix ? `${finalPrefix} ${formattedSuffix}`.trim() : (hasPlus ? '+' : '') + digits;
   
   return {
     formatted: formatted,
-    raw: prefix + digitsAfterPrefix,
+    raw: finalPrefix + suffixDigits,
     country,
-    isValid: isPhoneValid(prefix + digitsAfterPrefix)
+    isValid: isPhoneValid(finalPrefix + suffixDigits)
   };
 };

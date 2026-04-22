@@ -135,7 +135,15 @@ export default function LoginScreen() {
 
   const router = useRouter();
   const colors = useThemeColors();
+  const isAuthenticated = useStore(s => s.isAuthenticated);
   const { actions: { setAuth, completeOnboarding }, onboardingData } = useStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('[LifeOS Login] Already authenticated - redirecting to tabs.');
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated]);
 
   const handleForgotPassword = () => {
     router.push('/(auth)/forgot-password');
@@ -201,7 +209,7 @@ export default function LoginScreen() {
             } catch (e: any) {
               console.warn(`[LifeOS] Profile creation attempt ${i + 1} failed:`, e.message);
               if (i === 2) {
-                await deleteUser(user); // Rollback Firebase Auth
+                try { await deleteUser(user); } catch (_) { /* rollback best-effort */ }
                 throw new Error('Account setup failed (Network Error). Please try again.');
               }
               // Exponential backoff: 1s, 2s, 3s
@@ -227,8 +235,8 @@ export default function LoginScreen() {
         }
 
         analyticsService.logMilestone(user.uid, 'login_success', { method: 'google' });
-        completeOnboarding();
         setAuth(user.uid, user.displayName || existingProfile?.userName || 'User', sessionToken);
+        completeOnboarding();
 
         Toast.show({
           type: 'success',
@@ -322,7 +330,7 @@ export default function LoginScreen() {
             } catch (e: any) {
               console.warn(`[LifeOS] Email signup profile creation attempt ${i + 1} failed:`, e.message);
               if (i === 2) {
-                await deleteUser(user); // Rollback
+                try { await deleteUser(user); } catch (_) { /* rollback best-effort */ }
                 throw new Error('Account setup failed. Please try again.');
               }
               await new Promise(r => setTimeout(r, 1000 * (i + 1)));
@@ -333,8 +341,8 @@ export default function LoginScreen() {
         }
 
         analyticsService.logMilestone(user.uid, isSignUp ? 'signup_success' : 'login_success', { method: 'email' });
-        completeOnboarding();
         setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User', sessionToken);
+        completeOnboarding();
 
         Toast.show({
           type: 'success',
@@ -384,8 +392,8 @@ export default function LoginScreen() {
     try {
       if (setupUser) {
         await dbService.saveUserProfile(setupUser.uid, { userName: fullName.trim() });
-        completeOnboarding();
         setAuth(setupUser.uid, fullName.trim(), setupSessionToken);
+        completeOnboarding();
 
         Toast.show({
           type: 'success',
@@ -642,7 +650,11 @@ export default function LoginScreen() {
             </View>
 
             <Text style={[styles.terms, { color: colors.textSecondary }]}>
-              By signing in, you agree to our Terms & Privacy Policy.
+              By signing in, you agree to our{' '}
+              <Text style={{ color: colors.primary, textDecorationLine: 'underline' }} onPress={() => router.push('/settings/privacy')}>
+                Terms & Privacy Policy
+              </Text>
+              .
             </Text>
           </Animated.View>
         </ScrollView>

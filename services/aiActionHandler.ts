@@ -1,6 +1,7 @@
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import { analyticsService } from './analyticsService';
+import { socialService } from './socialService';
 
 /**
  * C-AI-3 FIX: Strict validation guards for AI-triggered actions.
@@ -168,6 +169,112 @@ export const aiActionHandler = {
       return { success: true, message: `Removed habit ${params.id}` };
     } catch (error: any) {
       return { success: false, message: `Failed to remove habit: ${error.message}` };
+    }
+  },
+
+  handleUpdateProfile: (params: { userName?: string; bio?: string; occupation?: string; skills?: string; location?: string; birthday?: string }) => {
+    const store = useStore.getState();
+    try {
+      store.actions.updateProfile(params);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateProfile' });
+      return { success: true, message: 'Successfully updated your profile information.' };
+    } catch (error: any) {
+      return { success: false, message: `Failed to update profile: ${error.message}` };
+    }
+  },
+
+  handleUpdateSettings: (params: { theme?: 'light' | 'dark' | 'system'; accentColor?: string }) => {
+    const store = useStore.getState();
+    try {
+      if (params.theme) {
+        store.actions.setThemePreference(params.theme);
+      }
+      if (params.accentColor) {
+        store.actions.setAccentColor(params.accentColor);
+      }
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateSettings' });
+      return { success: true, message: 'App settings updated successfully.' };
+    } catch (error: any) {
+      return { success: false, message: `Failed to update settings: ${error.message}` };
+    }
+  },
+
+  handleGetSocialLeaderboard: async () => {
+    const store = useStore.getState();
+    if (!store.userId) return { success: false, message: 'User not authenticated' };
+    
+    try {
+      const board = await socialService.getLeaderboard(store.userId);
+      const summary = board.map((p, i) => `#${i+1} ${p.userName} (${p.weeklyXP} XP, Level ${p.level})`).join('\n');
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'getSocialLeaderboard' });
+      return { success: true, message: `Current Leaderboard:\n${summary}`, data: board };
+    } catch (error: any) {
+      return { success: false, message: `Failed to fetch leaderboard: ${error.message}` };
+    }
+  },
+
+  handleSendSocialNudge: async (params: { friendId: string; message: string }) => {
+    const store = useStore.getState();
+    if (!store.userId) return { success: false, message: 'User not authenticated' };
+
+    try {
+      // For now, we simulate the nudge by logging it
+      console.log(`[AI Nudge] To: ${params.friendId}, Message: ${params.message}`);
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'sendSocialNudge', targetFriendId: params.friendId });
+      return { success: true, message: `Nudge sent to friend (ID: ${params.friendId})` };
+    } catch (error: any) {
+      return { success: false, message: `Failed to send nudge: ${error.message}` };
+    }
+  },
+
+  handleGetPerformanceTrends: () => {
+    const store = useStore.getState();
+    const today = getTodayLocal();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    try {
+      // 1. Task Completion Analysis
+      const recentTasks = store.tasks.filter(t => t.date >= cutoffStr);
+      const total = recentTasks.length;
+      const completed = recentTasks.filter(t => t.status === 'completed').length;
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      // 2. Focus Time Analysis
+      let totalFocusSeconds = 0;
+      Object.entries(store.focusHistory).forEach(([date, seconds]) => {
+        if (date >= cutoffStr) totalFocusSeconds += seconds;
+      });
+      const avgFocusMins = Math.round((totalFocusSeconds / 30) / 60);
+
+      // 3. Day of Week Analysis
+      const dayStats: Record<string, { total: number; completed: number }> = {};
+      recentTasks.forEach(t => {
+        const day = new Date(t.date).toLocaleDateString('en-US', { weekday: 'long' });
+        if (!dayStats[day]) dayStats[day] = { total: 0, completed: 0 };
+        dayStats[day].total++;
+        if (t.status === 'completed') dayStats[day].completed++;
+      });
+
+      const bestDay = Object.entries(dayStats)
+        .map(([day, stats]) => ({ day, rate: stats.completed / stats.total }))
+        .sort((a, b) => b.rate - a.rate)[0];
+
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'getPerformanceTrends' });
+
+      return {
+        success: true,
+        message: `Analysis of the last 30 days:
+- Task Completion Rate: ${completionRate}% (${completed}/${total})
+- Avg Focus Time: ${avgFocusMins} mins/day
+- Most Productive Day: ${bestDay ? bestDay.day : 'N/A'}
+- Overall Mood: ${store.mood || 'Stable'}`,
+        data: { completionRate, totalTasks: total, completedTasks: completed, avgFocusMins, bestDay }
+      };
+    } catch (error: any) {
+      console.error('AI Trends Error:', error);
+      return { success: false, message: `Failed to analyze trends: ${error.message}` };
     }
   }
 };

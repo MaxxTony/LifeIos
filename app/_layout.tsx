@@ -1,4 +1,7 @@
 
+
+
+
 import { useFocusTimer } from '@/hooks/useFocusTimer';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
@@ -11,23 +14,23 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
-import { useEffect, useRef } from 'react';
-import { AppState, useColorScheme, View, StyleSheet, Platform } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import 'react-native-reanimated';
-import Toast from 'react-native-toast-message';
-import ConfettiCannon from 'react-native-confetti-cannon';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { registerAllBackgroundTasks } from '@/services/backgroundService';
 import { analyticsService } from '@/services/analyticsService';
+import { registerAllBackgroundTasks, unregisterAllBackgroundTasks } from '@/services/backgroundService';
 import { initCrashAnalytics } from '@/services/crashAnalytics';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Outfit_700Bold } from '@expo-google-fonts/outfit';
-
-
+import { useEffect, useRef } from 'react';
+import { AppState, Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 import { widgetTaskHandler } from '../widget/WidgetTaskHandler';
+
+
 
 if (!__DEV__) initCrashAnalytics();
 
@@ -74,9 +77,11 @@ export default function RootLayout() {
   // on initial load before Firebase resolves the session).
   useEffect(() => {
     if (!_hasHydrated) return;
+    console.log('[LifeOS Layout] Auth effect. isAuthenticated:', isAuthenticated, 'wasAuthenticated:', wasAuthenticated.current);
     if (isAuthenticated) {
       wasAuthenticated.current = true;
     } else if (wasAuthenticated.current) {
+      console.warn('[LifeOS Layout] Redirecting to login because isAuthenticated became false.');
       wasAuthenticated.current = false;
       router.replace('/(auth)/login');
     }
@@ -172,8 +177,8 @@ export default function RootLayout() {
           const isValid = await authService.validateSession(authService.currentUser);
           if (!isValid) {
             console.warn('[LifeOS] Foreground session invalid - logging out.');
+            await useStore.getState().actions.logout({ shouldSaveFocus: true });
             await authService.logout();
-            setAuth(null, null);
           }
         }
       }
@@ -231,35 +236,43 @@ export default function RootLayout() {
       // which is cheap since scheduleHabitReminder() is idempotent (cancels old → reschedules).
       const { isAuthenticated: authed, habits, userId: uid } = useStore.getState();
       if (authed && uid && habits.length > 0) {
-        import('@/services/notificationService').then(({ notificationService }) => {
-          notificationService.requestPermissions().then(granted => {
-            if (!granted) return;
-            habits.forEach(habit => {
-              if (habit.reminderTime && habit.targetDays && habit.targetDays.length > 0) {
-                notificationService.scheduleHabitReminder(
-                  habit.id,
-                  habit.title,
-                  habit.icon || '📅',
-                  habit.reminderTime,
-                  habit.frequency || 'daily',
-                  habit.targetDays,
-                  habit.monthlyDay
-                );
-              }
-            });
+        import('@/services/notificationService').then(async ({ notificationService }) => {
+          // Only reschedule — never prompt the system dialog at startup.
+          // Permission is requested contextually when the user sets a habit reminder.
+          const Notifications = await import('expo-notifications');
+          const { status } = await Notifications.getPermissionsAsync();
+          const granted = status === 'granted';
+          if (!granted) return;
+          habits.forEach(habit => {
+            if (habit.reminderTime && habit.targetDays && habit.targetDays.length > 0) {
+              notificationService.scheduleHabitReminder(
+                habit.id,
+                habit.title,
+                habit.icon || '📅',
+                habit.reminderTime,
+                habit.frequency || 'daily',
+                habit.targetDays,
+                habit.monthlyDay
+              );
+            }
           });
         });
       }
 
       // Phase 4: Register Background Services
-      registerAllBackgroundTasks();
+      if (isAuthenticated) {
+        registerAllBackgroundTasks();
+      } else {
+        unregisterAllBackgroundTasks();
+      }
     }
-  }, [_hasHydrated]);
+  }, [_hasHydrated, isAuthenticated]);
 
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
-      // C-AUTH-6 FIX: Guard against double-fires during signup flows
+      console.log('[LifeOS Layout] onAuthStateChanged fired. User:', user?.uid || 'null');
+
       if (isValidatingSession.current) {
         console.log('[LifeOS] onAuthStateChanged ignored - already validating session.');
         return;
@@ -268,23 +281,30 @@ export default function RootLayout() {
 
       try {
         if (user) {
-          // Double check session validity (handles server-side deletion)
+          console.log('[LifeOS Layout] User found. Validating session...');
           const isValid = await authService.validateSession(user);
 
           if (!isValid) {
+            console.warn('[LifeOS Layout] Session invalid. Logging out.');
             await authService.logout();
             setAuth(null, null);
             return;
           }
 
-          // setAuth already calls subscribeToCloud() which sets up real-time listeners
-          // for tasks, habits, mood, focus and the root profile — no separate
-          // hydrateFromCloud() call needed (would race with the real-time listeners).
+          console.log('[LifeOS Layout] Session valid. Setting auth state.');
           setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
         } else {
+          console.log('[LifeOS Layout] No user found in onAuthStateChanged.');
+          const currentIsAuthenticated = useStore.getState().isAuthenticated;
+          if (currentIsAuthenticated) {
+            console.warn('[LifeOS Layout] User was authenticated locally but Firebase says null. Clearing state.');
+          }
           setAuth(null, null);
         }
       } finally {
+        // C-AUTH-12 FIX: Only mark resolved AFTER validation/setAuth is complete.
+        // Doing this earlier causes index.tsx to route while isAuthenticated is still false.
+        useStore.setState({ _authStateResolved: true });
         isValidatingSession.current = false;
       }
     });
@@ -313,14 +333,14 @@ export default function RootLayout() {
       // C-AUTH-3 FIX: Proactive auth refresh on network recovery
       // This catches users whose tokens expired or were revoked while offline.
       if (authService.currentUser) {
-        authService.currentUser.getIdToken(true).catch(e => {
+        authService.currentUser.getIdToken(true).catch(async e => {
           if (
-            e.code === 'auth/user-not-found' || 
+            e.code === 'auth/user-not-found' ||
             e.code === 'auth/id-token-revoked'
           ) {
             console.warn('[LifeOS] Auth token invalid on reconnect - logging out.');
-            authService.logout(); // Ensure Firebase is also signed out
-            setAuth(null, null);
+            await useStore.getState().actions.logout({ shouldSaveFocus: true });
+            await authService.logout(); // Ensure Firebase is also signed out
           }
         });
       }

@@ -4,7 +4,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import Toast from 'react-native-toast-message';
 import { useStore } from '@/store/useStore';
 
-export const StreakCelebration = () => {
+export const StreakCelebration = React.memo(function StreakCelebration() {
   const streakMilestone = useStore(s => s.streakMilestones[0] ?? null);
   const dismissMilestone = useStore(s => s.actions.dismissMilestone);
   const explosionRef = useRef<ConfettiCannon>(null);
@@ -45,4 +45,4 @@ export const StreakCelebration = () => {
       />
     </View>
   );
-};
+});

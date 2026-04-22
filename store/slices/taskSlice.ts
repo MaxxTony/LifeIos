@@ -139,7 +139,7 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         const nextDateStr = formatLocalDate(nextDate);
         
         // M-2 FIX: Extra-strong check to prevent duplication on rapid toggling
-        const alreadySpawned = newTasks.some(t => t.text === task.text && t.date === nextDateStr);
+        const alreadySpawned = newTasks.some(t => t.text === task.text && t.date === nextDateStr && t.repeat === task.repeat);
         if (!alreadySpawned) {
           const newTask: Task = {
             ...task,
@@ -177,6 +177,11 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
         
         // C-STORE-7 FIX: Award XP atomically within the same set() call
         if (shouldAwardXP) {
+          // Reset comeback notifications on activity
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleComebackNotifications();
+          });
+
           const amount = 15;
           const newTotalXP = state.totalXP + amount;
           const newLevel = computeLevel(newTotalXP);
@@ -315,7 +320,7 @@ export const createTaskSlice: StateCreator<UserState, [["zustand/persist", unkno
           missedTasksToSync.push(updatedTask);
           
           import('@/services/notificationService').then(({ notificationService }) => {
-            notificationService.scheduleMissedTaskNotification(task.text).catch(() => {});
+            notificationService.scheduleMissedTaskNotification(task.id, task.text).catch(() => {});
           });
 
           setTimeout(() => {

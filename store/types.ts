@@ -75,12 +75,15 @@ export interface SyncStatus {
   habitsLoaded: boolean;
   moodLoaded: boolean;
   focusLoaded: boolean;
+  questsLoaded: boolean;
+  profileLoaded: boolean;
   isOffline: boolean;
   lastCloudSync: number | null;
 }
 
 export interface UserState {
   _hasHydrated: boolean;
+  _authStateResolved: boolean;
   hasCompletedOnboarding: boolean;
   isAuthenticated: boolean;
   userId: string | null;
@@ -182,7 +185,7 @@ export interface UserActions {
     avatarUrl: string | null; phoneNumber: string; birthday: string;
     pronouns: string; skills: string; socialLinks: UserState['socialLinks'];
   }>) => Promise<void>;
-  logout: () => void;
+  logout: (options?: { shouldSaveFocus?: boolean }) => Promise<void>;
   setHasSeenWalkthrough: (seen: boolean) => void;
   setThemePreference: (theme: UserState['themePreference']) => void;
   setAccentColor: (color: string) => void;

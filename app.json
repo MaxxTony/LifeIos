@@ -19,8 +19,7 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
-        "NSMicrophoneUsageDescription": "LifeOS needs access to your microphone for voice commands and audio analysis.",
-        "UIBackgroundModes": [
+"UIBackgroundModes": [
           "fetch"
         ]
       }
@@ -37,7 +36,8 @@
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "web": {

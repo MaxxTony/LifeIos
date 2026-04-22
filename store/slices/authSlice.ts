@@ -14,7 +14,6 @@ import { setSentryUser } from '@/services/crashAnalytics';
 // Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
 const LOGGED_OUT_STATE: Partial<UserState> = {
   isAuthenticated: false,
-  hasCompletedOnboarding: false,
   userId: null,
   userName: null,
   email: null,
@@ -48,8 +47,6 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   skills: null,
   socialLinks: {},
   moodTheme: null,
-  themePreference: 'system' as const,
-  accentColor: null as string | null,
   homeTimezone: null as string | null,
   notificationSettings: {
     masterEnabled: true,
@@ -67,6 +64,10 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
     comeback7d: true,
   },
   onboardingData: { struggles: [] },
+  // Non-sensitive settings to PERSIST across logout
+  // themePreference: 'system' as const, (Moved out of reset)
+  // hasSeenWalkthrough: false, (Moved out of reset)
+  
   recentXP: null,
   streakMilestones: [],
   lastMoodLog: null,
@@ -87,13 +88,14 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   sessionToken: null,
   syncError: null,
   _lastRetryAt: 0,
-  hasSeenWalkthrough: false,
   lastActiveTimestamp: Date.now(),
   syncStatus: {
     tasksLoaded: false,
     habitsLoaded: false,
     moodLoaded: false,
     focusLoaded: false,
+    questsLoaded: false,
+    profileLoaded: false,
     isOffline: false,
     lastCloudSync: null,
   },
@@ -102,7 +104,16 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
   setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
-  completeOnboarding: () => set({ hasCompletedOnboarding: true }),
+  completeOnboarding: () => {
+    console.log('[LifeOS Store] completeOnboarding called.');
+    set({ hasCompletedOnboarding: true });
+    const { userId } = get();
+    if (userId) {
+      fireSync(() => dbService.saveUserProfile(userId, { hasCompletedOnboarding: true }), 'completeOnboarding', userId);
+    } else {
+      console.warn('[LifeOS Store] completeOnboarding: userId is null, profile save skipped.');
+    }
+  },
 
   setAuth: async (userId, userName, sessionToken) => {
     const unsubs = get()._syncUnsubscribes;
@@ -147,33 +158,54 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     await dbService.saveUserProfile(userId, safe);
   },
 
-  logout: async () => {
-    // C-09 FIX: Clean up presence before clearing state so we have userId available.
+  logout: async (options = { shouldSaveFocus: true }) => {
     const state = get();
-    if (state.focusSession?.isActive && state.userId) {
-      try {
-        const { presenceService } = await import('@/services/presenceService');
-        await presenceService.leaveFocusRoom(state.userId);
-      } catch (_) {}
+    const { shouldSaveFocus = true } = options;
+
+    // 1. Emergency Focus Save (NON-BLOCKING background fireSync)
+    if (shouldSaveFocus && state.focusSession?.isActive && state.userId) {
+      const now = Date.now();
+      const lastTickDelta = state.focusSession.lastStartTime
+        ? Math.min((now - state.focusSession.lastStartTime) / 1000, 30)
+        : 0;
+      const totalSeconds = Math.max(0, state.focusSession.totalSecondsToday + lastTickDelta);
+      
+      // Use fireSync so it finishes even if state is cleared
+      fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'logoutFocusSave', state.userId);
     }
+
+    // 2. Clean up presence
+    if (state.focusSession?.isActive && state.userId) {
+      const { presenceService } = await import('@/services/presenceService');
+      presenceService.leaveFocusRoom(state.userId);
+    }
+
     state._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
-    // C-1: Clear AsyncStorage immediately to prevent data leak window
+
+    // 3. Clear Storage (Except global settings)
     try {
-      await AsyncStorage.removeItem('lifeos-storage');
-    } catch (err) {
-      console.warn('[LifeOS] Failed to clear storage on logout:', err);
-    }
-    // Cancel all scheduled local notifications so they don't fire while logged out
-    try {
-      const { notificationService } = await import('@/services/notificationService');
-      await notificationService.cancelAllNotifications();
-    } catch (err) {
-      console.warn('[LifeOS] Failed to cancel notifications on logout:', err);
-    }
+      const storage: any = AsyncStorage;
+      const multiRemove = storage.multiRemove || storage.default?.multiRemove;
+      if (typeof multiRemove === 'function') {
+        await multiRemove.call(storage, [
+          'lifeos-storage:tasks',
+          'lifeos-storage:hist',
+        ]);
+      }
+    } catch (err) {}
+
+    // 4. Cancel Notifications
+    const { notificationService } = await import('@/services/notificationService');
+    notificationService.cancelAllNotifications();
+
     setSentryUser(null);
-    set(LOGGED_OUT_STATE);
+    // Reset only user data, keep theme/settings
+    set((s) => ({
+      ...LOGGED_OUT_STATE,
+      _subscriptionGen: s._subscriptionGen + 1,
+    }));
   },
 
   subscribeToCloud: () => {
@@ -224,7 +256,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       // Root Profile Subscription
       const unsubRoot = dbService.subscribeToUserData(
         userId,
-        (data) => {
+        (data: any) => {
           if (!data) {
             console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
             authService.logout();
@@ -240,8 +272,11 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
               text1: 'Session Expired',
               text2: 'You have been logged in on another device.'
             });
-            authService.logout();
-            get().actions.setAuth(null, null);
+            
+            // C-SYNC-SESSION FIX: Call store logout first to trigger auto-save of focus timer
+            get().actions.logout({ shouldSaveFocus: true }).then(() => {
+              authService.logout();
+            });
             return;
           }
 
@@ -260,46 +295,28 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
             accentColor: data.accentColor || get().accentColor,
             homeTimezone: data.homeTimezone || get().homeTimezone,
+            // C-AUTH-10 FIX: Aggressive self-healing for stale onboarding flags in cloud.
+            // If the user has a username, struggles, or a level > 1, they have definitely finished onboarding.
+            hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || !!data.userName || (Array.isArray(data.struggles) && data.struggles.length > 0) || (data.level && data.level > 1),
+            onboardingData: { struggles: Array.isArray(data.struggles) ? data.struggles : (get().onboardingData?.struggles || []) },
             hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
             streakFreezes: data.streakFreezes !== undefined ? data.streakFreezes : get().streakFreezes,
             lastLoginBonusDate: data.lastLoginBonusDate !== undefined ? data.lastLoginBonusDate : get().lastLoginBonusDate,
             syncStatus: {
               ...state.syncStatus,
+              profileLoaded: true,
               isOffline: checkOfflineStatus(!!data._fromCache),
               lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
             }
           }));
 
-          // GAMIFICATION: Daily Login Bonus (+5 XP)
-          if (!data._fromCache) {
-            const todayStr = formatLocalDate(new Date());
-            const currentState = get();
-            
-            // If they haven't gotten the bonus today
-            if (currentState.lastLoginBonusDate !== todayStr) {
-              const newXP = currentState.totalXP + 5;
-              const newWeeklyXP = currentState.weeklyXP + 5;
-              const newLevel = computeLevel(newXP);
-              
-              set({
-                totalXP: newXP,
-                weeklyXP: newWeeklyXP,
-                level: newLevel,
-                lastLoginBonusDate: todayStr
-              });
-              
-              fireSync(() => dbService.updateGlobalStats(userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }), 'dailyLoginBonus_stats', userId);
-              fireSync(() => dbService.saveUserProfile(userId!, { lastLoginBonusDate: todayStr } as any), 'dailyLoginBonus_profile', userId);
+          console.log('[LifeOS Store] Cloud profile loaded. hasCompletedOnboarding:', get().hasCompletedOnboarding, 'Firestore says:', data.hasCompletedOnboarding);
 
-              // Show toast and trigger confetti!
-              currentState.actions.triggerGlobalConfetti();
-              Toast.show({
-                type: 'success',
-                text1: '🎁 Daily Bonus!',
-                text2: '+5 XP for logging in today.',
-                visibilityTime: 4000
-              });
-            }
+          // C-AUTH-10 FIX: Self-healing for missing onboarding flag in Firestore
+          const finalState = get();
+          if (finalState.hasCompletedOnboarding && !data.hasCompletedOnboarding && !data._fromCache) {
+            console.log('[LifeOS] Healing missing onboarding flag in cloud...');
+            dbService.saveUserProfile(userId, { hasCompletedOnboarding: true });
           }
 
           // SOCIAL: Sync fresh profile to publicProfiles root collection.
@@ -406,8 +423,19 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           docs.forEach(doc => {
             map[doc.id] = (doc as { totalSeconds?: number }).totalSeconds || 0;
           });
+          
+          // C-SYNC-FOCUS FIX: Automatically sync the cloud's today value into the active focusSession object
+          // so the Dashboard/Timer doesn't reset to 0 after re-logging in.
+          const today = getTodayLocal();
+          const cloudTodaySeconds = map[today] || 0;
+
           set((state) => ({
             focusHistory: map,
+            focusSession: {
+              ...state.focusSession,
+              // Only update if current local total is less than cloud (prevents overwriting in-flight ticks)
+              totalSecondsToday: Math.max(state.focusSession.totalSecondsToday, cloudTodaySeconds)
+            },
             syncStatus: {
               ...state.syncStatus,
               focusLoaded: true,
@@ -425,15 +453,56 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         'dailyQuests',
         (docs) => {
           if (isStale()) return;
-          set({ dailyQuests: docs as any[] });
+          set((state) => ({ 
+            dailyQuests: docs as any[],
+            syncStatus: {
+              ...state.syncStatus,
+              questsLoaded: true
+            }
+          }));
         },
-        (ref) => query(ref, where(documentId(), '>=', `quest-${windowStartStr}`))
+        (ref) => {
+          const todayQuestPrefix = `quest-${formatLocalDate(new Date())}`;
+          return query(ref, where(documentId(), '>=', todayQuestPrefix), where(documentId(), '<=', `${todayQuestPrefix}`));
+        }
       );
       collected.push(unsubQuests);
+
+      // Stats/Global Subscription — keeps XP, level, streak live across devices
+      const unsubStats = dbService.subscribeToCollection(
+        userId,
+        'stats',
+        (docs) => {
+          if (isStale()) return;
+          const statsDoc = docs.find(d => d.id === 'global');
+          if (!statsDoc) return;
+          const serverXP: number = statsDoc.totalXP || 0;
+          const currentState = get();
+          const updates: Partial<UserState> = {};
+          // Always take max so an in-flight local XP gain is never overwritten
+          if (serverXP > currentState.totalXP) {
+            updates.totalXP = serverXP;
+            updates.level = computeLevel(serverXP);
+          }
+          if (statsDoc.weeklyXP !== undefined) updates.weeklyXP = Math.max(statsDoc.weeklyXP, currentState.weeklyXP);
+          if (statsDoc.globalStreak !== undefined) updates.globalStreak = statsDoc.globalStreak;
+          if (statsDoc.lastActiveDate !== undefined) updates.lastActiveDate = statsDoc.lastActiveDate;
+          if (statsDoc.lastWeekResetDate !== undefined) updates.lastWeekResetDate = statsDoc.lastWeekResetDate;
+          if (Object.keys(updates).length > 0) set(updates);
+        }
+      );
+      collected.push(unsubStats);
     } catch (err) {
       console.error('[LifeOS] Sync subscription set failed:', err);
     } finally {
-      set({ _syncUnsubscribes: collected });
+      if (!isStale()) {
+        // Still the active generation — store unsubscribers for later cleanup.
+        set({ _syncUnsubscribes: collected });
+      } else {
+        // A newer subscribeToCloud() call has already taken over.
+        // Immediately tear down any listeners we opened so they don't leak.
+        collected.forEach(unsub => { try { unsub(); } catch (_) {} });
+      }
     }
   },
 
@@ -495,6 +564,24 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
               widgetSyncService.syncStreak(updates.globalStreak ?? get().globalStreak);
             });
           }
+        }
+
+        // GAMIFICATION: Daily Login Bonus (+5 XP)
+        // Runs here — after max(server, local) XP is in state — so we never
+        // add 5 to a stale local 0 and overwrite the real server XP.
+        const todayStr = formatLocalDate(new Date());
+        const stateAfterStats = get();
+        if (stateAfterStats.lastLoginBonusDate !== todayStr) {
+          const newXP = stateAfterStats.totalXP + 5;
+          const newWeeklyXP = stateAfterStats.weeklyXP + 5;
+          const newLevel = computeLevel(newXP);
+          set({ totalXP: newXP, weeklyXP: newWeeklyXP, level: newLevel, lastLoginBonusDate: todayStr });
+          fireSync(() => dbService.updateGlobalStats(userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }), 'dailyLoginBonus_stats', userId);
+          fireSync(() => dbService.saveUserProfile(userId!, { lastLoginBonusDate: todayStr } as any), 'dailyLoginBonus_profile', userId);
+          setTimeout(() => {
+            get().actions.triggerGlobalConfetti();
+            Toast.show({ type: 'success', text1: '🎁 Daily Bonus!', text2: '+5 XP for logging in today.', visibilityTime: 4000 });
+          }, 1500);
         }
 
         // SOCIAL FIX: Always upsert publicProfile on login so user appears

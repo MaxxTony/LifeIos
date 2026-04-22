@@ -50,17 +50,37 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    try {
-      const { error } = await authService.logout();
-      if (!error) {
-        logout();
-        router.replace('/(auth)/login');
-      } else {
-        Alert.alert('Logout Error', 'We couldn\'t log you out right now. Please check your connection and try again.');
-      }
-    } catch (e) {
-      Alert.alert('Unexpected Error', 'Something went wrong during logout.');
-    }
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to log out of your account?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Save progress and clear local state
+              await logout({ shouldSaveFocus: true });
+              
+              // 2. Sign out of Firebase
+              const { error } = await authService.logout();
+              
+              if (!error) {
+                router.replace('/(auth)/login');
+              } else {
+                Alert.alert('Logout Error', 'We couldn\'t log you out completely. Please check your connection.');
+              }
+            } catch (e) {
+              Alert.alert('Unexpected Error', 'Something went wrong during logout.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getAppearanceValue = () => {

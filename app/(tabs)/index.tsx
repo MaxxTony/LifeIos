@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import { AppState, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
@@ -101,6 +101,26 @@ const skeletonStyles = StyleSheet.create({
     padding: 16,
   },
 });
+
+function SyncStatusIndicator() {
+  const colors = useThemeColors();
+  const { profileLoaded, tasksLoaded, habitsLoaded } = useStore(s => s.syncStatus);
+  const isAuthenticated = useStore(s => s.isAuthenticated);
+  const isSyncing = isAuthenticated && (!profileLoaded || !tasksLoaded || !habitsLoaded);
+
+  if (!isSyncing) return null;
+
+  return (
+    <Animated.View 
+      entering={FadeIn.duration(400)} 
+      exiting={FadeOut.duration(400)}
+      style={[styles.syncIndicator, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
+    >
+      <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.7 }] }} />
+      <Text style={[styles.syncText, { color: colors.primary }]}>Syncing your LifeOS...</Text>
+    </Animated.View>
+  );
+}
 
 import { getLevelProgress } from '@/store/helpers';
 
@@ -237,6 +257,9 @@ export default function HomeScreen() {
             <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
               {userName || 'User'}!
             </Text>
+
+            {/* C-AUTH-15: Background Sync Indicator */}
+            <SyncStatusIndicator />
           </View>
 
           {/* Dashboard Widgets */}
@@ -352,5 +375,21 @@ const styles = StyleSheet.create({
   xpBarFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  syncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  syncText: {
+    fontSize: 11,
+    fontFamily: 'Inter-SemiBold',
+    letterSpacing: 0.3,
   }
 });

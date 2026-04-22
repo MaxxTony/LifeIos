@@ -204,6 +204,60 @@ export const callAI = onCall(
               required: ['id'],
             },
           },
+          {
+            name: 'updateProfile',
+            description: 'Update user profile information (name, bio, occupation, skills, location, birthday).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                userName: { type: 'STRING', description: 'User display name' },
+                bio: { type: 'STRING' },
+                occupation: { type: 'STRING' },
+                skills: { type: 'STRING', description: 'Comma separated list of skills' },
+                location: { type: 'STRING', description: 'City or country' },
+                birthday: { type: 'STRING', description: 'Date string (e.g. YYYY-MM-DD)' },
+              },
+            },
+          },
+          {
+            name: 'updateSettings',
+            description: 'Change app settings like theme or accent color.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                theme: { type: 'STRING', enum: ['light', 'dark', 'system'] },
+                accentColor: { type: 'STRING', description: 'Hex color code or color name' },
+              },
+            },
+          },
+          {
+            name: 'getSocialLeaderboard',
+            description: 'Fetch the current weekly XP leaderboard for the user and their friends.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {},
+            },
+          },
+          {
+            name: 'sendSocialNudge',
+            description: 'Send a motivational nudge to a friend on the leaderboard.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                friendId: { type: 'STRING', description: 'The ID of the friend to nudge' },
+                message: { type: 'STRING', description: 'The nudge message' },
+              },
+              required: ['friendId', 'message'],
+            },
+          },
+          {
+            name: 'getPerformanceTrends',
+            description: 'Analyze user productivity, focus, and mood trends over the last 30 days.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {},
+            },
+          },
         ],
       },
     ];

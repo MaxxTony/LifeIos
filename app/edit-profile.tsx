@@ -77,23 +77,9 @@ export default function EditProfileScreen() {
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showOccupationPicker, setShowOccupationPicker] = useState(false);
-  const [customOccupation, setCustomOccupation] = useState('');
   const [isOccupationInputFocused, setIsOccupationInputFocused] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const COMMON_OCCUPATIONS = [
-    { label: 'Student', icon: '🎓' },
-    { label: 'Software Developer', icon: '💻' },
-    { label: 'Product Designer', icon: '🎨' },
-    { label: 'Entrepreneur', icon: '🚀' },
-    { label: 'Content Creator', icon: '🎥' },
-    { label: 'Educator / Teacher', icon: '🍎' },
-    { label: 'Healthcare Professional', icon: '🏥' },
-    { label: 'Business Analyst', icon: '📊' },
-    { label: 'Freelancer', icon: '🏠' },
-    { label: 'Other', icon: '✍️' },
-  ];
 
   // M-7 FIX: Accept any phone format (international-friendly).
   // Strip non-digit/non-plus characters so the stored value is clean,
@@ -104,11 +90,21 @@ export default function EditProfileScreen() {
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
+    if (!selectedDate) return;
+
+    // P-PROFILE-1 FIX: Prevent future dates
+    const today = new Date();
+    if (selectedDate > today) {
+      if (Platform.OS === 'android') setShowDatePicker(false);
+      Alert.alert('Invalid Date', 'Birthday cannot be in the future.');
+      return;
+    }
+
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
 
       // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
-      if (event.type === 'set' && selectedDate) {
+      if (event.type === 'set') {
         const y = selectedDate.getFullYear();
         const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
         const d = String(selectedDate.getDate()).padStart(2, '0');
@@ -116,12 +112,10 @@ export default function EditProfileScreen() {
       }
     } else {
       // iOS behavior
-      if (selectedDate) {
-        const y = selectedDate.getFullYear();
-        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const d = String(selectedDate.getDate()).padStart(2, '0');
-        setForm({ ...form, birthday: `${y}-${m}-${d}` });
-      }
+      const y = selectedDate.getFullYear();
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      setForm({ ...form, birthday: `${y}-${m}-${d}` });
     }
   };
 
@@ -396,17 +390,13 @@ export default function EditProfileScreen() {
 
           <Animated.View entering={FadeInDown.delay(500)}>
             <Section title="PROFILE DETAILS" icon={Briefcase}>
-              <TouchableOpacity onPress={() => setShowOccupationPicker(true)} activeOpacity={0.7}>
-                <InputItem
-                  label="Occupation"
-                  value={form.occupation}
-                  onChangeText={() => { }}
-                  placeholder="Product Designer"
-                  icon={Briefcase}
-                  editable={false}
-                  pointerEvents="none"
-                />
-              </TouchableOpacity>
+              <InputItem
+                label="Occupation"
+                value={form.occupation}
+                onChangeText={(t) => setForm({ ...form, occupation: t })}
+                placeholder="e.g. Product Designer"
+                icon={Briefcase}
+              />
               <InputItem
                 label="Skills / Expertise"
                 value={form.skills}
@@ -510,6 +500,7 @@ export default function EditProfileScreen() {
                       display="spinner"
                       onChange={onDateChange}
                       textColor={colors.text}
+                      maximumDate={new Date()}
                     />
                   </View>
                 </View>
@@ -528,6 +519,7 @@ export default function EditProfileScreen() {
                 mode="date"
                 display="default"
                 onChange={onDateChange}
+                maximumDate={new Date()}
               />
             )
           )}
@@ -535,128 +527,6 @@ export default function EditProfileScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        {/* Occupation Picker Modal */}
-        <Modal
-          visible={showOccupationPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowOccupationPicker(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-          >
-            <Pressable style={styles.modalOverlay} onPress={() => setShowOccupationPicker(false)}>
-              <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="dark" />
-              <View style={[styles.modalContent, { backgroundColor: colors.card, height: '90%' }]}>
-
-                <View style={[styles.modalHeader, { marginBottom: 12 }]}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Select Occupation</Text>
-                  <TouchableOpacity onPress={() => setShowOccupationPicker(false)}>
-                    <X size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                  ref={scrollViewRef}
-                  style={{ flex: 1 }}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {/* Hide list when focused on custom entry if space is tight */}
-                  {!isOccupationInputFocused && (
-                    <View style={{ gap: 2 }}>
-                      {COMMON_OCCUPATIONS.map((occ) => (
-                        <TouchableOpacity
-                          key={occ.label}
-                          style={[
-                            styles.optionItem,
-                            { borderBottomColor: colors.border + '40' },
-                            form.occupation === occ.label && { backgroundColor: colors.primary + '10' }
-                          ]}
-                          onPress={() => {
-                            if (occ.label === 'Other') {
-                              setCustomOccupation(form.occupation);
-                              // We don't close, but user can type
-                            } else {
-                              setForm({ ...form, occupation: occ.label });
-                              setShowOccupationPicker(false);
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            }
-                          }}
-                        >
-                          <Text style={{ fontSize: 20, marginRight: 12 }}>{occ.icon}</Text>
-                          <Text style={[styles.optionLabel, { color: colors.text, flex: 1 }]}>{occ.label}</Text>
-                          {form.occupation === occ.label && (
-                            <CheckCircle2 size={18} color={colors.primary} />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
-                  <View style={{ padding: 16, marginTop: isOccupationInputFocused ? 0 : 8 }}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: 8, fontSize: 10 }]}>
-                      {isOccupationInputFocused ? 'TYPE YOUR OCCUPATION' : 'CUSTOM OCCUPATION'}
-                    </Text>
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: colors.background,
-                      borderRadius: 16,
-                      paddingHorizontal: 12,
-                      borderWidth: 1,
-                      borderColor: isOccupationInputFocused ? colors.primary : colors.border,
-                      height: 54
-                    }}>
-                      <TextInput
-                        style={[styles.textInput, { color: colors.text, flex: 1, height: '100%' }]}
-                        placeholder="Type your own..."
-                        placeholderTextColor={colors.textSecondary + '60'}
-                        value={customOccupation}
-                        onChangeText={setCustomOccupation}
-                        onFocus={() => {
-                          setIsOccupationInputFocused(true);
-                          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-                        }}
-                        onBlur={() => setIsOccupationInputFocused(false)}
-                      />
-                      {(isOccupationInputFocused || customOccupation.length > 0) && (
-                        <TouchableOpacity
-                          onPress={() => {
-                            if (customOccupation.trim()) {
-                              setForm({ ...form, occupation: customOccupation.trim() });
-                              setShowOccupationPicker(false);
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            }
-                          }}
-                          style={{
-                            backgroundColor: colors.primary,
-                            paddingHorizontal: 16,
-                            paddingVertical: 10,
-                            borderRadius: 12
-                          }}
-                        >
-                          <Text style={{ color: 'white', fontWeight: 'bold' }}>Apply</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Extra space for scrolling when keyboard is open */}
-                  {isOccupationInputFocused && <View style={{ height: 200 }} />}
-                </ScrollView>
-
-                <TouchableOpacity
-                  style={[styles.cancelButton, { backgroundColor: colors.background, marginTop: 12 }]}
-                  onPress={() => setShowOccupationPicker(false)}
-                >
-                  <Text style={[styles.cancelText, { color: colors.text }]}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Modal>
 
         {/* Image Picker Modal */}
         <Modal

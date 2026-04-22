@@ -1,31 +1,26 @@
 import {
   collection,
+  CollectionReference,
+  deleteDoc,
+  deleteField,
   doc,
-  setDoc,
+  DocumentData,
+  documentId,
   getDoc,
   getDocs,
-  deleteDoc,
-  updateDoc,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  documentId,
   onSnapshot,
-  serverTimestamp,
-  arrayUnion,
-  arrayRemove,
-  deleteField,
-  writeBatch,
-  CollectionReference,
+  query,
   Query,
-  DocumentData,
+  serverTimestamp,
+  setDoc,
   SnapshotMetadata,
   Unsubscribe,
+  updateDoc,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Task, Habit, MoodEntry, UserState } from '../store/types';
+import { Habit, MoodEntry, Task, UserState } from '../store/types';
 
 /**
  * sanitizeData
@@ -67,12 +62,12 @@ export const dbService = {
 
   saveTasksBatch: async (userId: string, tasks: Task[]) => {
     if (tasks.length === 0) return;
-    
+
     // Chunk into 499 to stay safely within Firestore Limits (max 500)
     for (let i = 0; i < tasks.length; i += 499) {
       const batch = writeBatch(db);
       const chunk = tasks.slice(i, i + 499);
-      
+
       chunk.forEach(task => {
         const taskData = sanitizeData({
           ...task,
@@ -82,7 +77,7 @@ export const dbService = {
         });
         batch.set(doc(db, 'users', userId, 'tasks', task.id), taskData);
       });
-      
+
       await batch.commit();
     }
   },
@@ -271,8 +266,11 @@ export const dbService = {
           hasExisted = true;
           const data = snap.data() as Partial<UserState>;
           onUpdate({ ...data, _fromCache: snap.metadata.fromCache });
-        } else if (hasExisted) {
-          onUpdate(null);
+        } else {
+          // Document doesn't exist. 
+          // If it never existed, this is a new user; notify with null doc but 'loaded' status.
+          // If it DID exist, it was deleted; notify with null to trigger logout.
+          onUpdate(hasExisted ? null : { _isNewUser: true } as any);
         }
       },
       (error: any) => {
@@ -313,6 +311,46 @@ export const dbService = {
         }
       }
     );
+  },
+
+  // GDPR Article 17 — Right to Erasure: delete all subcollections and root doc for a user.
+  deleteAllUserData: async (userId: string) => {
+    // 1. Delete Firestore subcollections under /users/{userId}
+    const subcollections = [
+      'tasks', 'habits', 'moodHistory', 'focusHistory',
+      'dailyQuests', 'stats', 'lifeScoreHistory'
+    ];
+    for (const sub of subcollections) {
+      try {
+        const snap = await getDocs(collection(db, 'users', userId, sub));
+        if (!snap.empty) {
+          for (let i = 0; i < snap.docs.length; i += 499) {
+            const batch = writeBatch(db);
+            snap.docs.slice(i, i + 499).forEach(d => batch.delete(d.ref));
+            await batch.commit();
+          }
+        }
+      } catch (err) {
+        console.warn(`[LifeOS Cleanup] Failed to clear subcollection ${sub}:`, err);
+      }
+    }
+
+    // 2. Delete root Firestore documents
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      await deleteDoc(doc(db, 'publicProfiles', userId));
+    } catch (err) {
+      console.warn('[LifeOS Cleanup] Failed to clear root docs:', err);
+    }
+
+    // 3. Delete from Realtime Database (Focus Room)
+    try {
+      const { ref, remove } = await import('firebase/database');
+      const { rtdb } = await import('../firebase/config');
+      await remove(ref(rtdb, `focusRoom/${userId}`));
+    } catch (err) {
+      console.warn('[LifeOS Cleanup] Failed to clear Realtime Database entry:', err);
+    }
   },
 
   updateGlobalStats: async (userId: string, statsData: Record<string, any>) => {

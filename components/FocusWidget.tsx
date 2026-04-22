@@ -12,9 +12,11 @@ import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, w
 export const FocusWidget = React.memo(function FocusWidget() {
   const router = useRouter();
   const colors = useThemeColors();
-  // Selectors: FocusWidget legitimately re-renders every second when active,
-  // but we scope to only focus-related fields to avoid other store changes causing renders.
-  const focusSession = useStore(s => s.focusSession);
+  // Granular selectors: only subscribe to the primitives actually rendered.
+  // Subscribing to the full focusSession object causes re-renders on every field change
+  // (e.g. pomodoroTimeLeft, lastStartTime) even when the displayed values haven't changed.
+  const isActive = useStore(s => s.focusSession.isActive);
+  const totalSecondsToday = useStore(s => s.focusSession.totalSecondsToday);
   const focusGoalHours = useStore(s => s.focusGoalHours);
   const setFocusGoal = useStore(s => s.actions.setFocusGoal);
   const toggleFocusSession = useStore(s => s.actions.toggleFocusSession);
@@ -24,7 +26,7 @@ export const FocusWidget = React.memo(function FocusWidget() {
     // FocusWidget drives the pulse animation.
     // The actual timer interval lives globally in hooks/useFocusTimer.ts
     // to ensure shared accumulation across all screens.
-    if (focusSession.isActive) {
+    if (isActive) {
       pulse.value = withRepeat(
         withSequence(
           withTiming(1.03, { duration: 1500 }),
@@ -36,14 +38,14 @@ export const FocusWidget = React.memo(function FocusWidget() {
     } else {
       pulse.value = withTiming(1);
     }
-  }, [focusSession.isActive]);
+  }, [isActive]);
 
   const animatedRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
-    borderColor: focusSession.isActive ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-    borderWidth: focusSession.isActive ? 4 : 2,
-    backgroundColor: focusSession.isActive ? colors.primaryTransparent : colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
-    shadowColor: focusSession.isActive ? colors.primary : 'transparent',
+    borderColor: isActive ? colors.primary : colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+    borderWidth: isActive ? 4 : 2,
+    backgroundColor: isActive ? colors.primaryTransparent : colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+    shadowColor: isActive ? colors.primary : 'transparent',
   }));
 
   const formatTime = (seconds: number) => {
@@ -61,7 +63,7 @@ export const FocusWidget = React.memo(function FocusWidget() {
   const calculatePercentage = () => {
     // U-M4: Clamp to 0.1 hours (6 mins) minimum to avoid division by zero.
     const goalSeconds = Math.max(0.1, focusGoalHours) * 3600;
-    return Math.min(100, Math.floor((focusSession.totalSecondsToday / goalSeconds) * 100));
+    return Math.min(100, Math.floor((totalSecondsToday / goalSeconds) * 100));
   };
 
   const cycleGoal = () => {
@@ -121,13 +123,13 @@ export const FocusWidget = React.memo(function FocusWidget() {
             activeOpacity={0.8}
             onPress={handleToggle}
             style={styles.content}
-            accessibilityLabel={focusSession.isActive ? 'Stop focus session' : 'Start focus session'}
+            accessibilityLabel={isActive ? 'Stop focus session' : 'Start focus session'}
             accessibilityRole="button"
           >
             <Animated.View style={[styles.ring, animatedRingStyle]}>
               <View style={styles.innerContent}>
-                <Text style={[styles.timeValue, { color: colors.text }]}>{formatTime(focusSession.totalSecondsToday)}</Text>
-                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>{focusSession.isActive ? 'Stop' : 'Start'}</Text>
+                <Text style={[styles.timeValue, { color: colors.text }]}>{formatTime(totalSecondsToday)}</Text>
+                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>{isActive ? 'Stop' : 'Start'}</Text>
               </View>
             </Animated.View>
           </TouchableOpacity>

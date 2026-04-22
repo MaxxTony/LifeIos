@@ -5,6 +5,7 @@ import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import * as Crypto from 'expo-crypto';
 import { fireSync } from '../syncHelper';
 import { analyticsService } from '@/services/analyticsService';
+import Toast from 'react-native-toast-message';
 
 export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], HabitActions> = (set, get) => ({
   addHabit: (habitData: Omit<Habit, 'completedDays' | 'bestStreak' | 'currentStreak' | 'createdAt' | 'id' | 'pausedUntil'> & { id?: string }) => {
@@ -21,13 +22,18 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
     set((state) => ({ habits: [...state.habits, newHabit] }));
     if (get().userId) {
       fireSync(
-        () => dbService.saveHabit(get().userId!, newHabit), 
-        'addHabit', 
+        () => dbService.saveHabit(get().userId!, newHabit),
+        'addHabit',
         get().userId,
         'habits',
         newHabit,
         newHabit.id
       );
+      if (newHabit.reminderTime) {
+        import('@/services/notificationService').then(({ notificationService }) => {
+          notificationService.requestPermissions();
+        });
+      }
       get().actions.refreshHabitNotifications();
       analyticsService.logEvent(get().userId, 'habit_added', { title: newHabit.title });
     }
@@ -79,9 +85,12 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
           const dayOfMonth = d_obj.getDate();
 
           if (h.frequency === 'weekly') {
-            // Allow toggling today regardless of schedule if user explicitly taps it? 
-            // Or strictly follow schedule. User screenshots show Tuesday IS a target.
-            if (!h.targetDays?.includes(jsDay)) return h;
+            if (!h.targetDays?.includes(jsDay)) {
+              const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+              const scheduled = h.targetDays?.map(d => DAY_NAMES[d]).join(', ') || 'scheduled days';
+              Toast.show({ type: 'info', text1: 'Not scheduled today', text2: `This habit runs on ${scheduled}.`, visibilityTime: 3000 });
+              return h;
+            }
           } else if (h.frequency === 'monthly') {
             const isFixed = h.monthlyDay && h.monthlyDay > 0;
             if (isFixed) {

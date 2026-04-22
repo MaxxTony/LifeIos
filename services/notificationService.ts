@@ -191,6 +191,23 @@ export const notificationService = {
           nextDate.setDate(lastDayOfMonth);
         }
 
+        // iOS supports a repeating CALENDAR trigger with a day-of-month field.
+        // Android has no native monthly repeat — use TIME_INTERVAL of 30 days with repeats: true.
+        const monthlyTrigger: any = Platform.OS === 'ios'
+          ? {
+              type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+              day: nextDate.getDate(),
+              hour: hours,
+              minute: minutes,
+              repeats: true,
+            }
+          : {
+              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+              seconds: Math.max(60, Math.floor((nextDate.getTime() - Date.now()) / 1000)),
+              repeats: true,
+              channelId: DEFAULT_CHANNEL_ID,
+            };
+
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `${icon} Monthly Habit Reminder!`,
@@ -198,10 +215,7 @@ export const notificationService = {
             data: { habitId, type: 'HABIT_REMINDER' },
             sound: true,
           },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: nextDate,
-          },
+          trigger: monthlyTrigger,
           identifier: `habit-${habitId}-monthly`,
         });
       }
@@ -238,7 +252,7 @@ export const notificationService = {
     }
   },
 
-  scheduleMissedTaskNotification: async (taskText: string) => {
+  scheduleMissedTaskNotification: async (taskId: string, taskText: string) => {
     if (Platform.OS === 'web') return;
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.masterEnabled || !notificationSettings.missedTaskAlert) return;
@@ -247,6 +261,7 @@ export const notificationService = {
       if (!hasPermission) return;
 
       await ensureChannel();
+      await Notifications.cancelScheduledNotificationAsync(`missed-task-${taskId}`).catch(() => {});
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '⏰ Task Missed',
@@ -254,6 +269,7 @@ export const notificationService = {
           sound: true,
         },
         trigger: null, // fire immediately
+        identifier: `missed-task-${taskId}`,
       });
     } catch (e) {
       // Silence — notifications are best-effort
@@ -435,6 +451,16 @@ export const notificationService = {
     if (Platform.OS === 'web') return;
     try {
       await Notifications.cancelScheduledNotificationAsync('daily-mood-reminder');
+    } catch (e) {
+      // Silence
+    }
+  },
+
+  cancelComebackNotifications: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
     } catch (e) {
       // Silence
     }

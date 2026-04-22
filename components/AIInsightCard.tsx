@@ -9,7 +9,7 @@ import Animated, { FadeInUp, FadeOutDown, Layout } from 'react-native-reanimated
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-export const AIInsightCard = () => {
+export const AIInsightCard = React.memo(function AIInsightCard() {
   const proactivePrompt = useStore(s => s.proactivePrompt);
   const dismissProactive = useStore(s => s.actions.dismissProactive);
   const colors = useThemeColors();
@@ -89,7 +89,7 @@ export const AIInsightCard = () => {
       </Pressable>
     </Animated.View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -76,8 +76,9 @@ service cloud.firestore {
         
         match /messages/{msgId} {
           allow read: if isOwner(userId);
-          allow create: if isOwner(userId) 
-            && request.resource.data.content is string;
+          allow create: if isOwner(userId)
+            && request.resource.data.content is string
+            && request.resource.data.content.size() <= 10000;
           allow delete: if isOwner(userId);
         }
       }
@@ -97,7 +98,12 @@ service cloud.firestore {
       match /dailyQuests/{questId} {
         allow read: if isOwner(userId);
         allow write, create: if isOwner(userId)
-          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['id', 'title', 'targetCount', 'currentCount', 'rewardXP', 'icon', 'type', 'completed', 'date']));
+          && (request.method == 'delete' || (
+            request.resource.data.keys().hasOnly(['id', 'title', 'targetCount', 'currentCount', 'rewardXP', 'icon', 'type', 'completed', 'date'])
+            && request.resource.data.rewardXP is number
+            && request.resource.data.rewardXP >= 0
+            && request.resource.data.rewardXP <= 500
+          ));
       }
     } // end of match /users/{userId}
 
@@ -119,7 +125,10 @@ service cloud.firestore {
     }
 
     match /feedback/{id} {
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['text', 'rating', 'userId', 'createdAt'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() < 2000;
     }
 
     // ---- Default deny --------------------------------------------------

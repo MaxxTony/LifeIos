@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { UserState, MoodEntry, MoodActions } from '../types';
 import { dbService } from '@/services/dbService';
-import { getTodayLocal } from '@/utils/dateUtils';
+import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
 import { fireSync } from '../syncHelper';
 import { analyticsService } from '@/services/analyticsService';
 
@@ -27,7 +27,7 @@ export const createMoodSlice: StateCreator<UserState, [["zustand/persist", unkno
       // M-18 FIX: Prune mood history beyond 365 days to prevent unbounded growth.
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 365);
-      const cutoffStr = cutoff.toISOString().split('T')[0];
+      const cutoffStr = formatLocalDate(cutoff); // local date, not UTC — prevents phantom deletions near midnight
       const newHistory = Object.fromEntries(
         Object.entries(rawHistory).filter(([k]) => k >= cutoffStr)
       ) as typeof rawHistory;

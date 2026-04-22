@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
-export const MoodFeedbackOverlay = () => {
+export const MoodFeedbackOverlay = React.memo(function MoodFeedbackOverlay() {
   const lastMoodLog = useStore(s => s.lastMoodLog);
   const dismissMoodLog = useStore(s => s.actions.dismissMoodLog);
   const colors = useThemeColors();
@@ -91,7 +91,7 @@ export const MoodFeedbackOverlay = () => {
       </Animated.View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   fullScreenOverlay: {

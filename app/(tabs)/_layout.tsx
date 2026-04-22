@@ -163,18 +163,34 @@ export default function TabsLayout() {
 
   // Level Up Watcher
   const level = useStore(s => s.level);
-  const prevLevelRef = useRef<number>(level);
+  const recentXP = useStore(s => s.recentXP);
+  const hasHydrated = useStore(s => s._hasHydrated);
+  const prevLevelRef = useRef<number | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [celebratedLevel, setCelebratedLevel] = useState(level);
 
   useEffect(() => {
-    // Only celebrate if the level is actually higher (prevents celebration on 0 -> 1 hydration)
-    if (level > prevLevelRef.current && prevLevelRef.current > 0) {
-      setCelebratedLevel(level);
-      setShowLevelUp(true);
+    if (!hasHydrated) return;
+
+    // First run after hydration: just capture the current level and exit
+    if (prevLevelRef.current === null) {
+      prevLevelRef.current = level;
+      return;
+    }
+
+    // Subsequent runs: only celebrate if the level actually increased
+    // AND the XP that caused it was earned in the last 10 seconds.
+    if (level > prevLevelRef.current) {
+      const now = Date.now();
+      const isRecentGain = recentXP && (now - recentXP.timestamp) < 10000; // 10s window
+
+      if (isRecentGain) {
+        setCelebratedLevel(level);
+        setShowLevelUp(true);
+      }
     }
     prevLevelRef.current = level;
-  }, [level]);
+  }, [level, hasHydrated, recentXP]);
 
   let content;
   if (Platform.OS === 'android') {
@@ -191,7 +207,10 @@ export default function TabsLayout() {
       <LevelUpCelebration 
         level={celebratedLevel} 
         visible={showLevelUp} 
-        onClose={() => setShowLevelUp(false)} 
+        onClose={() => {
+          setShowLevelUp(false);
+          useStore.getState().actions.dismissXP();
+        }} 
       />
     </>
   );

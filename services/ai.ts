@@ -1,7 +1,6 @@
 import { auth, functions } from '@/firebase/config';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { httpsCallable } from 'firebase/functions';
 import { aiActionHandler } from './aiActionHandler';
 
@@ -13,7 +12,11 @@ if (!USE_AI_PROXY && !__DEV__) {
   throw new Error('[FATAL] Gemini API key must not be used directly in production. USE_AI_PROXY must be true.');
 }
 
-const genAI = (GEMINI_API_KEY && (!USE_AI_PROXY || __DEV__)) ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+let _genAIModule: typeof import('@google/generative-ai') | null = null;
+const getGenAIModule = async () => {
+  if (!_genAIModule) _genAIModule = await import('@google/generative-ai');
+  return _genAIModule;
+};
 
 const getCurrentAppContext = () => {
   const state = useStore.getState();
@@ -46,7 +49,16 @@ const getCurrentAppContext = () => {
   const context = {
     user: {
       name: state.userName || 'User',
+      bio: state.bio,
+      occupation: state.occupation,
+      skills: state.skills,
+      location: state.location,
+      birthday: state.birthday,
       struggles: state.onboardingData.struggles.slice(0, 3),
+    },
+    settings: {
+      theme: state.themePreference,
+      accentColor: state.accentColor,
     },
     today: {
       date: today,
@@ -79,12 +91,12 @@ const tools = [
         name: 'addTask',
         description: 'Add a new task to the user\'s daily list.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            text: { type: SchemaType.STRING, description: 'The task description' },
-            priority: { type: SchemaType.STRING, enum: ['high', 'medium', 'low'], description: 'Task priority' },
-            startTime: { type: SchemaType.STRING, description: 'Optional start time (e.g. "09:00 AM")' },
-            endTime: { type: SchemaType.STRING, description: 'Optional end time (e.g. "10:00 AM")' },
+            text: { type: 'string', description: 'The task description' },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Task priority' },
+            startTime: { type: 'string', description: 'Optional start time (e.g. "09:00 AM")' },
+            endTime: { type: 'string', description: 'Optional end time (e.g. "10:00 AM")' },
           },
           required: ['text'],
         },
@@ -93,11 +105,11 @@ const tools = [
         name: 'addHabit',
         description: 'Create a new habit for the user to track.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            title: { type: SchemaType.STRING, description: 'The habit name (e.g. Drink Water)' },
-            category: { type: SchemaType.STRING, description: 'Category (Health, Work, Personal, etc.)' },
-            frequency: { type: SchemaType.STRING, enum: ['daily', 'weekly', 'monthly'], description: 'How often' },
+            title: { type: 'string', description: 'The habit name (e.g. Drink Water)' },
+            category: { type: 'string', description: 'Category (Health, Work, Personal, etc.)' },
+            frequency: { type: 'string', enum: ['daily', 'weekly', 'monthly'], description: 'How often' },
           },
           required: ['title'],
         },
@@ -106,11 +118,11 @@ const tools = [
         name: 'setMood',
         description: 'Log the user\'s current mood and emotions.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            mood: { type: SchemaType.NUMBER, description: 'Mood level from 1 (Awful) to 5 (Amazing)' },
-            note: { type: SchemaType.STRING, description: 'Optional note about how they feel' },
-            emotions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'List of specific emotions' },
+            mood: { type: 'number', description: 'Mood level from 1 (Awful) to 5 (Amazing)' },
+            note: { type: 'string', description: 'Optional note about how they feel' },
+            emotions: { type: 'array', items: { type: 'string' }, description: 'List of specific emotions' },
           },
           required: ['mood'],
         },
@@ -119,13 +131,13 @@ const tools = [
         name: 'updateTask',
         description: 'Edit an existing task\'s properties.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            id: { type: SchemaType.STRING, description: 'The task ID from context' },
-            text: { type: SchemaType.STRING, description: 'New description' },
-            priority: { type: SchemaType.STRING, enum: ['high', 'medium', 'low'] },
-            startTime: { type: SchemaType.STRING },
-            endTime: { type: SchemaType.STRING },
+            id: { type: 'string', description: 'The task ID from context' },
+            text: { type: 'string', description: 'New description' },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+            startTime: { type: 'string' },
+            endTime: { type: 'string' },
           },
           required: ['id'],
         },
@@ -134,10 +146,10 @@ const tools = [
         name: 'removeTask',
         description: 'Delete a task from the list.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            id: { type: SchemaType.STRING, description: 'The task ID from context' },
-            text: { type: SchemaType.STRING, description: 'Optional confirmation' },
+            id: { type: 'string', description: 'The task ID from context' },
+            text: { type: 'string', description: 'Optional confirmation' },
           },
           required: ['id'],
         },
@@ -146,11 +158,11 @@ const tools = [
         name: 'updateHabit',
         description: 'Modify an existing habit.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            id: { type: SchemaType.STRING, description: 'The habit ID from context' },
-            title: { type: SchemaType.STRING },
-            frequency: { type: SchemaType.STRING, enum: ['daily', 'weekly', 'monthly'] },
+            id: { type: 'string', description: 'The habit ID from context' },
+            title: { type: 'string' },
+            frequency: { type: 'string', enum: ['daily', 'weekly', 'monthly'] },
           },
           required: ['id'],
         },
@@ -159,11 +171,54 @@ const tools = [
         name: 'removeHabit',
         description: 'Permanently remove a habit.',
         parameters: {
-          type: SchemaType.OBJECT,
+          type: 'object',
           properties: {
-            id: { type: SchemaType.STRING, description: 'The habit ID from context' },
+            id: { type: 'string', description: 'The habit ID from context' },
           },
           required: ['id'],
+        },
+      },
+      {
+        name: 'updateProfile',
+        description: 'Update user profile information (name, bio, occupation, skills, location, birthday).',
+        parameters: {
+          type: 'object',
+          properties: {
+            userName: { type: 'string', description: 'User display name' },
+            bio: { type: 'string' },
+            occupation: { type: 'string' },
+            skills: { type: 'string', description: 'Comma separated list of skills' },
+            location: { type: 'string', description: 'City or country' },
+            birthday: { type: 'string', description: 'Date string (e.g. YYYY-MM-DD)' },
+          },
+        },
+      },
+      {
+        name: 'getSocialLeaderboard',
+        description: 'Fetch the current weekly XP leaderboard for the user and their friends.',
+        parameters: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'sendSocialNudge',
+        description: 'Send a motivational nudge to a friend on the leaderboard.',
+        parameters: {
+          type: 'object',
+          properties: {
+            friendId: { type: 'string', description: 'The ID of the friend to nudge' },
+            message: { type: 'string', description: 'The nudge message' },
+          },
+          required: ['friendId', 'message'],
+        },
+      },
+      {
+        name: 'getPerformanceTrends',
+        description: 'Analyze user productivity, focus, and mood trends over the last 30 days.',
+        parameters: {
+          type: 'object',
+          properties: {},
         },
       },
     ],
@@ -202,6 +257,11 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
         else if (call.name === 'removeTask') res = aiActionHandler.handleRemoveTask(call.args as any);
         else if (call.name === 'updateHabit') res = aiActionHandler.handleUpdateHabit(call.args as any);
         else if (call.name === 'removeHabit') res = aiActionHandler.handleRemoveHabit(call.args as any);
+        else if (call.name === 'updateProfile') res = aiActionHandler.handleUpdateProfile(call.args as any);
+        else if (call.name === 'updateSettings') res = aiActionHandler.handleUpdateSettings(call.args as any);
+        else if (call.name === 'getSocialLeaderboard') res = await aiActionHandler.handleGetSocialLeaderboard();
+        else if (call.name === 'sendSocialNudge') res = await aiActionHandler.handleSendSocialNudge(call.args as any);
+        else if (call.name === 'getPerformanceTrends') res = aiActionHandler.handleGetPerformanceTrends();
 
         toolResults.push({
           name: call.name,
@@ -248,12 +308,14 @@ export const getAIResponse = async (
     }
   }
 
-  if (!genAI) {
+  if (!GEMINI_API_KEY) {
     console.warn('Gemini API key missing. Please add EXPO_PUBLIC_GEMINI_API_KEY to your .env.local file.');
     return 'AI is not configured. Please check your environment setup.';
   }
 
   try {
+    const { GoogleGenerativeAI } = await getGenAIModule();
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       systemInstruction: `You are LifeOS, a premium personal assistant.
@@ -337,7 +399,7 @@ export const getAIResponse = async (
 };
 
 export const getFocusQuote = async () => {
-  if (!USE_AI_PROXY && !genAI) return null;
+  if (!USE_AI_PROXY && !GEMINI_API_KEY) return null;
 
   try {
     const prompt = 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.';
@@ -345,7 +407,9 @@ export const getFocusQuote = async () => {
     if (USE_AI_PROXY) {
       return await callAIProxy([{ role: 'user', content: prompt }]);
     } else {
-      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const { GoogleGenerativeAI } = await getGenAIModule();
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result?.response.text() || null;
     }
@@ -357,7 +421,7 @@ export const getFocusQuote = async () => {
 
 export const getMoodInsight = async (moodData: any[]) => {
   if (moodData.length < 3) return null;
-  if (!USE_AI_PROXY && !genAI) return null;
+  if (!USE_AI_PROXY && !GEMINI_API_KEY) return null;
 
   try {
     const safeData = moodData.slice(-30);
@@ -367,7 +431,9 @@ export const getMoodInsight = async (moodData: any[]) => {
     if (USE_AI_PROXY) {
       return await callAIProxy([{ role: 'user', content: prompt }]);
     } else {
-      const model = genAI!.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const { GoogleGenerativeAI } = await getGenAIModule();
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result?.response.text() || null;
     }

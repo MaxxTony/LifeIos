@@ -1,17 +1,16 @@
+import * as Crypto from 'expo-crypto';
 import {
-  GoogleAuthProvider,
-  signInWithCredential,
   createUserWithEmailAndPassword,
+  deleteUser,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
-  reload,
-  deleteUser,
-  User,
+  User
 } from 'firebase/auth';
 import { auth } from '../firebase/config';
-import * as Crypto from 'expo-crypto';
 import { dbService } from './dbService';
 
 export const authService = {
@@ -45,24 +44,9 @@ export const authService = {
   generateAndSaveSessionToken: async (userId: string) => {
     const token = Crypto.randomUUID();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    await dbService.saveUserProfile(userId, { 
-      sessionToken: token, 
+    await dbService.saveUserProfile(userId, {
+      sessionToken: token,
       homeTimezone: tz,
-      notificationSettings: {
-        masterEnabled: true,
-        habitReminders: true,
-        taskReminders: true,
-        missedTaskAlert: true,
-        morningBrief: true,
-        streakWarning: true,
-        questCompleted: true,
-        weeklyLeaderboard: true,
-        dailyMoodCheckin: true,
-        aiCoachNudge: true,
-        pomodoroAlert: true,
-        comeback48h: true,
-        comeback7d: true,
-      }
     } as any);
     return token;
   },
@@ -138,31 +122,66 @@ export const authService = {
       const user = auth.currentUser;
       if (!user) throw new Error('No authenticated user found');
 
-      // C-AUTH-4 FIX: Clear session token in Firestore before deletion.
-      // This ensures other devices listening to the profile will log out
-      // even if the Auth deletion is pending or partial.
+      const uid = user.uid;
+
+      // 1. PRE-CHECK: Force a token refresh to check if session is still valid.
+      // This catches many 'requires-recent-login' cases BEFORE we touch any data.
       try {
-        await dbService.saveUserProfile(user.uid, { sessionToken: null } as any);
-      } catch (err) {
-        console.warn('[LifeOS Auth] Failed to clear sessionToken during deletion:', err);
+        await user.getIdToken(true);
+      } catch (error: any) {
+        if (error.code === 'auth/requires-recent-login' || error.code === 'auth/user-token-expired') {
+          return { error: 'requires-recent-login' };
+        }
       }
 
-      // Bug 15 FIX: Cleanup avatar artifacts before deleting the auth
+      // 2. CLEANUP DATA (Must happen WHILE authenticated to have permissions)
       try {
+        console.log('[LifeOS Auth] Starting deep cleanup for UID:', uid);
+
+        try {
+          const { useStore } = await import('@/store/useStore');
+          const syncUnsubs = useStore.getState()._syncUnsubscribes;
+          if (Array.isArray(syncUnsubs)) {
+            syncUnsubs.forEach(unsub => {
+              try { if (typeof unsub === 'function') unsub(); } catch (_) { }
+            });
+          }
+        } catch (unsubErr) {
+          console.warn('[LifeOS Auth] Failed to unsubscribe before cleanup:', unsubErr);
+        }
+
+        // Cleanup avatar from Storage
         const { useStore } = await import('@/store/useStore');
         const { storageService } = await import('./storageService');
         const state = useStore.getState();
         if (state.avatarUrl) {
           await storageService.deleteImage(state.avatarUrl);
         }
-        await storageService.clearOrphanedAvatar(user.uid);
+        await storageService.clearOrphanedAvatar(uid);
+
+        // Delete all data from Firestore & Realtime DB
+        await dbService.deleteAllUserData(uid);
+
+        console.log('[LifeOS Auth] Deep cleanup finished.');
       } catch (err) {
-        console.warn('[LifeOS Auth] Failed to clear avatar artifacts during deletion:', err);
+        console.error('[LifeOS Auth] Data cleanup failed:', err);
+        // We continue anyway to try and delete the Auth account
       }
 
-      await deleteUser(user);
+      // 3. DELETE AUTH ACCOUNT (Final Step)
+      try {
+        await deleteUser(user);
+      } catch (error: any) {
+        console.error('[LifeOS Auth] Auth deletion failed:', error);
+        if (error.code === 'auth/requires-recent-login') {
+          // Data is gone, but account remains. 
+          // We must inform the user to re-login to finish.
+          return { error: 'requires-recent-login' };
+        }
+        throw error;
+      }
 
-      // C-AUTH-4 FIX: Must force logout to clear zustand store and AsyncStorage
+      // 4. Force local logout to clear zustand store and AsyncStorage
       await authService.logout();
 
       return { error: null };

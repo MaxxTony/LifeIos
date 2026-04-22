@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Index() {
   const _hasHydrated = useStore(s => s._hasHydrated);
-  const { tasksLoaded, habitsLoaded } = useStore(s => s.syncStatus);
+  const _authStateResolved = useStore(s => s._authStateResolved);
+  const { tasksLoaded, habitsLoaded, profileLoaded } = useStore(s => s.syncStatus);
   const isAuthenticated = useStore(s => s.isAuthenticated);
   const hasCompletedOnboarding = useStore(s => s.hasCompletedOnboarding);
   const tasks = useStore(s => s.tasks);
@@ -19,10 +20,10 @@ export default function Index() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [forceContinue, setForceContinue] = useState(false);
 
-  // C-14: Watchdog for both hydration (local) and sync (cloud)
+  // C-14: Watchdog for hydration (local), Firebase auth resolution, and cloud sync
   useEffect(() => {
     let timer: any;
-    if (!_hasHydrated || (isAuthenticated && !tasksLoaded && !forceContinue)) {
+    if (!_hasHydrated || !_authStateResolved || (isAuthenticated && !tasksLoaded && !forceContinue)) {
       // BUG-NET-1 FIX: 5s threshold instead of 10s — users on slow connections
       // should see recovery options sooner, not wait a full 10 seconds.
       timer = setTimeout(() => {
@@ -32,25 +33,26 @@ export default function Index() {
       setShowWatchdog(false);
     }
     return () => clearTimeout(timer);
-  }, [_hasHydrated, isAuthenticated, tasksLoaded, forceContinue]);
+  }, [_hasHydrated, _authStateResolved, isAuthenticated, tasksLoaded, forceContinue]);
 
   const handleManualHydration = () => {
     if (!_hasHydrated) {
       setHasHydrated(true);
-    } else {
-      setForceContinue(true);
     }
+    if (!_authStateResolved) {
+      useStore.setState({ _authStateResolved: true });
+    }
+    setForceContinue(true);
   };
 
   const handleRetry = async () => {
     setIsRetrying(true);
-    try {
-      await retrySync();
-    } catch (e) {
+    await retrySync();
+    setIsRetrying(false);
+    const syncError = useStore.getState().syncError;
+    if (syncError) {
       Alert.alert("Sync Failed", "Could not connect to cloud. Using local data only.");
       setForceContinue(true);
-    } finally {
-      setIsRetrying(false);
     }
   };
 
@@ -64,80 +66,54 @@ export default function Index() {
           text: "Clear & Restart", 
           style: "destructive", 
           onPress: async () => {
-            await AsyncStorage.removeItem('lifeos-storage');
+            await (AsyncStorage as any).multiRemove([
+              'lifeos-storage',
+              'lifeos-storage:core',
+              'lifeos-storage:tasks',
+              'lifeos-storage:hist',
+            ]);
             setHasHydrated(true);
+            useStore.setState({ _authStateResolved: true });
             setForceContinue(true);
-          } 
+          }
         }
       ]
     );
   };
 
-  // 1. Wait for Local Hydration
+  // 1. Core Hydration Check
   if (!_hasHydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={{ color: colors.textSecondary, marginTop: 16, fontSize: 13 }}>Waking up LifeOS...</Text>
-        
-        {showWatchdog && (
-          <View style={{ marginTop: 40, alignItems: 'center', width: '100%' }}>
-            <TouchableOpacity 
-              onPress={handleManualHydration}
-              style={{ padding: 14, backgroundColor: colors.primary, borderRadius: 12, marginBottom: 12, width: '80%' }}
-            >
-              <Text style={{ color: '#FFF', fontWeight: 'bold', textAlign: 'center' }}>Force Continue</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleEmergencyReset}>
-              <Text style={{ color: colors.danger, fontSize: 13 }}>Reset Local Cache</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
     );
   }
 
-  // 2. Wait for Cloud Sync (if authenticated)
-  // We only block if we have 0 tasks. If we have local tasks, we can show them while syncing.
-  const isSyncingInitial = isAuthenticated && !tasksLoaded && tasks.length === 0 && !forceContinue;
-  
-  if (isSyncingInitial) {
+  // 2. Instant Routing Logic
+  // We trust the local cache (AsyncStorage) for the fastest possible boot.
+  if (isAuthenticated) {
+    console.log('[LifeOS Index] Authenticated in cache. Instant-On to Dashboard.');
+    return <Redirect href="/(tabs)" />;
+  }
+
+  // 3. If NOT authenticated in cache, wait for Firebase to be 100% sure.
+  if (!_authStateResolved) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={{ color: colors.text, marginTop: 16, fontFamily: 'Outfit-Bold', fontSize: 18 }}>Syncing your LifeOS...</Text>
-        <Text style={{ color: colors.textSecondary, marginTop: 8, textAlign: 'center' }}>Fetching your latest tasks and habits from the cloud.</Text>
-        
-        {showWatchdog && (
-          <View style={{ marginTop: 40, alignItems: 'center', width: '100%' }}>
-             <TouchableOpacity 
-              onPress={handleRetry}
-              disabled={isRetrying}
-              style={{ padding: 14, backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 12, marginBottom: 12, width: '80%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}
-            >
-              {isRetrying && <ActivityIndicator size="small" color={colors.primary} />}
-              <Text style={{ color: colors.text, fontWeight: 'bold' }}>{isRetrying ? 'Retrying...' : 'Retry Sync'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => setForceContinue(true)}
-              style={{ padding: 12 }}
-            >
-              <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Skip & Work Offline</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={{ color: colors.textSecondary, marginTop: 16, fontSize: 13 }}>Checking Session...</Text>
       </View>
     );
   }
 
-  // 3. Routing Logic
-  if (!hasCompletedOnboarding) {
-    return <Redirect href="/(onboarding)" />;
-  }
-
-  if (!isAuthenticated) {
+  // 4. Final Fallback (Unauthenticated)
+  if (hasCompletedOnboarding) {
+    console.log('[LifeOS Index] Not authenticated. -> Login');
     return <Redirect href="/(auth)/login" />;
   }
-
-  return <Redirect href="/(tabs)" />;
+  
+  console.log('[LifeOS Index] New user. -> Onboarding');
+  return <Redirect href="/(onboarding)" />;
 }

@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FocusDetailScreen() {
@@ -95,7 +95,7 @@ export default function FocusDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View 
-          entering={FadeInDown.delay(200)} 
+          entering={FadeInDown.delay(100).duration(400)} 
           style={[
             styles.heroSection, 
             { backgroundColor: colors.isDark ? (colors.background + '40') : 'rgba(255, 255, 255, 0.7)', borderColor: colors.border }
@@ -140,7 +140,7 @@ export default function FocusDetailScreen() {
         </Animated.View>
 
         <Animated.View 
-          entering={FadeInDown.delay(400)} 
+          entering={FadeInDown.delay(200).duration(400)} 
           style={[styles.quoteSection, { backgroundColor: colors.primaryTransparent }]}
         >
           <View style={styles.quoteIconRow}>
@@ -150,7 +150,7 @@ export default function FocusDetailScreen() {
           <Text style={[styles.quoteText, { color: colors.textSecondary }]}>{displayQuote}</Text>
         </Animated.View>
 
-        <Animated.View exiting={FadeInDown.delay(500)} style={styles.pomoSection}>
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.pomoSection}>
           <TouchableOpacity 
             style={[
               styles.pomoToggle, 
@@ -168,7 +168,7 @@ export default function FocusDetailScreen() {
           </TouchableOpacity>
         </Animated.View>
 
-        <Animated.View entering={SlideInUp.delay(600)} style={styles.actionSection}>
+        <Animated.View entering={FadeIn.delay(400).duration(400)} style={styles.actionSection}>
           <TouchableOpacity 
             style={[
               styles.mainButton, 

@@ -28,10 +28,12 @@ export const parseTimeString = (timeStr: string) => {
     let hours = parseInt(match[1], 10);
     const minutes = parseInt(match[2], 10);
     const modifier = match[3];
-    
+
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+
     if (modifier === 'PM' && hours < 12) hours += 12;
     else if (modifier === 'AM' && hours === 12) hours = 0;
-    
+
     return { hours, minutes };
   } catch (e) {
     return null;
