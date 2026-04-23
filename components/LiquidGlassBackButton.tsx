@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { IconSymbol } from './ui/icon-symbol';
 import { useRouter } from 'expo-router';

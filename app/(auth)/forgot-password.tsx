@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
-import { Mail, ChevronLeft } from 'lucide-react-native';
-import { useThemeColors } from '@/hooks/useThemeColors';
+import { BlurView } from '@/components/BlurView';
 import { Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
-import Toast from 'react-native-toast-message';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, Mail } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Dimensions, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
 
@@ -53,7 +53,7 @@ export default function ForgotPasswordScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          
+
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ChevronLeft size={28} color={colors.text} />
           </TouchableOpacity>

@@ -12,6 +12,7 @@ import { createGamificationSlice } from './slices/gamificationSlice';
 import { wireSyncErrorPublisher, wireStore } from './syncHelper';
 import { widgetSyncService } from '@/services/widgetSyncService';
 import { getTodayLocal } from '@/utils/dateUtils';
+import { getLevelProgress, LEVEL_NAMES } from './helpers';
 
 export const useStore = create<UserState>()(
   persist(
@@ -226,32 +227,69 @@ let lastSyncDataSerialized = '';
 let widgetSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 useStore.subscribe((state) => {
-  if (!state._hasHydrated || !state.userId) return;
+  if (!state._hasHydrated) return;
+
+  // When user logs out, push an explicit not-logged-in payload so the iOS
+  // widget shows the lock screen instead of stale data from the previous session.
+  if (!state.userId) {
+    widgetSyncService.syncWholeStoreToWidget({
+      isLoggedIn: false, accentColor: '#7C5CFF',
+      tasks: [], habits: [], habitProgress: { completed: 0, total: 0 },
+      focus: { isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: null },
+      stats: { level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: 'Spark' },
+      mood: { today: 0, last5Days: [0, 0, 0, 0, 0] },
+      lastUpdated: Date.now(),
+    });
+    return;
+  }
 
   // Debounce: clear any pending timer and re-set it
   if (widgetSyncDebounceTimer) clearTimeout(widgetSyncDebounceTimer);
 
   widgetSyncDebounceTimer = setTimeout(() => {
     const today = getTodayLocal();
+    const dayOfWeek = new Date().getDay();
+
     const todayTasks = state.tasks.filter(t => t.date === today);
     const todayHabits = state.habits.filter(h => {
-      const dayOfWeek = new Date().getDay();
-      return (h.targetDays ?? []).includes(dayOfWeek);
+      if (h.pausedUntil && h.pausedUntil >= today) return false;
+      if (h.frequency === 'daily' || h.frequency === 'weekly') {
+        return (h.targetDays ?? []).includes(dayOfWeek);
+      }
+      return false;
     });
-    const completedHabitsToday = state.habits.filter(h => (h.completedDays ?? []).includes(today)).length;
+    const completedHabitsToday = todayHabits.filter(h => (h.completedDays ?? []).includes(today)).length;
+
+    const { progress: xpProgress } = getLevelProgress(state.totalXP ?? 0);
+
+    // Last 5 days of mood (index 0 = 4 days ago, index 4 = today)
+    const last5Moods: number[] = Array.from({ length: 5 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (4 - i));
+      const dateStr = formatLocalDate(d);
+      return state.moodHistory?.[dateStr]?.mood ?? 0;
+    });
 
     const widgetData = {
+      isLoggedIn: true,
+      accentColor: state.accentColor ?? '#7C5CFF',
       tasks: todayTasks
-        .filter(t => !t.completed)
+        .filter(t => !t.completed && t.status !== 'missed')
         .sort((a, b) => {
-          const pMap = { high: 0, medium: 1, low: 2 };
-          return pMap[a.priority] - pMap[b.priority];
+          const pMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
+          return (pMap[a.priority] ?? 1) - (pMap[b.priority] ?? 1);
         })
         .slice(0, 4)
         .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
+      habits: todayHabits.slice(0, 4).map(h => ({
+        id: h.id,
+        title: h.title,
+        icon: h.icon ?? '●',
+        isDoneToday: (h.completedDays ?? []).includes(today),
+      })),
       habitProgress: {
         completed: completedHabitsToday,
-        total: todayHabits.length || 1,
+        total: todayHabits.length,
       },
       focus: {
         isActive: state.focusSession.isActive,
@@ -260,9 +298,15 @@ useStore.subscribe((state) => {
         lastStartTime: state.focusSession.lastStartTime,
       },
       stats: {
-        level: state.level,
-        totalXP: state.totalXP,
-        streak: state.globalStreak,
+        level: state.level ?? 1,
+        totalXP: state.totalXP ?? 0,
+        streak: state.globalStreak ?? 0,
+        xpProgress: Math.min(1, Math.max(0, xpProgress)),
+        levelName: LEVEL_NAMES[state.level ?? 1] ?? 'Spark',
+      },
+      mood: {
+        today: state.moodHistory?.[today]?.mood ?? 0,
+        last5Days: last5Moods,
       },
       lastUpdated: Date.now(),
     };

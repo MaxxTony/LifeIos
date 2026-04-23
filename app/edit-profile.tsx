@@ -1,3 +1,4 @@
+import { BlurView } from '@/components/BlurView';
 import { GlassCard } from '@/components/GlassCard';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -6,7 +7,6 @@ import { useStore } from '@/store/useStore';
 import { formatPhoneInput, isPhoneValid } from '@/utils/phoneUtils';
 import { FontAwesome6 } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';

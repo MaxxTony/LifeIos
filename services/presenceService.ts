@@ -83,8 +83,8 @@ export const presenceService = {
         callback([]);
         return;
       }
-      // M-02 FIX: Filter out stale entries (lastActive > 30s ago) so deleted/crashed users don't appear active.
-      const STALE_THRESHOLD_MS = 30000;
+      // M-02 FIX: Filter out stale entries (lastActive > 60s ago)
+      const STALE_THRESHOLD_MS = 60000;
       const now = Date.now();
       const activeUsers = Object.keys(data)
         .filter(uid => {

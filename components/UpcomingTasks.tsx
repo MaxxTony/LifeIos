@@ -1,16 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { Typography, Spacing, BorderRadius } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { BlurView } from '@/components/BlurView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { BorderRadius, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
 import { Clock } from 'lucide-react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 export function UpcomingTasks() {
   const tasks = useStore(s => s.tasks);
   const colors = useThemeColors();
-  
+
   const now = Date.now();
   const next24h = now + 24 * 60 * 60 * 1000;
 
@@ -31,12 +31,12 @@ export function UpcomingTasks() {
           <Text style={[styles.title, { color: colors.textSecondary }]}>Upcoming Tasks</Text>
           <Clock size={12} color={colors.textSecondary} />
         </View>
-        
+
         <View style={styles.list}>
           {upcoming.length > 0 ? upcoming.map((task) => (
             <View key={task.id} style={[styles.item, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
               <View style={[styles.iconContainer, { backgroundColor: colors.primaryTransparent }]}>
-                 <IconSymbol name="sparkles" size={12} color={colors.primary} />
+                <IconSymbol name="sparkles" size={12} color={colors.primary} />
               </View>
               <View style={styles.textContainer}>
                 <Text style={[styles.taskText, { color: colors.text }]} numberOfLines={1}>{task.text}</Text>

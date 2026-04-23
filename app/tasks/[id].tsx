@@ -1,16 +1,16 @@
+import { BlurView } from '@/components/BlurView';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
-import { BlurView } from 'expo-blur';
+import { getTodayLocal } from '@/utils/dateUtils';
+import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, Calendar, CheckCircle, Circle, Flag, Lock, Pencil, Plus, Repeat, RotateCcw, Trash2, X } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as Crypto from 'expo-crypto';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getTodayLocal } from '@/utils/dateUtils';
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams();

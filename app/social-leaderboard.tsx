@@ -1,8 +1,8 @@
+import { BlurView } from '@/components/BlurView';
 import { Shadows, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { FriendRequest, PublicProfile, socialService } from '@/services/socialService';
 import { useStore } from '@/store/useStore';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -239,10 +239,10 @@ function LeagueTab({ leaderboard, loading, currentUserId, colors, onRefresh, ref
 }
 
 // ─── TAB 2: Discover ──────────────────────────────────────────────────────────
-function DiscoverTab({ 
-  currentUserId, colors, friendIds, sentIds, incomingIds, onNavigateToRequests 
-}: { 
-  currentUserId: string; colors: any; friendIds: Set<string>; sentIds: Set<string>; 
+function DiscoverTab({
+  currentUserId, colors, friendIds, sentIds, incomingIds, onNavigateToRequests
+}: {
+  currentUserId: string; colors: any; friendIds: Set<string>; sentIds: Set<string>;
   incomingIds: Set<string>; onNavigateToRequests: () => void;
 }) {
   const [recentUsers, setRecentUsers] = useState<PublicProfile[]>([]);
@@ -352,7 +352,7 @@ function DiscoverTab({
             const { label, disabled } = getButtonState(item.userId);
             const isSending = sending === item.userId;
             const isIncoming = incomingIds.has(item.userId);
-            
+
             return (
               <UserRow
                 profile={item}

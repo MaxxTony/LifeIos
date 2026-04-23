@@ -558,11 +558,6 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           
           if (Object.keys(updates).length > 0) {
             set(updates);
-            
-            // --- Phase 6: Sync to Native Widgets ---
-            import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
-              widgetSyncService.syncStreak(updates.globalStreak ?? get().globalStreak);
-            });
           }
         }
 

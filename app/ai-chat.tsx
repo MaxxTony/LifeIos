@@ -9,7 +9,7 @@ import { analyticsService } from '@/services/analyticsService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';

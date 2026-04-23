@@ -1,9 +1,9 @@
+import { BlurView } from '@/components/BlurView';
 import { BorderRadius, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';

@@ -19,6 +19,10 @@ const MAX_SESSION_MS = 24 * 60 * 60 * 1000;
 // session. Keep well above Firestore write cost thresholds (<=1/min/user).
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;
 
+// Heartbeat fires every 30s so the user stays well within the 60s stale window
+// in presenceService. Racing at 60s/60s caused users to flicker out of the room.
+const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+
 export function useFocusTimer() {
   // Selector pattern: subscribe only to primitives so this hook does NOT
   // re-render on every focus tick (only when isActive or lastStartTime changes).
@@ -45,6 +49,14 @@ export function useFocusTimer() {
       updateFocusTime();
     }, 1000);
 
+    // Heartbeat every 30s to stay well within the 60s stale window.
+    const heartbeat = setInterval(() => {
+      const s = useStore.getState();
+      if (!s.userId || !s.focusSession.isActive) return;
+      const { presenceService } = require('@/services/presenceService');
+      presenceService.updateHeartbeat(s.userId).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
+
     // Periodic Firestore checkpoint every 60s.
     // We read fresh state from the store inside the callback so we always
     // persist the latest accumulated value, not a stale closure snapshot.
@@ -53,10 +65,6 @@ export function useFocusTimer() {
       if (!s.userId || !s.focusSession.isActive) return;
 
       const totalSeconds = s.focusSession.totalSecondsToday;
-
-      // Update heartbeat for focus room presence
-      const { presenceService } = require('@/services/presenceService');
-      presenceService.updateHeartbeat(s.userId).catch(() => {});
 
       if (totalSeconds <= 0) return;
 
@@ -110,6 +118,7 @@ export function useFocusTimer() {
 
     return () => {
       clearInterval(interval);
+      clearInterval(heartbeat);
       clearInterval(checkpoint);
       subscription.remove();
     };

@@ -5,7 +5,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/useStore';

@@ -27,17 +27,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 
-import { registerWidgetTaskHandler } from 'react-native-android-widget';
-import { widgetTaskHandler } from '../widget/WidgetTaskHandler';
+
 
 
 
 if (!__DEV__) initCrashAnalytics();
 
-// Register the Android Widget background handler (ignored on iOS)
-if (Platform.OS === 'android') {
-  registerWidgetTaskHandler(widgetTaskHandler);
-}
+
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();

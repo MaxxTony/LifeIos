@@ -1,9 +1,9 @@
+import { BlurView } from '@/components/BlurView';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
@@ -59,7 +59,7 @@ export const DailyTasksWidget = React.memo(function DailyTasksWidget() {
           {todayTasks.length > 0 ? todayTasks.slice(0, 5).map((task) => {
             const syncing = isSyncing(task.id);
             const taskBg = colors.isDark ? styles.taskItemDark : styles.taskItemLight;
-            
+
             return (
               <View
                 key={task.id}

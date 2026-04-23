@@ -33,6 +33,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "allowBackup": false,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
@@ -71,12 +72,49 @@
         {
           "widgets": [
             {
-              "name": "StreakWidget",
-              "label": "LifeOS Streak",
-              "minWidth": "100dp",
-              "minHeight": "100dp",
-              "description": "View your global streak live",
-              "updatePeriodMillis": 3600000
+              "name": "FocusTimerWidget",
+              "label": "LifeOS Focus Timer",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "description": "Track your daily focus time and goal",
+              "updatePeriodMillis": 1800000,
+              "resizeMode": "horizontal|vertical"
+            },
+            {
+              "name": "HabitsWidget",
+              "label": "LifeOS Habits",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "description": "Check your daily habits at a glance",
+              "updatePeriodMillis": 1800000,
+              "resizeMode": "horizontal|vertical"
+            },
+            {
+              "name": "TasksWidget",
+              "label": "LifeOS Tasks",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "description": "See your pending tasks for today",
+              "updatePeriodMillis": 1800000,
+              "resizeMode": "horizontal|vertical"
+            },
+            {
+              "name": "XPLevelWidget",
+              "label": "LifeOS Level & XP",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "description": "View your level, XP progress and streak",
+              "updatePeriodMillis": 3600000,
+              "resizeMode": "none"
+            },
+            {
+              "name": "MoodWidget",
+              "label": "LifeOS Mood",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "description": "Log and track your daily mood",
+              "updatePeriodMillis": 3600000,
+              "resizeMode": "none"
             }
           ]
         }

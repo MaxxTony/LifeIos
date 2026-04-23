@@ -6,7 +6,7 @@ import { analyticsService } from '@/services/analyticsService';
 import { useStore } from '@/store/useStore';
 import { AntDesign } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';

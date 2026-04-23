@@ -1,17 +1,17 @@
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BlurView } from '@/components/BlurView';
+import { ACTIVITIES, EMOTIONS, getMoodConfig, getMoodFromLegacy } from '@/constants/moods';
+import { BorderRadius, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { getMoodConfig, getMoodFromLegacy, ACTIVITIES, EMOTIONS } from '@/constants/moods';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
-import { BlurView } from 'expo-blur';
-import React, { useMemo, useState, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MoodEmoji } from './MoodEmoji';
+import { useRouter } from 'expo-router';
 import { History, Pencil, Plus, PlusCircle } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MoodEmoji } from './MoodEmoji';
 
 export const MoodTrend = React.memo(function MoodTrend() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export const MoodTrend = React.memo(function MoodTrend() {
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(d);
     monday.setDate(diff);
-    
+
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
@@ -73,12 +73,12 @@ export const MoodTrend = React.memo(function MoodTrend() {
 
   const renderDetails = () => {
     if (!displayMood) return null;
-    
+
     const activities = (displayMood.activities || []).map(id => ACTIVITIES.find(a => a.id === id)).filter(Boolean);
     const emotions = (displayMood.emotions || []).map(id => EMOTIONS.find(e => e.id === id)).filter(Boolean);
-    
+
     const items = [...activities, ...emotions].slice(0, 4);
-    
+
     if (items.length === 0) return null;
 
     return (
@@ -111,7 +111,7 @@ export const MoodTrend = React.memo(function MoodTrend() {
             >
               <History size={16} color={colors.primary} />
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.headerBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted, borderWidth: 1 }]}
               onPress={() => {
@@ -172,8 +172,8 @@ export const MoodTrend = React.memo(function MoodTrend() {
             const isFuture = day.date > todayStr;
 
             return (
-              <TouchableOpacity 
-                key={i} 
+              <TouchableOpacity
+                key={i}
                 style={styles.trendDay}
                 onPress={() => {
                   if (!isFuture) {

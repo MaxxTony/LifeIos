@@ -1,7 +1,7 @@
 import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { LEVEL_NAMES } from '@/store/helpers';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Award, Sparkles, Trophy } from 'lucide-react-native';

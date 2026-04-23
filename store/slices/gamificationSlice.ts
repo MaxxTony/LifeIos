@@ -105,11 +105,6 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
             }
           }
 
-          // --- Phase 6: Sync to Native Widgets ---
-          import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
-            widgetSyncService.syncStreak(newGlobalStreak);
-          });
-
           // If a focus session is actively running at midnight, preserve it rather than
           // killing it silently. Reset the daily counter so the new day starts at 0,
           // but keep isActive/pomodoroMode intact so the user's session continues.
@@ -326,11 +321,6 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       lastActiveDate: newLastActiveDate,
       lastWeekResetDate: newLastWeekResetDate
     };
-
-    // --- Phase 6: Sync to Native Widgets ---
-    import('@/services/widgetSyncService').then(({ widgetSyncService }) => {
-      widgetSyncService.syncStreak(newGlobalStreak);
-    });
 
     if (state.userId) {
       fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', newStatData), 'xpUpdate', state.userId);

@@ -1,6 +1,6 @@
 import { BorderRadius, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native';

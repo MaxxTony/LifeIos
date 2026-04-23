@@ -1,15 +1,14 @@
-import { Spacing, Typography, Colors } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { BlurView } from '@/components/BlurView';
+import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { formatLocalDate } from '@/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import React, { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditTaskScreen() {
@@ -56,10 +55,10 @@ export default function EditTaskScreen() {
 
   const formatTime = (d: Date) => {
     if (!d || isNaN(d.getTime())) return 'Not set';
-    return d.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit', 
-      hour12: true 
+    return d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -111,9 +110,9 @@ export default function EditTaskScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient 
-        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]} 
-        style={StyleSheet.absoluteFill} 
+      <LinearGradient
+        colors={colors.isDark ? [colors.background, colors.primaryTransparent] : [colors.background, colors.primaryVeryTransparent]}
+        style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -123,201 +122,201 @@ export default function EditTaskScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
-          >
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Task</Text>
-          <TouchableOpacity onPress={handleSave} disabled={!text.trim()} style={[styles.headerSave, !text.trim() && { opacity: 0.5 }]}>
-             <Text style={[styles.saveLink, { color: colors.primary }, !text.trim() && { opacity: 0.5 }]}>Save</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={[styles.inputSection, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Task Description</Text>
-            <TextInput
-              style={[styles.textInput, { color: colors.text }]}
-              placeholder="What needs to be done?"
-              placeholderTextColor={colors.textSecondary + '70'}
-              value={text}
-              onChangeText={setText}
-              multiline
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Priority Level</Text>
-            <View style={styles.priorityRow}>
-              <PriorityChip level="high" label="High" color={colors.danger} />
-              <PriorityChip level="medium" label="Medium" color="#FFB347" />
-              <PriorityChip level="low" label="Low" color={colors.success} />
-            </View>
-          </View>
-
-          <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
-            <View style={styles.selectLeft}>
-              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Original)</Text>
-            </View>
-            <Text style={[styles.selectValue, { color: colors.text }]}>{task.date}</Text>
-          </View>
-
-          <View style={styles.timeRow}>
             <TouchableOpacity
-              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-              onPress={() => setPickerMode('start')}
+              onPress={() => router.back()}
+              style={[styles.closeBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
             >
-              <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <View>
-                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Start Time</Text>
-                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(startTime)}</Text>
-                </View>
-              </View>
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-              onPress={() => setPickerMode('end')}
-            >
-              <View style={styles.selectLeft}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <View>
-                  <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
-                  <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
-                </View>
-              </View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Task</Text>
+            <TouchableOpacity onPress={handleSave} disabled={!text.trim()} style={[styles.headerSave, !text.trim() && { opacity: 0.5 }]}>
+              <Text style={[styles.saveLink, { color: colors.primary }, !text.trim() && { opacity: 0.5 }]}>Save</Text>
             </TouchableOpacity>
           </View>
 
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={[styles.inputSection, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Task Description</Text>
+              <TextInput
+                style={[styles.textInput, { color: colors.text }]}
+                placeholder="What needs to be done?"
+                placeholderTextColor={colors.textSecondary + '70'}
+                value={text}
+                onChangeText={setText}
+                multiline
+              />
+            </View>
 
-          {/* Date Picker Modal/Dialog */}
-          {Platform.OS === 'ios' ? (
-            <Modal
-              visible={!!pickerMode}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={() => setPickerMode(null)}
-            >
-              <TouchableOpacity 
-                style={styles.modalOverlay} 
-                activeOpacity={1} 
-                onPress={() => setPickerMode(null)}
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Priority Level</Text>
+              <View style={styles.priorityRow}>
+                <PriorityChip level="high" label="High" color={colors.danger} />
+                <PriorityChip level="medium" label="Medium" color="#FFB347" />
+                <PriorityChip level="low" label="Low" color={colors.success} />
+              </View>
+            </View>
+
+            <View style={[styles.selectItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border, opacity: 0.6 }]}>
+              <View style={styles.selectLeft}>
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={[styles.selectLabel, { color: colors.textSecondary }]}>Date (Locked to Original)</Text>
+              </View>
+              <Text style={[styles.selectValue, { color: colors.text }]}>{task.date}</Text>
+            </View>
+
+            <View style={styles.timeRow}>
+              <TouchableOpacity
+                style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                onPress={() => setPickerMode('start')}
               >
-                <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-              </TouchableOpacity>
-              
-              <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-                  <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
-                  <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
-                    {pickerMode === 'start' ? 'Start Time' : 'End Time'}
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setPickerMode(null);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                    style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
-                  >
-                    <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
-                  </TouchableOpacity>
+                <View style={styles.selectLeft}>
+                  <Ionicons name="time-outline" size={20} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>Start Time</Text>
+                    <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(startTime)}</Text>
+                  </View>
                 </View>
-                
-                <View style={styles.pickerWrapper}>
-                  <DateTimePicker
-                    value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                    mode="time"
-                    is24Hour={false}
-                    display="spinner"
-                    onChange={(e, d) => {
-                      if (d) {
-                        const now = new Date();
-                        if (pickerMode === 'start') {
-                          if (d < now) {
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                            setStartTime(now);
-                            if (endTime <= now) {
-                              setEndTime(new Date(now.getTime() + 30 * 60000));
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.selectItem, { flex: 1, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                onPress={() => setPickerMode('end')}
+              >
+                <View style={styles.selectLeft}>
+                  <Ionicons name="time-outline" size={20} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.selectLabelSmall, { color: colors.textSecondary }]}>End Time</Text>
+                    <Text style={[styles.selectValue, { color: colors.text }]}>{formatTime(endTime)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+
+            {/* Date Picker Modal/Dialog */}
+            {Platform.OS === 'ios' ? (
+              <Modal
+                visible={!!pickerMode}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setPickerMode(null)}
+              >
+                <TouchableOpacity
+                  style={styles.modalOverlay}
+                  activeOpacity={1}
+                  onPress={() => setPickerMode(null)}
+                >
+                  <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+                </TouchableOpacity>
+
+                <View style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                    <View style={[styles.sheetHandle, { backgroundColor: colors.textSecondary + '40' }]} />
+                    <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                      {pickerMode === 'start' ? 'Start Time' : 'End Time'}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPickerMode(null);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      style={[styles.doneBtn, { backgroundColor: colors.primaryTransparent }]}
+                    >
+                      <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.pickerWrapper}>
+                    <DateTimePicker
+                      value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                      mode="time"
+                      is24Hour={false}
+                      display="spinner"
+                      onChange={(e, d) => {
+                        if (d) {
+                          const now = new Date();
+                          if (pickerMode === 'start') {
+                            if (d < now) {
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                              setStartTime(now);
+                              if (endTime <= now) {
+                                setEndTime(new Date(now.getTime() + 30 * 60000));
+                              }
+                            } else {
+                              setStartTime(d);
+                              if (d >= endTime) {
+                                setEndTime(new Date(d.getTime() + 30 * 60000));
+                              }
                             }
                           } else {
-                            setStartTime(d);
-                            if (d >= endTime) {
-                              setEndTime(new Date(d.getTime() + 30 * 60000));
+                            if (d <= startTime) {
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                              setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                            } else {
+                              setEndTime(d);
                             }
+                          }
+                        }
+                      }}
+                      textColor={colors.text}
+                      themeVariant={colors.isDark ? "dark" : "light"}
+                    />
+                  </View>
+                </View>
+              </Modal>
+            ) : (
+              !!pickerMode && (
+                <DateTimePicker
+                  value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
+                  mode="time"
+                  is24Hour={false}
+                  display="default"
+                  onChange={(e, d) => {
+                    setPickerMode(null);
+                    if (e.type === 'set' && d) {
+                      const now = new Date();
+                      if (pickerMode === 'start') {
+                        if (d < now) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setStartTime(now);
+                          if (endTime <= now) {
+                            setEndTime(new Date(now.getTime() + 30 * 60000));
                           }
                         } else {
-                          if (d <= startTime) {
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                            setEndTime(new Date(startTime.getTime() + 30 * 60000));
-                          } else {
-                            setEndTime(d);
+                          setStartTime(d);
+                          if (d >= endTime) {
+                            setEndTime(new Date(d.getTime() + 30 * 60000));
                           }
                         }
-                      }
-                    }}
-                    textColor={colors.text}
-                    themeVariant={colors.isDark ? "dark" : "light"}
-                  />
-                </View>
-              </View>
-            </Modal>
-          ) : (
-            !!pickerMode && (
-              <DateTimePicker
-                value={pickerMode === 'start' ? (startTime || new Date()) : (endTime || new Date())}
-                mode="time"
-                is24Hour={false}
-                display="default"
-                onChange={(e, d) => {
-                  setPickerMode(null);
-                  if (e.type === 'set' && d) {
-                    const now = new Date();
-                    if (pickerMode === 'start') {
-                      if (d < now) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                        setStartTime(now);
-                        if (endTime <= now) {
-                          setEndTime(new Date(now.getTime() + 30 * 60000));
-                        }
                       } else {
-                        setStartTime(d);
-                        if (d >= endTime) {
-                          setEndTime(new Date(d.getTime() + 30 * 60000));
+                        if (d <= startTime) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                          setEndTime(new Date(startTime.getTime() + 30 * 60000));
+                        } else {
+                          setEndTime(d);
                         }
-                      }
-                    } else {
-                      if (d <= startTime) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                        setEndTime(new Date(startTime.getTime() + 30 * 60000));
-                      } else {
-                        setEndTime(d);
                       }
                     }
-                  }
-                }}
-              />
-            )
-          )}
+                  }}
+                />
+              )
+            )}
 
-          <TouchableOpacity
-            style={[styles.updateButton, !text.trim() && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={!text.trim()}
-          >
-            <LinearGradient
-              colors={colors.gradient}
-              style={styles.gradientBtn}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+            <TouchableOpacity
+              style={[styles.updateButton, !text.trim() && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={!text.trim()}
             >
-              <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Update Changes</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </ScrollView>
+              <LinearGradient
+                colors={colors.gradient}
+                style={styles.gradientBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={[styles.saveButtonText, { color: '#FFF' }]}>Update Changes</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>

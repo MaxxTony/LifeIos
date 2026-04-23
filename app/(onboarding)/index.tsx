@@ -1,12 +1,12 @@
-import { Colors, Typography } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
+import { BlurView } from '@/components/BlurView';
+import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { BlurView } from 'expo-blur';
+import { analyticsService } from '@/services/analyticsService';
+import { useStore } from '@/store/useStore';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { analyticsService } from '@/services/analyticsService';
 import {
   Dimensions,
   Image,
@@ -14,9 +14,8 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import Animated, {
   Easing,
@@ -30,8 +29,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withSpring,
-  withTiming,
-  ZoomIn,
+  withTiming
 } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');

@@ -1,3 +1,4 @@
+import { BlurView } from '@/components/BlurView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -5,7 +6,6 @@ import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -56,7 +56,7 @@ function DailyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTogg
     const d = new Date(sunday); d.setDate(sunday.getDate() + i); return formatLocalDate(d);
   });
   const LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  
+
   // T-26 FIX: Filter completions to only show if frequency is daily
   const habitCompletions = new Set(habit.completedDays);
   return (
@@ -170,8 +170,8 @@ function MonthlyBlock({ habit, colors, onToggle }: { habit: any; colors: any; on
     (isFixed && todayObj.getDate() !== habit.monthlyDay) || // Not the target date
     (!isFixed && monthCompletions >= target)               // Target reached
   );
-  
-  const lockMessage = isFixed 
+
+  const lockMessage = isFixed
     ? `Only on the ${habit.monthlyDay}${habit.monthlyDay === 1 ? 'st' : habit.monthlyDay === 2 ? 'nd' : habit.monthlyDay === 3 ? 'rd' : 'th'}`
     : 'Target reached';
 
@@ -227,7 +227,7 @@ function MonthlyBlock({ habit, colors, onToggle }: { habit: any; colors: any; on
       >
         {isLoggedToday
           ? <Ionicons name="checkmark" size={16} color="#FFF" />
-          : isLocked 
+          : isLocked
             ? <Ionicons name="lock-closed" size={14} color={colors.textSecondary} />
             : <Ionicons name="add" size={18} color={colors.primary} />}
       </TouchableOpacity>
@@ -341,7 +341,7 @@ export default function AllHabitsScreen() {
   const handleToggle = useCallback((id: string, dateStr: string) => {
     if (toggleLockRef.current.has(id)) return;
     toggleLockRef.current.add(id);
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleHabit(id, dateStr);
 
@@ -449,7 +449,7 @@ export default function AllHabitsScreen() {
               </View>
             );
           }
-          
+
           if (!habitsLoaded && timedOut) {
             return (
               <View style={{ padding: 20, alignItems: 'center', marginTop: 40 }}>

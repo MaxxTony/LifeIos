@@ -61,7 +61,7 @@ export default function FocusDetailScreen() {
   };
 
   const timeParts = formatTimeParts(focusSession.totalSecondsToday);
-  const goalSeconds = focusGoalHours * 3600;
+  const goalSeconds = Math.max(0.1, focusGoalHours) * 3600;
   const progress = Math.min(1, focusSession.totalSecondsToday / goalSeconds);
 
   const handleToggle = () => {

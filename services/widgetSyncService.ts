@@ -4,10 +4,29 @@ import SharedGroupPreferences from 'react-native-shared-group-preferences';
 const APP_GROUP = 'group.com.lifeos.prime';
 
 export interface WidgetData {
+  isLoggedIn: boolean;
+  accentColor: string;
   tasks: { id: string; text: string; completed: boolean; priority: string }[];
+  habits: { id: string; title: string; icon: string; isDoneToday: boolean }[];
   habitProgress: { completed: number; total: number };
-  focus: { isActive: boolean; totalSecondsToday: number; goalSeconds: number; lastStartTime: number | null };
-  stats: { level: number; totalXP: number; streak: number };
+  focus: {
+    isActive: boolean;
+    totalSecondsToday: number;
+    goalSeconds: number;
+    lastStartTime: number | null;
+  };
+  stats: {
+    level: number;
+    totalXP: number;
+    streak: number;
+    xpProgress: number;
+    levelName: string;
+  };
+  mood: {
+    today: number;
+    last5Days: number[];
+  };
+  theme?: 'light' | 'dark';
   lastUpdated: number;
 }
 
@@ -15,24 +34,32 @@ export const widgetSyncService = {
   syncWholeStoreToWidget: async (data: WidgetData) => {
     if (Platform.OS === 'ios') {
       try {
-        // We sync as a single JSON string to avoid multiple expensive bridge calls
-        // and to keep the native side logic simple (one decode).
         await SharedGroupPreferences.setItem('widgetData', JSON.stringify(data), APP_GROUP);
-        // console.log('[WidgetSync] iOS Pro Data synced to App Group');
       } catch (error) {
         console.warn('[WidgetSync] iOS App Group sync failed', error);
       }
-    }
-  },
-
-  // Legacy helper for simple streak (can be deprecated later)
-  syncStreak: async (streak: number) => {
-    if (Platform.OS === 'ios') {
+    } else if (Platform.OS === 'android') {
       try {
-        await SharedGroupPreferences.setItem('globalStreak', streak, APP_GROUP);
+        const { requestWidgetUpdate } = await import('react-native-android-widget');
+        const { renderWidgetByName } = await import('../widget/WidgetRenderer');
+        const widgetNames = [
+          'XPLevelWidget',
+          'TasksWidget',
+          'HabitsWidget',
+          'FocusTimerWidget',
+          'MoodWidget'
+        ];
+        
+        for (const name of widgetNames) {
+          requestWidgetUpdate({
+            widgetName: name,
+            renderWidget: () => renderWidgetByName(name, data),
+          });
+        }
+
       } catch (error) {
-        console.warn('[WidgetSync] Quick Streak sync failed', error);
+        console.warn('[WidgetSync] Android widget update failed', error);
       }
     }
-  }
+  },
 };

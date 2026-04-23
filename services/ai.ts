@@ -221,6 +221,17 @@ const tools = [
           properties: {},
         },
       },
+      {
+        name: 'updateSettings',
+        description: 'Change app theme (light/dark/system) or accent color.',
+        parameters: {
+          type: 'object',
+          properties: {
+            theme: { type: 'string', enum: ['light', 'dark', 'system'], description: 'Theme preference' },
+            accentColor: { type: 'string', description: 'Hex color code (e.g. #FF5733)' },
+          },
+        },
+      },
     ],
   },
 ];
@@ -299,7 +310,20 @@ export const getAIResponse = async (
       const systemInstruction = `You are LifeOS, a premium personal assistant.
       You help users manage tasks, habits, and moods.
       Be supportive, proactive, and concise.
-      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
+      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.
+      
+      CRITICAL: You HAVE the permission and the tool (updateSettings) to change the app's appearance. 
+      NEVER tell the user "I cannot change the theme" or "I don't have permission". 
+      When a user asks to change the theme or color, you MUST use the updateSettings tool.
+
+      APPEARANCE CONTROL:
+      - **KEYWORDS: "theme", "mode", "light", "dark"** -> Focus on lighting mode.
+        Ask: "I can switch you to **Light Mode**, **Dark Mode**, or **System Default**. Which one would you like?"
+      - **KEYWORDS: "color", "accent"** -> Focus on the color style.
+        Offer these official colors: Royal (#7C5CFF), Azure (#5B8CFF), Neo (#00D68F), Coral (#FF4B4B), Sunset (#FFB347), Candy (#FF69B4), Cyber (#00CED1), Emerald (#10B981), Violet (#8B5CF6), Crimson (#DC2626), Amber (#D97706), Rose (#E11D48).
+        Ask: "Which one would you like to try?"
+      
+      Always use the **updateSettings** tool to apply the final choice. Both options are available to you!`;
 
       return await callAIProxy(messages, systemInstruction);
     } catch (err: any) {
@@ -322,9 +346,23 @@ export const getAIResponse = async (
       You help users manage tasks, habits, and moods.
       Be supportive, proactive, and concise.
       You have access to the user's current app state via context.
+      
+      CRITICAL: You HAVE the permission and the tool (updateSettings) to change the app's appearance. 
+      NEVER tell the user "I cannot change the theme" or "I don't have permission". 
+      When a user asks to change the theme or color, you MUST use the updateSettings tool.
+
       Important: You can actually perform actions like adding tasks or habits using the provided tools.
       If a user asks to "remind me to..." or "add a habit...", use the tools!
       If the user provides an image, analyze it carefully to help them.
+
+      APPEARANCE CONTROL:
+      - **KEYWORDS: "theme", "mode", "light", "dark"** -> Focus on lighting mode.
+        Ask: "I can switch you to **Light Mode**, **Dark Mode**, or **System Default**. Which one would you like?"
+      - **KEYWORDS: "color", "accent"** -> Focus on the color style.
+        Offer these official colors: Royal (#7C5CFF), Azure (#5B8CFF), Neo (#00D68F), Coral (#FF4B4B), Sunset (#FFB347), Candy (#FF69B4), Cyber (#00CED1), Emerald (#10B981), Violet (#8B5CF6), Crimson (#DC2626), Amber (#D97706), Rose (#E11D48).
+        Ask: "Which one would you like to try?"
+      
+      Always use the **updateSettings** tool to apply the final choice. Both options are available to you!
 
       ${getCurrentAppContext()}`,
       tools: tools as any,
@@ -376,6 +414,11 @@ export const getAIResponse = async (
         else if (call.name === 'removeTask') res = aiActionHandler.handleRemoveTask(call.args as any);
         else if (call.name === 'updateHabit') res = aiActionHandler.handleUpdateHabit(call.args as any);
         else if (call.name === 'removeHabit') res = aiActionHandler.handleRemoveHabit(call.args as any);
+        else if (call.name === 'updateProfile') res = aiActionHandler.handleUpdateProfile(call.args as any);
+        else if (call.name === 'updateSettings') res = aiActionHandler.handleUpdateSettings(call.args as any);
+        else if (call.name === 'getSocialLeaderboard') res = await aiActionHandler.handleGetSocialLeaderboard();
+        else if (call.name === 'sendSocialNudge') res = await aiActionHandler.handleSendSocialNudge(call.args as any);
+        else if (call.name === 'getPerformanceTrends') res = aiActionHandler.handleGetPerformanceTrends();
 
         toolResults.push({
           name: call.name,

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { useStore } from '@/store/useStore';
+import { BlurView } from '@/components/BlurView';
+import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
 
 export const MoodFeedbackOverlay = React.memo(function MoodFeedbackOverlay() {
   const lastMoodLog = useStore(s => s.lastMoodLog);
@@ -54,7 +54,7 @@ export const MoodFeedbackOverlay = React.memo(function MoodFeedbackOverlay() {
 
   return (
     <View style={styles.fullScreenOverlay} pointerEvents="box-none">
-      <Animated.View 
+      <Animated.View
         entering={FadeIn}
         exiting={FadeOut}
         style={StyleSheet.absoluteFill}
@@ -63,25 +63,25 @@ export const MoodFeedbackOverlay = React.memo(function MoodFeedbackOverlay() {
         <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={colors.isDark ? 'dark' : 'light'} />
       </Animated.View>
 
-      <TouchableOpacity 
-        style={StyleSheet.absoluteFill} 
-        onPress={handleClose} 
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        onPress={handleClose}
         activeOpacity={1}
         accessible={false}
       />
-      
-      <Animated.View 
-        entering={ZoomIn} 
+
+      <Animated.View
+        entering={ZoomIn}
         exiting={ZoomOut}
         style={[styles.modalView, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         <View style={[styles.iconCircle, { backgroundColor: iconColor + '15' }]}>
           <Ionicons name={icon as any} size={32} color={iconColor} />
         </View>
-        
+
         <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
         <Text style={[styles.modalText, { color: colors.textSecondary }]}>{prompt}</Text>
-        
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.primary }]}
           onPress={handleClose}

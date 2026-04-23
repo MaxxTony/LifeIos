@@ -2,11 +2,52 @@ import { useColorScheme } from 'react-native';
 import { useStore } from '@/store/useStore';
 import { Colors, DashboardTheme } from '@/constants/theme';
 
+const COLOR_MAP: Record<string, string> = {
+  'Royal': '#7C5CFF',
+  'Azure': '#5B8CFF',
+  'Neo': '#00D68F',
+  'Coral': '#FF4B4B',
+  'Sunset': '#FFB347',
+  'Candy': '#FF69B4',
+  'Cyber': '#00CED1',
+  'Emerald': '#10B981',
+  'Violet': '#8B5CF6',
+  'Crimson': '#DC2626',
+  'Amber': '#D97706',
+  'Rose': '#E11D48',
+};
+
+/**
+ * Helper to ensure we have a valid 6-digit hex color
+ */
+function normalizeHex(color: string | null | undefined): string {
+  const fallback = '#7C5CFF';
+  if (!color) return fallback;
+  
+  let hex = color;
+  if (!color.startsWith('#')) {
+    hex = COLOR_MAP[color] || fallback;
+  }
+  
+  // Expand 3-digit hex to 6-digit (#F00 -> #FF0000)
+  if (hex.length === 4) {
+    return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+  }
+  
+  // If it's 8 digits (#RRGGBBAA), truncate to 6 digits (#RRGGBB)
+  if (hex.length > 7) {
+    return hex.slice(0, 7);
+  }
+  
+  return hex;
+}
+
 /**
  * Helper to adjust hex color brightness
  */
 function adjustBrightness(hex: string, amt: number) {
-  let color = hex.startsWith('#') ? hex.slice(1) : hex;
+  const normalized = normalizeHex(hex);
+  let color = normalized.slice(1);
   
   // Handle 3-digit hex
   if (color.length === 3) {
@@ -14,6 +55,8 @@ function adjustBrightness(hex: string, amt: number) {
   }
 
   const num = parseInt(color, 16);
+  if (isNaN(num)) return '#000000';
+
   let r = (num >> 16) + amt;
   let g = ((num >> 8) & 0x00FF) + amt;
   let b = (num & 0x0000FF) + amt;
@@ -37,7 +80,7 @@ export function useThemeColors() {
   const isDark = theme === 'dark';
   const baseColors = Colors[theme];
   
-  const accentColor = storeAccentColor || '#7C5CFF';
+  const accentColor = normalizeHex(storeAccentColor);
   
   // Dynamic secondary is slightly lighter in dark mode, slightly darker in light mode
   const secondaryColor = adjustBrightness(accentColor, isDark ? 40 : -30);

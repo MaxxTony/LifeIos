@@ -1,9 +1,9 @@
+import { BlurView } from '@/components/BlurView';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { presenceService } from '@/services/presenceService';
 import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -37,7 +37,7 @@ function AvatarItem({ user, isMe, colors }: AvatarItemProps) {
   return (
     <Animated.View style={[styles.avatarContainer, animatedStyle]}>
       <LinearGradient
-        colors={isMe ? [colors.primary, colors.secondary] : [colors.primaryMuted, colors.primaryMuted + '80']}
+        colors={isMe ? [colors.primary, colors.secondary] : [colors.primary + '55', colors.primary + '20']}
         style={styles.avatarGradient}
       >
         <Ionicons name="flame" size={24} color="#FFF" />
@@ -61,15 +61,8 @@ export default function FocusRoomScreen() {
 
   useEffect(() => {
     const unsubscribe = presenceService.subscribeToFocusRoom((users) => {
-      // C-14: Filter out stale users who haven't updated their heartbeat in 2 minutes
-      const now = Date.now();
-      const filtered = users.filter(u => {
-        // serverTimestamp() might return null momentarily or object with .toMillis()
-        const lastActive = u.lastActive?.toMillis ? u.lastActive.toMillis() : (u.lastActive || 0);
-        return (now - lastActive < 120000); // 120s
-      });
-      
-      setActiveUsers(filtered);
+      // presenceService already strips stale entries (>60s old) before calling back
+      setActiveUsers(users);
       setLoading(false);
     });
 
@@ -107,6 +100,12 @@ export default function FocusRoomScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : activeUsers.length === 0 ? (
+        <View style={styles.center}>
+          <Ionicons name="flame-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No one is focusing yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Start a session to be the first in the room</Text>
+        </View>
       ) : (
         <ScrollView contentContainerStyle={styles.roomContent}>
           <View style={styles.avatarGrid}>
@@ -126,9 +125,12 @@ export default function FocusRoomScreen() {
         {!isFocusing ? (
           <TouchableOpacity
             style={[styles.startBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.back()}
+            onPress={() => {
+              toggleFocusSession();
+            }}
           >
-            <Text style={styles.startBtnText}>Start Pomodoro to Join</Text>
+            <Ionicons name="flame" size={20} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.startBtnText}>Start Focusing & Join</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.activeFooterContainer}>
@@ -166,8 +168,10 @@ const styles = StyleSheet.create({
   avatarGradient: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
   avatarName: { ...Typography.caption, fontSize: 12 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: Spacing.xl, paddingBottom: 40, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' },
-  startBtn: { padding: 16, borderRadius: BorderRadius.full, alignItems: 'center' },
+  startBtn: { padding: 16, borderRadius: BorderRadius.full, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   startBtnText: { color: '#FFF', fontFamily: 'Outfit-Bold', fontSize: 16 },
+  emptyTitle: { fontFamily: 'Outfit-Bold', fontSize: 18, marginTop: 16, marginBottom: 8 },
+  emptySubtitle: { ...Typography.body, textAlign: 'center', paddingHorizontal: 32 },
   activeFooterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   activeFooter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activeFooterText: { fontFamily: 'Outfit-Bold', fontSize: 14 },

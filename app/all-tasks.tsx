@@ -1,20 +1,20 @@
+import { BlurView } from '@/components/BlurView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useStore } from '@/store/useStore';
 import { Task } from '@/store/types';
+import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Clock, Flag, Plus } from 'lucide-react-native';
-import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useIsFocused } from '@react-navigation/native';
 
 const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as any;
 
@@ -194,18 +194,18 @@ export default function AllTasksScreen() {
       filteredTasks = tasks.filter(t => t.status === 'completed' || t.status === 'missed');
     }
 
-      const sorted = [...filteredTasks].sort((a, b) => {
+    const sorted = [...filteredTasks].sort((a, b) => {
       if (activeTab === 'History') {
         if (a.date !== b.date) return a.date > b.date ? -1 : 1;
         return (b.dueTime || 0) - (a.dueTime || 0); // T-25: Sub-sort historical by time desc
       }
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      
+
       // T-25 FIX: Sub-sort by Time (dueTime) FIRST, then Priority fallback
       if (a.dueTime !== b.dueTime) {
         return (a.dueTime || Infinity) - (b.dueTime || Infinity);
       }
-      
+
       if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
         return priorityWeight[a.priority] - priorityWeight[b.priority];
       }
@@ -290,8 +290,8 @@ export default function AllTasksScreen() {
 
         <View style={[styles.tabContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
           {['History', 'Today', 'Upcoming'].map((tab) => (
-            <TouchableOpacity 
-              key={tab} 
+            <TouchableOpacity
+              key={tab}
               style={[styles.tabButton, activeTab === tab && { backgroundColor: colors.isDark ? '#333' : '#FFF', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }]}
               onPress={() => setActiveTab(tab as any)}>
               <Text style={[styles.tabLabel, { color: activeTab === tab ? colors.text : colors.textSecondary }]}>{tab}</Text>
@@ -311,7 +311,7 @@ export default function AllTasksScreen() {
           if (!tasksLoaded && !timedOut) {
             return <View style={{ padding: Spacing.md }}><TasksSkeleton /></View>;
           }
-          
+
           if (!tasksLoaded && timedOut) {
             return (
               <View style={{ padding: 20, alignItems: 'center' }}>
@@ -337,9 +337,9 @@ export default function AllTasksScreen() {
                 <View style={styles.sectionHeader}>
                   <Text style={[
                     styles.sectionLabel,
-                    { 
-                      color: label === 'Overdue' ? colors.danger : 
-                             (label === 'Today' ? colors.primary : colors.textSecondary) 
+                    {
+                      color: label === 'Overdue' ? colors.danger :
+                        (label === 'Today' ? colors.primary : colors.textSecondary)
                     }
                   ]}>
                     {label}

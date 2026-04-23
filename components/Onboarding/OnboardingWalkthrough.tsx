@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Animated, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@/components/BlurView';
+import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
 import { useStore } from '@/store/useStore';
-import { Sparkles, Zap, Target, Brain, Bot, Rocket } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Bot, Brain, Rocket, Sparkles, Target, Zap } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,10 +54,10 @@ export function OnboardingWalkthrough() {
   const colors = useThemeColors();
   const hasSeenWalkthrough = useStore(s => s.hasSeenWalkthrough);
   const setHasSeenWalkthrough = useStore(s => s.actions.setHasSeenWalkthrough);
-  
+
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
-  
+
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(20)).current;
 
@@ -106,11 +106,11 @@ export function OnboardingWalkthrough() {
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.overlay}>
         <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        
+
         <Animated.View style={[
-          styles.container, 
-          { 
-            backgroundColor: colors.card, 
+          styles.container,
+          {
+            backgroundColor: colors.card,
             borderColor: colors.border,
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }]
@@ -133,19 +133,19 @@ export function OnboardingWalkthrough() {
           <View style={styles.footer}>
             <View style={styles.pagination}>
               {STEPS.map((_, i) => (
-                <View 
-                  key={i} 
+                <View
+                  key={i}
                   style={[
-                    styles.dot, 
+                    styles.dot,
                     { backgroundColor: i === currentStep ? STEPS[currentStep].color : colors.textSecondary + '20' },
                     i === currentStep && { width: 24 }
-                  ]} 
+                  ]}
                 />
               ))}
             </View>
 
-            <TouchableOpacity 
-              style={[styles.nextBtn, { backgroundColor: STEPS[currentStep].color }]} 
+            <TouchableOpacity
+              style={[styles.nextBtn, { backgroundColor: STEPS[currentStep].color }]}
               onPress={handleNext}
             >
               <Text style={styles.nextBtnText}>
