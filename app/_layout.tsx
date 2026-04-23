@@ -127,10 +127,10 @@ export default function RootLayout() {
   }, [_hasHydrated]);
 
   useEffect(() => {
-    if (loaded || error) {
+    if ((loaded || error) && _hasHydrated) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, _hasHydrated]);
 
   // FIX C-4: Trigger daily reset once store has hydrated from AsyncStorage
   useEffect(() => {

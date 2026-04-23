@@ -102,25 +102,6 @@ const skeletonStyles = StyleSheet.create({
   },
 });
 
-function SyncStatusIndicator() {
-  const colors = useThemeColors();
-  const { profileLoaded, tasksLoaded, habitsLoaded } = useStore(s => s.syncStatus);
-  const isAuthenticated = useStore(s => s.isAuthenticated);
-  const isSyncing = isAuthenticated && (!profileLoaded || !tasksLoaded || !habitsLoaded);
-
-  if (!isSyncing) return null;
-
-  return (
-    <Animated.View 
-      entering={FadeIn.duration(400)} 
-      exiting={FadeOut.duration(400)}
-      style={[styles.syncIndicator, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
-    >
-      <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.7 }] }} />
-      <Text style={[styles.syncText, { color: colors.primary }]}>Syncing your LifeOS...</Text>
-    </Animated.View>
-  );
-}
 
 import { getLevelProgress } from '@/store/helpers';
 
@@ -258,8 +239,7 @@ export default function HomeScreen() {
               {userName || 'User'}!
             </Text>
 
-            {/* C-AUTH-15: Background Sync Indicator */}
-            <SyncStatusIndicator />
+
           </View>
 
           {/* Dashboard Widgets */}
@@ -376,20 +356,5 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
-  syncIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    gap: 6,
-  },
-  syncText: {
-    fontSize: 11,
-    fontFamily: 'Inter-SemiBold',
-    letterSpacing: 0.3,
-  }
+
 });

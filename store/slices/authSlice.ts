@@ -283,6 +283,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           set((state) => ({
             userName: data.userName || get().userName,
             moodTheme: data.moodTheme || get().moodTheme,
+            themePreference: data.themePreference || get().themePreference,
             focusGoalHours: data.focusGoalHours || get().focusGoalHours,
             bio: data.bio !== undefined ? data.bio : get().bio,
             location: data.location !== undefined ? data.location : get().location,
@@ -519,6 +520,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (Array.isArray(struggles) && struggles.length > 0),
             onboardingData: { struggles: Array.isArray(struggles) ? struggles : [] },
             moodTheme: data.moodTheme || get().moodTheme,
+            themePreference: data.themePreference || get().themePreference,
             focusGoalHours: data.focusGoalHours || 8,
             bio: data.bio || null,
             location: data.location || null,
@@ -665,7 +667,10 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     }
     return { onboardingData: next };
   }),
-  setThemePreference: (theme) => set({ themePreference: theme }),
+  setThemePreference: (theme) => set((state) => {
+    if (state.userId) fireSync(() => dbService.saveUserProfile(state.userId!, { themePreference: theme } as any), 'saveThemePreference', state.userId);
+    return { themePreference: theme };
+  }),
   setAccentColor: (color) => set((state) => {
     if (state.userId) fireSync(() => dbService.saveAccentColor(state.userId!, color), 'saveAccentColor', state.userId);
     return { accentColor: color };

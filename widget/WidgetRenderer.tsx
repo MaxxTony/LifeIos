@@ -5,9 +5,10 @@ import { MoodWidget } from './widgets/MoodWidget';
 import { NotLoggedInWidget } from './widgets/NotLoggedInWidget';
 import { TasksWidget } from './widgets/TasksWidget';
 import { XPLevelWidget } from './widgets/XPLevelWidget';
+import { FlexWidget } from 'react-native-android-widget';
 import { resolveAccent, getLevelInfo, getToday, getDateOffset, ThemeMode } from './widgets/utils';
 
-export function renderWidgetByName(widgetName: string, state: any) {
+export function renderWidgetByName(widgetName: string, state: any, widgetInfo?: any) {
   // Handle both raw state and mapped WidgetData
   const isLoggedIn = state?.userId || state?.isLoggedIn;
   if (!isLoggedIn) {
@@ -24,10 +25,12 @@ export function renderWidgetByName(widgetName: string, state: any) {
   const globalStreak = stats.streak ?? stats.globalStreak ?? 0;
   const level = stats.level ?? 1;
 
+  let inner: React.ReactNode;
+
   switch (widgetName) {
     case 'FocusTimerWidget': {
       const focus = state.focus || state.focusSession || {};
-      return (
+      inner = (
         <FocusTimerWidget
           totalSeconds={focus.totalSecondsToday ?? 0}
           goalHours={state.focusGoalHours ?? (state.focus?.goalSeconds ? state.focus.goalSeconds / 3600 : 8)}
@@ -37,11 +40,11 @@ export function renderWidgetByName(widgetName: string, state: any) {
           theme={theme}
         />
       );
+      break;
     }
 
     case 'HabitsWidget': {
       const habits = state.habits ?? [];
-      // If habits are already mapped (isDoneToday exists), use them directly
       const isMapped = habits.length > 0 && 'isDoneToday' in habits[0];
       
       const dayOfWeek = new Date().getDay();
@@ -53,7 +56,7 @@ export function renderWidgetByName(widgetName: string, state: any) {
         return false;
       });
 
-      return (
+      inner = (
         <HabitsWidget
           habits={todayHabits.map((h: any) => ({
             ...h,
@@ -65,6 +68,7 @@ export function renderWidgetByName(widgetName: string, state: any) {
           theme={theme}
         />
       );
+      break;
     }
 
     case 'TasksWidget': {
@@ -78,12 +82,13 @@ export function renderWidgetByName(widgetName: string, state: any) {
           return (p[a.priority] ?? 1) - (p[b.priority] ?? 1);
         });
 
-      return <TasksWidget tasks={todayTasks} accent={accent} theme={theme} />;
+      inner = <TasksWidget tasks={todayTasks} accent={accent} theme={theme} />;
+      break;
     }
 
     case 'XPLevelWidget': {
       const levelInfo = state.stats ? state.stats : getLevelInfo(totalXP);
-      return (
+      inner = (
         <XPLevelWidget
           level={levelInfo.level ?? level}
           levelName={levelInfo.levelName ?? 'Spark'}
@@ -93,6 +98,7 @@ export function renderWidgetByName(widgetName: string, state: any) {
           theme={theme}
         />
       );
+      break;
     }
 
     case 'MoodWidget': {
@@ -101,21 +107,34 @@ export function renderWidgetByName(widgetName: string, state: any) {
         const date = getDateOffset(4 - i);
         return state.moodHistory?.[date]?.mood ?? 0;
       });
-      // Prioritize moodHistory for today to prevent stale past moods
       const todayMood = state.moodHistory?.[today]?.mood ?? moodData.today ?? null;
 
-      return (
+      inner = (
         <MoodWidget
           todayMood={todayMood}
           last5Days={last5}
+          moodTheme={state.moodTheme || 'classic'}
           accent={accent}
           theme={theme}
         />
       );
+      break;
     }
 
     default:
-      return <NotLoggedInWidget />;
+      inner = <NotLoggedInWidget />;
+      break;
   }
+
+  return (
+    <FlexWidget
+      style={{
+        width: widgetInfo?.width ?? 'match_parent',
+        height: widgetInfo?.height ?? 'match_parent',
+      }}
+    >
+      {inner}
+    </FlexWidget>
+  );
 }
 

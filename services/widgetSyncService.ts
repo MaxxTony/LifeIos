@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const APP_GROUP = 'group.com.lifeos.prime';
 
@@ -27,6 +28,7 @@ export interface WidgetData {
     last5Days: number[];
   };
   theme?: 'light' | 'dark';
+  moodTheme?: string;
   lastUpdated: number;
 }
 
@@ -40,6 +42,8 @@ export const widgetSyncService = {
       }
     } else if (Platform.OS === 'android') {
       try {
+        await AsyncStorage.setItem('widgetData', JSON.stringify(data));
+        
         const { requestWidgetUpdate } = await import('react-native-android-widget');
         const { renderWidgetByName } = await import('../widget/WidgetRenderer');
         const widgetNames = [
@@ -53,7 +57,7 @@ export const widgetSyncService = {
         for (const name of widgetNames) {
           requestWidgetUpdate({
             widgetName: name,
-            renderWidget: () => renderWidgetByName(name, data),
+            renderWidget: (widgetInfo) => renderWidgetByName(name, data, widgetInfo),
           });
         }
 

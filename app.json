@@ -105,7 +105,7 @@
               "minHeight": "110dp",
               "description": "View your level, XP progress and streak",
               "updatePeriodMillis": 3600000,
-              "resizeMode": "none"
+              "resizeMode": "horizontal|vertical"
             },
             {
               "name": "MoodWidget",
@@ -114,7 +114,7 @@
               "minHeight": "110dp",
               "description": "Log and track your daily mood",
               "updatePeriodMillis": 3600000,
-              "resizeMode": "none"
+              "resizeMode": "horizontal|vertical"
             }
           ]
         }

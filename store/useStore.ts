@@ -111,6 +111,7 @@ export const useStore = create<UserState>()(
           habitsLoaded: false,
           moodLoaded: false,
           focusLoaded: false,
+          questsLoaded: false,
           profileLoaded: false,
           isOffline: false,
           lastCloudSync: null,
@@ -273,6 +274,7 @@ useStore.subscribe((state) => {
     const widgetData = {
       isLoggedIn: true,
       accentColor: state.accentColor ?? '#7C5CFF',
+      moodTheme: state.moodTheme ?? 'classic',
       tasks: todayTasks
         .filter(t => !t.completed && t.status !== 'missed')
         .sort((a, b) => {
