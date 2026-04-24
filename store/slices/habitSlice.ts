@@ -73,7 +73,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         if (today > getTodayLocal()) return h;
         if (h.pausedUntil && today <= h.pausedUntil) return h;
 
-        const completedSet = new Set(h.completedDays);
+        const completedSet = new Set(h.completedDays ?? []);
         const isCompleted = completedSet.has(today);
 
         // ── Due-Day Validation ──
@@ -92,21 +92,16 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
               return h;
             }
           } else if (h.frequency === 'monthly') {
-            const isFixed = h.monthlyDay && h.monthlyDay > 0;
-            if (isFixed) {
-              if (dayOfMonth !== h.monthlyDay) return h;
+            const isMonthlyFixed = h.monthlyDay && h.monthlyDay > 0;
+            if (isMonthlyFixed) {
+              if (dayOfMonth !== h.monthlyDay) {
+                Toast.show({ type: 'info', text1: 'Not scheduled today', text2: `This habit runs on the ${h.monthlyDay}${h.monthlyDay === 1 ? 'st' : h.monthlyDay === 2 ? 'nd' : h.monthlyDay === 3 ? 'rd' : 'th'} of each month.`, visibilityTime: 3000 });
+                return h;
+              }
             } else {
               // Monthly Count Goal: cap completions at the target
               const monthStr = today.slice(0, 7);
-              const isFixed = h.monthlyDay && h.monthlyDay > 0;
-              const monthCompletions = h.completedDays.filter(cd => {
-                if (!cd.startsWith(monthStr)) return false;
-                if (isFixed) {
-                  const dayNum = parseInt(cd.split('-')[2], 10);
-                  return dayNum === h.monthlyDay;
-                }
-                return true;
-              }).length;
+              const monthCompletions = h.completedDays.filter(cd => cd.startsWith(monthStr)).length;
               if (monthCompletions >= (h.monthlyTarget || 1)) return h;
             }
           }
@@ -182,7 +177,7 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
             d.setDate(d.getDate() - i);
             const dStr = formatLocalDate(d);
 
-            if (h.frequency === 'weekly' && !h.targetDays.includes(d.getDay())) continue;
+            if (h.frequency === 'weekly' && !h.targetDays?.includes(d.getDay())) continue;
             if (h.pausedUntil && dStr <= h.pausedUntil) continue;
 
             if (newCompletedSet.has(dStr)) {

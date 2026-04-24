@@ -14,6 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
+import NetInfo from '@react-native-community/netinfo';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { analyticsService } from '@/services/analyticsService';
 import { registerAllBackgroundTasks, unregisterAllBackgroundTasks } from '@/services/backgroundService';
@@ -148,20 +149,22 @@ export default function RootLayout() {
       useStore.getState().actions.generateDailyQuests();
       analyticsService.initAnalyticsService();
 
-      // BUG-NET-4 FIX: Replace google.com with cloudflare's lightweight trace endpoint.
-      // google.com is blocked in China / many corporate networks → app always shows offline.
-      // cloudflare.com/cdn-cgi/trace is a neutral ~500B text endpoint available globally.
-      const checkConnection = async () => {
-        try {
-          const resp = await fetch('https://www.cloudflare.com/cdn-cgi/trace', { method: 'GET', cache: 'no-store' });
-          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: !resp.ok } }));
-        } catch {
-          useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: true } }));
-        }
-      };
-      const connInterval = setInterval(checkConnection, 60000);
-      checkConnection();
-      return () => clearInterval(connInterval);
+      // Instant offline detection via NetInfo — fires within milliseconds of
+      // connectivity change, replacing the old 60s Cloudflare polling window.
+      // isInternetReachable can be null on Android while the check is still running;
+      // treat null as online to avoid false "offline" flashes on startup.
+      const unsubNetInfo = NetInfo.addEventListener(state => {
+        const isOffline = state.isConnected === false ||
+          (state.isInternetReachable === false);
+        useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline } }));
+      });
+      // Fire an immediate check so we don't wait for the first change event
+      NetInfo.fetch().then(state => {
+        const isOffline = state.isConnected === false ||
+          (state.isInternetReachable === false);
+        useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline } }));
+      });
+      return () => unsubNetInfo();
     }
   }, [_hasHydrated]);
 
@@ -209,6 +212,7 @@ export default function RootLayout() {
         notificationService.scheduleStreakWarningNotification();
         notificationService.scheduleMorningBrief();
         notificationService.scheduleQuestFOMO();
+        notificationService.scheduleMidnightReset();
       });
 
       // Weekly leaderboard alert — schedule with live rank so copy is personalised.
@@ -375,7 +379,15 @@ export default function RootLayout() {
   useEffect(() => {
     // Listen for foreground notifications
     const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-      const { title, body } = notification.request.content;
+      const { title, body, data } = notification.request.content;
+
+      // Silent midnight trigger — run the reset, do not show a toast
+      if (data?.type === 'MIDNIGHT_RESET') {
+        useStore.getState().actions.performDailyReset();
+        useStore.getState().actions.generateDailyQuests();
+        return;
+      }
+
       Toast.show({
         type: 'info',
         text1: title || 'LifeOS Notification',

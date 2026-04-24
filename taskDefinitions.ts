@@ -24,3 +24,18 @@ TaskManager.defineTask('sync-fetch', async () => {
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
+
+// Safety-net: fires every ~60 min in background. Catches midnight even if the scheduled
+// notification doesn't wake the app (e.g. device restarted, DND, app force-killed long-term).
+TaskManager.defineTask('daily-reset', async () => {
+  try {
+    const { useStore } = require('@/store/useStore');
+    const store = useStore.getState();
+    if (!store._hasHydrated) return BackgroundFetch.BackgroundFetchResult.NoData;
+    store.actions.performDailyReset();
+    store.actions.generateDailyQuests();
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch {
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});

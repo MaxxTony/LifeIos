@@ -33,7 +33,7 @@ export function renderWidgetByName(widgetName: string, state: any, widgetInfo?: 
       inner = (
         <FocusTimerWidget
           totalSeconds={focus.totalSecondsToday ?? 0}
-          goalHours={state.focusGoalHours ?? (state.focus?.goalSeconds ? state.focus.goalSeconds / 3600 : 8)}
+          goalHours={state.focusGoalHours ?? (state.focus?.goalSeconds ? state.focus.goalSeconds / 3600 : 2)}
           isActive={focus.isActive ?? false}
           lastUpdated={state.lastUpdated}
           accent={accent}

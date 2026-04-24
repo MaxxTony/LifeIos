@@ -2,13 +2,16 @@ import * as Crypto from 'expo-crypto';
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  EmailAuthProvider,
   GoogleAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   User
 } from 'firebase/auth';
 import { auth } from '../firebase/config';
@@ -88,6 +91,31 @@ export const authService = {
       return { error: null };
     } catch (error: any) {
       return { error: error.message };
+    }
+  },
+
+  // Change Password (requires re-authentication with current password)
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) return { error: 'No authenticated user' };
+
+      // Re-authenticate before sensitive operation
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      return { error: null };
+    } catch (error: any) {
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        return { error: 'Current password is incorrect' };
+      }
+      if (error.code === 'auth/weak-password') {
+        return { error: 'New password must be at least 6 characters' };
+      }
+      if (error.code === 'auth/requires-recent-login') {
+        return { error: 'Please log out and log back in, then try again' };
+      }
+      return { error: mapAuthErrorToMessage(error.code) };
     }
   },
 

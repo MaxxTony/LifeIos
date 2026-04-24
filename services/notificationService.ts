@@ -26,12 +26,13 @@ const parseTimeString = (timeStr: string) => {
 // Configure how notifications should be handled when the app is foregrounded
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async (notification) => {
+      // Silent trigger — suppress banner so users don't see a "reset" popup at midnight
+      if (notification.request.content.data?.type === 'MIDNIGHT_RESET') {
+        return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+      }
+      return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true };
+    },
   });
 }
 
@@ -739,6 +740,32 @@ export const notificationService = {
       await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard');
     } catch (e) {
       // Silence
+    }
+  },
+
+  // Schedules a silent daily trigger at 00:01 AM so performDailyReset() fires close
+  // to midnight even when the app is in the background. The banner is suppressed by the
+  // setNotificationHandler above — users never see this notification.
+  scheduleMidnightReset: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('midnight-reset-trigger').catch(() => {});
+      const trigger: any = Platform.OS === 'ios'
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: 0, minute: 1, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 0, minute: 1, channelId: DEFAULT_CHANNEL_ID };
+
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'midnight-reset-trigger',
+        content: {
+          title: 'New day, new quests! 🌅',
+          body: 'Your daily quests and habits have refreshed.',
+          data: { type: 'MIDNIGHT_RESET' },
+          sound: false,
+        },
+        trigger,
+      });
+    } catch (e) {
+      console.warn('[Notifications] Failed to schedule midnight reset:', e);
     }
   },
 

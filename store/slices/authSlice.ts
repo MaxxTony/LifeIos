@@ -10,22 +10,18 @@ import { query, where, orderBy, limit, documentId, setDoc, doc } from 'firebase/
 import { db } from '@/firebase/config';
 import { setSentryUser } from '@/services/crashAnalytics';
 
-// Minimal state cleared on logout. User data (tasks, habits, XP, history, profile)
-// is intentionally kept in the store so the dashboard renders instantly on
-// re-login using the last-session cache. Firestore snapshots overwrite
-// everything within 1-2s in the background — no skeleton, no flash.
 const LOGGED_OUT_STATE: Partial<UserState> = {
-  // Auth — must always clear
+  // Auth
   isAuthenticated: false,
   userId: null,
   userName: null,
   sessionToken: null,
-  // Sync control — reset so listeners are re-registered on next login
+  // Sync control
   _syncUnsubscribes: [],
   pendingActions: [],
   syncError: null,
   _lastRetryAt: 0,
-  // Active focus session — stop any live timer so it doesn't carry over
+  // Active focus session
   focusSession: {
     totalSecondsToday: 0,
     isActive: false,
@@ -38,12 +34,41 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
     sessionStartSeconds: 0,
     pomodoroOverflow: 0,
   },
-  // Transient UI state — reset so stale overlays don't appear
+  // Transient UI state
   globalConfetti: false,
   recentXP: null,
   proactivePrompt: null,
   streakMilestones: [],
   lastMoodLog: null,
+  // PII-CLEAR: Wipe personal data so it never leaks to the next user on a shared device.
+  // On re-login, Firestore snapshots restore everything within 1-2s.
+  tasks: [],
+  habits: [],
+  moodHistory: {},
+  focusHistory: {},
+  lifeScoreHistory: {},
+  dailyQuests: [],
+  // Profile PII
+  avatarUrl: null,
+  bio: '',
+  location: '',
+  occupation: '',
+  pronouns: '',
+  phoneNumber: null,
+  birthday: null,
+  skills: [],
+  socialLinks: {},
+  // Gamification
+  totalXP: 0,
+  level: 1,
+  globalStreak: 0,
+  streakFreezes: 0,
+  weeklyXP: 0,
+  lastActiveDate: null,
+  lastResetDate: null,
+  hasSeenWalkthrough: false,
+  hasCompletedOnboarding: false,
+  aiInsight: null,
 };
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({

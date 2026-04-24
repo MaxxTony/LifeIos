@@ -9,7 +9,7 @@ import { Bot, Brain, Rocket, Sparkles, Target, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const STEPS = [
   {
@@ -61,6 +61,7 @@ export function OnboardingWalkthrough() {
 
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(20)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.75)).current;
 
   useEffect(() => {
     let timeoutId: any;
@@ -81,9 +82,11 @@ export function OnboardingWalkthrough() {
     if (visible) {
       fadeAnim.setValue(0);
       slideAnim.setValue(20);
+      scaleAnim.setValue(0.75);
       Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true })
+        Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 6 }),
       ]).start();
     }
   }, [currentStep, visible]);
@@ -130,26 +133,36 @@ export function OnboardingWalkthrough() {
             end={{ x: 1, y: 1 }}
           />
 
-          <View style={[styles.iconContainer, { backgroundColor: STEPS[currentStep].color + '15' }]}>
-            <StepIcon size={48} color={STEPS[currentStep].color} />
-          </View>
+          {currentStep < STEPS.length - 1 && (
+            <TouchableOpacity style={styles.skipBtn} onPress={handleClose}>
+              <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
+            </TouchableOpacity>
+          )}
+
+          <Animated.View style={[styles.iconContainer, { backgroundColor: STEPS[currentStep].color + '15', transform: [{ scale: scaleAnim }] }]}>
+            <StepIcon size={56} color={STEPS[currentStep].color} />
+          </Animated.View>
 
           <Text style={[styles.title, { color: colors.text }]}>{STEPS[currentStep].title}</Text>
           <Text style={[styles.description, { color: colors.textSecondary }]}>{STEPS[currentStep].description}</Text>
 
+          {/* Step progress bar */}
+          <View style={[styles.progressTrack, { backgroundColor: colors.textSecondary + '20' }]}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                {
+                  backgroundColor: STEPS[currentStep].color,
+                  width: `${((currentStep + 1) / STEPS.length) * 100}%`,
+                }
+              ]}
+            />
+          </View>
+
           <View style={styles.footer}>
-            <View style={styles.pagination}>
-              {STEPS.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    { backgroundColor: i === currentStep ? STEPS[currentStep].color : colors.textSecondary + '20' },
-                    i === currentStep && { width: 24 }
-                  ]}
-                />
-              ))}
-            </View>
+            <Text style={[styles.stepLabel, { color: colors.textSecondary }]}>
+              {currentStep + 1} / {STEPS.length}
+            </Text>
 
             <TouchableOpacity
               style={[styles.nextBtn, { backgroundColor: STEPS[currentStep].color }]}
@@ -162,11 +175,6 @@ export function OnboardingWalkthrough() {
             </TouchableOpacity>
           </View>
 
-          {currentStep < STEPS.length - 1 && (
-            <TouchableOpacity style={styles.skipBtn} onPress={handleClose}>
-              <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip Tour</Text>
-            </TouchableOpacity>
-          )}
         </Animated.View>
       </View>
     </Modal>
@@ -215,20 +223,27 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 32,
   },
+  progressTrack: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
   footer: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  pagination: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  dot: {
-    height: 6,
-    width: 6,
-    borderRadius: 3,
+  stepLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.6,
   },
   nextBtn: {
     flexDirection: 'row',
@@ -244,11 +259,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   skipBtn: {
-    marginTop: 20,
+    position: 'absolute',
+    top: 20,
+    right: 24,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   skipText: {
     fontSize: 13,
     fontWeight: '700',
-    opacity: 0.6,
+    opacity: 0.5,
   }
 });

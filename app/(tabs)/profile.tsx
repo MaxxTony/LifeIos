@@ -14,6 +14,7 @@ import {
   HelpCircle,
   History,
   Info,
+  KeyRound,
   LogOut,
   MessageSquare,
   Moon,
@@ -144,6 +145,12 @@ export default function ProfileScreen() {
                 accentColor="#FBBF24"
                 value={getAppearanceValue()}
                 onPress={() => router.push('/settings/appearance')}
+              />
+              <ProfileMenuItem
+                icon={KeyRound}
+                label="Change Password"
+                accentColor="#818CF8"
+                onPress={() => router.push('/settings/change-password')}
               />
               <ProfileMenuItem
                 icon={Shield}
