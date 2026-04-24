@@ -4,6 +4,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
+import { Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -201,6 +202,8 @@ function MonthlyHabitBlock({ habit, colors, onToggle }: { habit: any; colors: an
 
       {/* Right — tap to log */}
       <TouchableOpacity
+        accessibilityLabel={isLoggedToday ? 'Logged today' : isLocked ? 'Habit locked' : 'Log today'}
+        accessibilityRole="button"
         onPress={() => {
           if (isLocked) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -305,6 +308,8 @@ const HabitCard = React.memo(({ habit, streak, colors, onToggle, isSyncing }: Ha
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
+      accessibilityLabel={`${habit.title} habit${isCompletedToday ? ', completed today' : ''}`}
+      accessibilityRole="button"
       style={[
         styles.card,
         { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.85)', borderColor: colors.border },
@@ -381,14 +386,11 @@ export const HabitGrid = React.memo(function HabitGrid() {
           <Text style={[container.sectionTitle, { color: colors.text }]}>Habit Streaks</Text>
           <TouchableOpacity
             onPress={() => router.push('/(habits)/templates')}
-            style={[container.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted }]}
+            style={[container.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}
+            accessibilityLabel="Add new habit"
+            accessibilityRole="button"
           >
-            <LinearGradient
-              colors={[colors.primary + 'CC', colors.secondary + 'CC']}
-              style={container.addBtnGrad}
-            >
-              <Ionicons name="add" size={18} color="#FFF" />
-            </LinearGradient>
+            <Plus size={18} color={colors.primary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
@@ -411,6 +413,8 @@ export const HabitGrid = React.memo(function HabitGrid() {
             <TouchableOpacity
               onPress={() => router.push('/(habits)/templates')}
               style={[container.empty, { borderColor: colors.border }]}
+              accessibilityLabel="Add habits to track streaks"
+              accessibilityRole="button"
             >
               <Ionicons name="sparkles-outline" size={22} color={colors.textSecondary + '40'} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Add habits to track streaks</Text>
@@ -456,10 +460,10 @@ const container = StyleSheet.create({
     letterSpacing: 1.2,
   },
   addBtn: {
-    width: 34, height: 34, borderRadius: 11,
-    overflow: 'hidden', borderWidth: 1,
+    width: 36, height: 36, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5,
   },
-  addBtnGrad: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: {
     alignItems: 'center', justifyContent: 'center',
     paddingVertical: Spacing.xl,

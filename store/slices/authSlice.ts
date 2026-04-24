@@ -1,6 +1,5 @@
 import { StateCreator } from 'zustand';
 import { UserState, Task, Habit, MoodEntry, AuthActions } from '../types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
 import { getTodayLocal, formatLocalDate } from '@/utils/dateUtils';
@@ -11,17 +10,22 @@ import { query, where, orderBy, limit, documentId, setDoc, doc } from 'firebase/
 import { db } from '@/firebase/config';
 import { setSentryUser } from '@/services/crashAnalytics';
 
-// Full state reset applied on logout or forced sign-out (e.g. server-side user deletion).
+// Minimal state cleared on logout. User data (tasks, habits, XP, history, profile)
+// is intentionally kept in the store so the dashboard renders instantly on
+// re-login using the last-session cache. Firestore snapshots overwrite
+// everything within 1-2s in the background — no skeleton, no flash.
 const LOGGED_OUT_STATE: Partial<UserState> = {
+  // Auth — must always clear
   isAuthenticated: false,
   userId: null,
   userName: null,
-  email: null,
-  createdAt: null,
-  tasks: [],
-  habits: [],
-  mood: null,
-  moodHistory: {},
+  sessionToken: null,
+  // Sync control — reset so listeners are re-registered on next login
+  _syncUnsubscribes: [],
+  pendingActions: [],
+  syncError: null,
+  _lastRetryAt: 0,
+  // Active focus session — stop any live timer so it doesn't carry over
   focusSession: {
     totalSecondsToday: 0,
     isActive: false,
@@ -34,72 +38,12 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
     sessionStartSeconds: 0,
     pomodoroOverflow: 0,
   },
-  focusHistory: {},
-  focusGoalHours: 8,
-  lastResetDate: null,
-  bio: null,
-  location: null,
-  occupation: null,
-  avatarUrl: null,
-  phoneNumber: null,
-  birthday: null,
-  pronouns: null,
-  skills: null,
-  socialLinks: {},
-  moodTheme: null,
-  homeTimezone: null as string | null,
-  notificationSettings: {
-    masterEnabled: true,
-    habitReminders: true,
-    taskReminders: true,
-    missedTaskAlert: true,
-    morningBrief: true,
-    streakWarning: true,
-    questCompleted: true,
-    weeklyLeaderboard: true,
-    dailyMoodCheckin: true,
-    aiCoachNudge: true,
-    pomodoroAlert: true,
-    comeback48h: true,
-    comeback7d: true,
-  },
-  onboardingData: { struggles: [] },
-  // Non-sensitive settings to PERSIST across logout
-  // themePreference: 'system' as const, (Moved out of reset)
-  // hasSeenWalkthrough: false, (Moved out of reset)
-  
+  // Transient UI state — reset so stale overlays don't appear
+  globalConfetti: false,
   recentXP: null,
+  proactivePrompt: null,
   streakMilestones: [],
   lastMoodLog: null,
-  lifeScoreHistory: {},
-  totalXP: 0,
-  level: 1,
-  weeklyXP: 0,
-  globalStreak: 0,
-  lastActiveDate: null,
-  lastWeekResetDate: null,
-  lastLoginBonusDate: null,
-  streakFreezes: 0,
-  globalConfetti: false,
-  dailyQuests: [],
-  completedQuests: [],
-  proactivePrompt: null,
-  _syncUnsubscribes: [],
-  sessionToken: null,
-  syncError: null,
-  _lastRetryAt: 0,
-  lastActiveTimestamp: Date.now(),
-  syncStatus: {
-    tasksLoaded: false,
-    habitsLoaded: false,
-    moodLoaded: false,
-    focusLoaded: false,
-    questsLoaded: false,
-    profileLoaded: false,
-    isOffline: false,
-    lastCloudSync: null,
-  },
-  pendingActions: [],
 };
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
@@ -116,29 +60,47 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
   },
 
   setAuth: async (userId, userName, sessionToken) => {
-    const unsubs = get()._syncUnsubscribes;
+    const currentState = get();
+    const unsubs = currentState._syncUnsubscribes;
     for (const unsub of unsubs) {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     }
+
     if (!userId) {
-      // User signed out or was deleted server-side — clear all persisted user data.
+      // C-AUTH-14 FIX: Do not wipe the store on the FIRST null fire of onAuthStateChanged.
+      // Firebase often fires null before resolving the real persistent user. 
+      // Wiping here causes the "Instant-On" local cache to be destroyed, 
+      // leading to theme/data flashes.
+      if (!currentState._authStateResolved && currentState.isAuthenticated) {
+        console.log('[LifeOS Store] Ignoring initial null auth fire to preserve local cache.');
+        return;
+      }
+
+      // User signed out or session actually expired — clear user data.
       set((state) => ({
         ...LOGGED_OUT_STATE,
         _subscriptionGen: state._subscriptionGen + 1,
       }));
       return;
     }
+
     set((state) => ({
       userId,
-      userName,
+      // C-AUTH-15 FIX: Protect local userName. If we have a name in store, 
+      // don't overwrite it with a generic Firebase display name (e.g. from email).
+      userName: state.userName || userName,
       sessionToken: sessionToken || state.sessionToken,
       isAuthenticated: true,
       _syncUnsubscribes: [],
       _subscriptionGen: state._subscriptionGen + 1,
     }));
+    
     // C-18 FIX: Tag Sentry session so crashes are attributed to the correct user.
     setSentryUser(userId, userName);
-    get().actions.subscribeToCloud();
+    // subscribeToCloud is NOT called here intentionally. It is the caller's
+    // responsibility (onAuthStateChanged in _layout.tsx or retrySync) to start
+    // the subscription ONCE. Calling it here caused a double-subscription on
+    // every fresh login because both login.tsx and onAuthStateChanged call setAuth.
   },
 
   updateProfile: async (updates) => {
@@ -184,17 +146,9 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
 
-    // 3. Clear Storage (Except global settings)
-    try {
-      const storage: any = AsyncStorage;
-      const multiRemove = storage.multiRemove || storage.default?.multiRemove;
-      if (typeof multiRemove === 'function') {
-        await multiRemove.call(storage, [
-          'lifeos-storage:tasks',
-          'lifeos-storage:hist',
-        ]);
-      }
-    } catch (err) {}
+    // Storage is intentionally NOT cleared here. Tasks, habits, and history
+    // survive logout so the dashboard renders instantly on re-login without a
+    // skeleton or flash. Firestore snapshots overwrite everything within 1-2s.
 
     // 4. Cancel Notifications
     const { notificationService } = await import('@/services/notificationService');
@@ -257,6 +211,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       const unsubRoot = dbService.subscribeToUserData(
         userId,
         (data: any) => {
+          if (isStale()) return;
           if (!data) {
             console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
             authService.logout();
@@ -265,7 +220,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           }
 
           const currentToken = get().sessionToken;
-          if (data.sessionToken && currentToken && data.sessionToken !== currentToken) {
+          if (data.sessionToken && currentToken && data.sessionToken !== currentToken && !data._fromCache) {
             console.warn('[LifeOS] sessionToken mismatch - logging out device.');
             Toast.show({
               type: 'error',
@@ -274,50 +229,69 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             });
             
             // C-SYNC-SESSION FIX: Call store logout first to trigger auto-save of focus timer
-            get().actions.logout({ shouldSaveFocus: true }).then(() => {
+            get().actions.logout({ shouldSaveFocus: true }).then(async () => {
+              try {
+                const { httpsCallable } = await import('firebase/functions');
+                const { functions } = await import('@/firebase/config');
+                await httpsCallable(functions, 'revokeOtherSessions')();
+              } catch (_) { /* non-blocking — local logout already happened */ }
               authService.logout();
             });
             return;
           }
 
-          set((state) => ({
-            userName: data.userName || get().userName,
-            moodTheme: data.moodTheme || get().moodTheme,
-            themePreference: data.themePreference || get().themePreference,
-            focusGoalHours: data.focusGoalHours || get().focusGoalHours,
-            bio: data.bio !== undefined ? data.bio : get().bio,
-            location: data.location !== undefined ? data.location : get().location,
-            occupation: data.occupation !== undefined ? data.occupation : get().occupation,
-            avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : get().avatarUrl,
-            phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : get().phoneNumber,
-            birthday: data.birthday !== undefined ? data.birthday : get().birthday,
-            pronouns: data.pronouns !== undefined ? data.pronouns : get().pronouns,
-            skills: data.skills !== undefined ? data.skills : get().skills,
-            socialLinks: data.socialLinks !== undefined ? data.socialLinks : get().socialLinks,
-            accentColor: data.accentColor || get().accentColor,
-            homeTimezone: data.homeTimezone || get().homeTimezone,
-            // C-AUTH-10 FIX: Aggressive self-healing for stale onboarding flags in cloud.
-            // If the user has a username, struggles, or a level > 1, they have definitely finished onboarding.
-            hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || !!data.userName || (Array.isArray(data.struggles) && data.struggles.length > 0) || (data.level && data.level > 1),
-            onboardingData: { struggles: Array.isArray(data.struggles) ? data.struggles : (get().onboardingData?.struggles || []) },
-            hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough,
-            streakFreezes: data.streakFreezes !== undefined ? data.streakFreezes : get().streakFreezes,
-            lastLoginBonusDate: data.lastLoginBonusDate !== undefined ? data.lastLoginBonusDate : get().lastLoginBonusDate,
-            syncStatus: {
-              ...state.syncStatus,
-              profileLoaded: true,
-              isOffline: checkOfflineStatus(!!data._fromCache),
-              lastCloudSync: !data._fromCache ? Date.now() : state.syncStatus.lastCloudSync
-            }
-          }));
+          const updates: Partial<UserState> = {};
+          if (data.userName) updates.userName = data.userName;
+          if (data.moodTheme) updates.moodTheme = data.moodTheme;
+          if (data.themePreference) updates.themePreference = data.themePreference;
+          if (data.focusGoalHours !== undefined) updates.focusGoalHours = data.focusGoalHours;
+          if (data.bio !== undefined) updates.bio = data.bio;
+          if (data.location !== undefined) updates.location = data.location;
+          if (data.occupation !== undefined) updates.occupation = data.occupation;
+          if (data.avatarUrl !== undefined) updates.avatarUrl = data.avatarUrl;
+          if (data.phoneNumber !== undefined) updates.phoneNumber = data.phoneNumber;
+          if (data.birthday !== undefined) updates.birthday = data.birthday;
+          if (data.pronouns !== undefined) updates.pronouns = data.pronouns;
+          if (data.skills !== undefined) updates.skills = data.skills;
+          if (data.socialLinks !== undefined) updates.socialLinks = data.socialLinks;
+          if (data.accentColor) updates.accentColor = data.accentColor;
+          if (data.homeTimezone) updates.homeTimezone = data.homeTimezone;
+          if (data.hasSeenWalkthrough !== undefined) updates.hasSeenWalkthrough = data.hasSeenWalkthrough;
+          if (data.streakFreezes !== undefined) updates.streakFreezes = data.streakFreezes;
+          if (data.lastLoginBonusDate !== undefined) updates.lastLoginBonusDate = data.lastLoginBonusDate;
 
-          console.log('[LifeOS Store] Cloud profile loaded. hasCompletedOnboarding:', get().hasCompletedOnboarding, 'Firestore says:', data.hasCompletedOnboarding);
+          // C-AUTH-10 FIX: Aggressive self-healing for stale onboarding flags in cloud.
+          // O17 FIX: STICKY TRUE. Once these are true, never let a cloud snapshot downgrade them to false/undefined.
+          const currentCompleted = get().hasCompletedOnboarding;
+          const currentSeen = get().hasSeenWalkthrough;
+          
+          const hasCompletedOnboarding = !!(data.hasCompletedOnboarding || currentCompleted || data.userName || (Array.isArray(data.struggles) && data.struggles.length > 0) || (data.level && data.level > 1));
+          updates.hasCompletedOnboarding = hasCompletedOnboarding;
+          
+          // C-AUTH-11 FIX: Self-healing for walkthrough flag — if you've completed onboarding, you've definitely seen the walkthrough.
+          const hasSeenWalkthrough = !!(data.hasSeenWalkthrough || currentSeen || hasCompletedOnboarding);
+          updates.hasSeenWalkthrough = hasSeenWalkthrough;
 
-          // C-AUTH-10 FIX: Self-healing for missing onboarding flag in Firestore
+          updates.onboardingData = { struggles: Array.isArray(data.struggles) ? data.struggles : (get().onboardingData?.struggles || []) };
+
+          updates.syncStatus = {
+            ...get().syncStatus,
+            profileLoaded: true,
+            isOffline: checkOfflineStatus(!!data._fromCache),
+            lastCloudSync: !data._fromCache ? Date.now() : get().syncStatus.lastCloudSync
+          };
+
+          set(updates);
+          
+          // C-AUTH-10 FIX: Self-healing for missing onboarding/walkthrough flags in cloud
           const finalState = get();
           if (finalState.hasCompletedOnboarding && !data.hasCompletedOnboarding && !data._fromCache) {
             console.log('[LifeOS] Healing missing onboarding flag in cloud...');
             dbService.saveUserProfile(userId, { hasCompletedOnboarding: true });
+          }
+          if (finalState.hasSeenWalkthrough && !data.hasSeenWalkthrough && !data._fromCache) {
+            console.log('[LifeOS] Healing missing walkthrough flag in cloud...');
+            dbService.saveUserProfile(userId, { hasSeenWalkthrough: true });
           }
 
           // SOCIAL: Sync fresh profile to publicProfiles root collection.
@@ -366,7 +340,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             }
           }));
         },
-        (ref) => query(ref, where('date', '>=', syncWindowStr))
+        (ref) => query(ref, where('date', '>=', syncWindowStr), orderBy('date', 'desc'), limit(500))
       );
       collected.push(unsubTasks);
 
@@ -517,26 +491,32 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         if (data) {
           await dbService.migrateLegacyData(userId, data);
           const struggles = (data as any).struggles;
-          set({
-            userName: data.userName || null,
-            hasCompletedOnboarding: data.hasCompletedOnboarding || get().hasCompletedOnboarding || (Array.isArray(struggles) && struggles.length > 0),
-            onboardingData: { struggles: Array.isArray(struggles) ? struggles : [] },
-            moodTheme: data.moodTheme || get().moodTheme,
-            themePreference: data.themePreference || get().themePreference,
-            focusGoalHours: data.focusGoalHours || 8,
-            bio: data.bio || null,
-            location: data.location || null,
-            occupation: data.occupation || null,
-            avatarUrl: data.avatarUrl || null,
-            phoneNumber: data.phoneNumber || null,
-            birthday: data.birthday || null,
-            pronouns: data.pronouns || null,
-            skills: data.skills || null,
-            socialLinks: data.socialLinks || {},
-            accentColor: data.accentColor || get().accentColor,
-            homeTimezone: data.homeTimezone || null,
-            hasSeenWalkthrough: data.hasSeenWalkthrough !== undefined ? data.hasSeenWalkthrough : get().hasSeenWalkthrough
-          });
+          
+          // C-SYNC-20 FIX: Never overwrite local store with nulls from cloud.
+          // This prevents "flashing" where data disappears and then reappears.
+          const updates: Partial<UserState> = {};
+          if (data.userName) updates.userName = data.userName;
+          if (data.hasCompletedOnboarding !== undefined) updates.hasCompletedOnboarding = data.hasCompletedOnboarding;
+          if (Array.isArray(struggles)) updates.onboardingData = { struggles };
+          if (data.moodTheme) updates.moodTheme = data.moodTheme;
+          if (data.themePreference) updates.themePreference = data.themePreference;
+          if (data.focusGoalHours !== undefined) updates.focusGoalHours = data.focusGoalHours;
+          if (data.bio !== undefined) updates.bio = data.bio;
+          if (data.location !== undefined) updates.location = data.location;
+          if (data.occupation !== undefined) updates.occupation = data.occupation;
+          if (data.avatarUrl !== undefined) updates.avatarUrl = data.avatarUrl;
+          if (data.phoneNumber !== undefined) updates.phoneNumber = data.phoneNumber;
+          if (data.birthday !== undefined) updates.birthday = data.birthday;
+          if (data.pronouns !== undefined) updates.pronouns = data.pronouns;
+          if (data.skills !== undefined) updates.skills = data.skills;
+          if (data.socialLinks !== undefined) updates.socialLinks = data.socialLinks;
+          if (data.accentColor) updates.accentColor = data.accentColor;
+          if (data.homeTimezone) updates.homeTimezone = data.homeTimezone;
+          // C-AUTH-10 FIX: Sticky flags in hydrate path
+          if (data.hasCompletedOnboarding === true || get().hasCompletedOnboarding === true) updates.hasCompletedOnboarding = true;
+          if (data.hasSeenWalkthrough === true || get().hasSeenWalkthrough === true || updates.hasCompletedOnboarding) updates.hasSeenWalkthrough = true;
+
+          set(updates);
         }
 
         // M-12 FIX: Server-wins for XP — take max(local, server) so the higher value always wins.
@@ -568,9 +548,15 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         // GAMIFICATION: Daily Login Bonus (+5 XP)
         // Runs here — after max(server, local) XP is in state — so we never
         // add 5 to a stale local 0 and overwrite the real server XP.
+        // added 5 to a stale local 0 and overwrite the real server XP.
         const todayStr = formatLocalDate(new Date());
         const stateAfterStats = get();
-        if (stateAfterStats.lastLoginBonusDate !== todayStr) {
+        
+        // O18 FIX: Added safety check. If the cloud profile exists but is MISSING 
+        // lastLoginBonusDate (undefined), do NOT trigger the bonus yet.
+        const cloudHasBonusDate = stateAfterStats.lastLoginBonusDate !== undefined;
+        
+        if (cloudHasBonusDate && stateAfterStats.lastLoginBonusDate !== todayStr) {
           const newXP = stateAfterStats.totalXP + 5;
           const newWeeklyXP = stateAfterStats.weeklyXP + 5;
           const newLevel = computeLevel(newXP);
@@ -581,6 +567,8 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
             get().actions.triggerGlobalConfetti();
             Toast.show({ type: 'success', text1: '🎁 Daily Bonus!', text2: '+5 XP for logging in today.', visibilityTime: 4000 });
           }, 1500);
+        } else {
+          console.log('[LifeOS] Skipping Daily Bonus. lastLoginBonusDate:', stateAfterStats.lastLoginBonusDate);
         }
 
         // SOCIAL FIX: Always upsert publicProfile on login so user appears

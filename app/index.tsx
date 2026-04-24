@@ -81,7 +81,7 @@ export default function Index() {
     );
   };
 
-  // 1. Core Hydration Check
+  // 1. Core Hydration Check (Local storage recovery)
   if (!_hasHydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -91,14 +91,17 @@ export default function Index() {
     );
   }
 
-  // 2. Instant Routing Logic
-  // We trust the local cache (AsyncStorage) for the fastest possible boot.
+  // 2. Instant-On Routing Logic
+  // If we have a valid session in the local cache, we jump to the Dashboard IMMEDIATELY.
+  // Because RootLayout now waits for hydration, the theme and local data are already
+  // correctly applied, so there is no flickering.
   if (isAuthenticated) {
     console.log('[LifeOS Index] Authenticated in cache. Instant-On to Dashboard.');
     return <Redirect href="/(tabs)" />;
   }
 
-  // 3. If NOT authenticated in cache, wait for Firebase to be 100% sure.
+  // 3. If NOT authenticated in cache, wait for Firebase to be 100% sure before
+  // deciding between Login or Onboarding.
   if (!_authStateResolved) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -113,7 +116,7 @@ export default function Index() {
     console.log('[LifeOS Index] Not authenticated. -> Login');
     return <Redirect href="/(auth)/login" />;
   }
-  
+
   console.log('[LifeOS Index] New user. -> Onboarding');
   return <Redirect href="/(onboarding)" />;
 }

@@ -4,6 +4,7 @@ import {
   deleteUser,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -56,6 +57,8 @@ export const authService = {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, pass);
       const sessionToken = await authService.generateAndSaveSessionToken(result.user.uid);
+      // LOW-005: Send verification email immediately after account creation.
+      sendEmailVerification(result.user).catch(() => {});
       return { user: result.user, sessionToken, error: null, errorCode: null };
     } catch (error: any) {
       return { user: null, sessionToken: null, error: mapAuthErrorToMessage(error.code), errorCode: error.code as string };
@@ -67,7 +70,12 @@ export const authService = {
     try {
       const result = await signInWithEmailAndPassword(auth, email, pass);
       const sessionToken = await authService.generateAndSaveSessionToken(result.user.uid);
-      return { user: result.user, sessionToken, error: null, errorCode: null };
+      // LOW-005: Warn unverified users. Re-send verification so they can act on it.
+      const emailVerified = result.user.emailVerified;
+      if (!emailVerified) {
+        sendEmailVerification(result.user).catch(() => {});
+      }
+      return { user: result.user, sessionToken, error: null, errorCode: null, emailVerified };
     } catch (error: any) {
       return { user: null, sessionToken: null, error: mapAuthErrorToMessage(error.code), errorCode: error.code as string };
     }
@@ -96,23 +104,28 @@ export const authService = {
   // Validate session (check if user still exists on server)
   validateSession: async (user: User) => {
     try {
-      // C-AUTH-2 FIX: Use getIdToken(true) instead of reload().
-      // getIdToken(true) forces a refresh and will fail if tokens were revoked.
-      await user.getIdToken(true);
+      // Serve the cached token first (no network). Firebase auto-refreshes
+      // if the token is within 5 minutes of expiry, so this is safe for the
+      // vast majority of cold starts. Force-refreshing every open added a
+      // 1-2s network delay before the app could route.
+      await user.getIdToken(false);
       return true;
     } catch (error: any) {
-      if (
-        error.code === 'auth/user-not-found' ||
-        error.code === 'auth/user-disabled' ||
-        error.code === 'auth/id-token-revoked'
-      ) {
-        return false;
-      }
-      // Network error — trust the cached session to avoid false logouts
-      if (error.code === 'auth/network-request-failed') {
+      // Cached token invalid — try a full network refresh before giving up.
+      try {
+        await user.getIdToken(true);
+        return true;
+      } catch (refreshError: any) {
+        if (
+          refreshError.code === 'auth/user-not-found' ||
+          refreshError.code === 'auth/user-disabled' ||
+          refreshError.code === 'auth/id-token-revoked'
+        ) {
+          return false;
+        }
+        // Network error — trust the cached session to avoid false logouts
         return true;
       }
-      return true;
     }
   },
 

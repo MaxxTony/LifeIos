@@ -89,7 +89,7 @@ export default function EditProfileScreen() {
     setForm({ ...form, phoneNumber: formatted });
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
+  const onDateChange = (selectedDate?: Date) => {
     if (!selectedDate) return;
 
     // P-PROFILE-1 FIX: Prevent future dates
@@ -100,22 +100,19 @@ export default function EditProfileScreen() {
       return;
     }
 
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(selectedDate.getDate()).padStart(2, '0');
+    setForm({ ...form, birthday: `${y}-${m}-${d}` });
+
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
+    }
+  };
 
-      // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
-      if (event.type === 'set') {
-        const y = selectedDate.getFullYear();
-        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const d = String(selectedDate.getDate()).padStart(2, '0');
-        setForm({ ...form, birthday: `${y}-${m}-${d}` });
-      }
-    } else {
-      // iOS behavior
-      const y = selectedDate.getFullYear();
-      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const d = String(selectedDate.getDate()).padStart(2, '0');
-      setForm({ ...form, birthday: `${y}-${m}-${d}` });
+  const handleDateDismiss = () => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
     }
   };
 
@@ -498,7 +495,8 @@ export default function EditProfileScreen() {
                       })()}
                       mode="date"
                       display="spinner"
-                      onChange={onDateChange}
+                      onValueChange={(_, d) => onDateChange(d)}
+                      onDismiss={handleDateDismiss}
                       textColor={colors.text}
                       maximumDate={new Date()}
                     />
@@ -518,7 +516,8 @@ export default function EditProfileScreen() {
                 })()}
                 mode="date"
                 display="default"
-                onChange={onDateChange}
+                onValueChange={(_, d) => onDateChange(d)}
+                onDismiss={handleDateDismiss}
                 maximumDate={new Date()}
               />
             )

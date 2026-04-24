@@ -46,7 +46,7 @@ export const DailyTasksWidget = React.memo(function DailyTasksWidget() {
           <Text style={[styles.title, { color: colors.text }]}>Daily Tasks</Text>
           <TouchableOpacity
             onPress={() => router.push('/tasks/create')}
-            style={[styles.addBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+            style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}
             accessibilityLabel="Create new task"
             accessibilityRole="button"
             accessibilityHint="Navigates to the task creation screen"
@@ -201,10 +201,10 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   list: {
     gap: Spacing.sm,

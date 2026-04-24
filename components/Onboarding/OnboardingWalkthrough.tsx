@@ -54,6 +54,7 @@ export function OnboardingWalkthrough() {
   const colors = useThemeColors();
   const hasSeenWalkthrough = useStore(s => s.hasSeenWalkthrough);
   const setHasSeenWalkthrough = useStore(s => s.actions.setHasSeenWalkthrough);
+  const profileLoaded = useStore(s => s.syncStatus.profileLoaded);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -63,7 +64,10 @@ export function OnboardingWalkthrough() {
 
   useEffect(() => {
     let timeoutId: any;
-    if (!hasSeenWalkthrough) {
+    // Wait for the cloud profile to confirm hasSeenWalkthrough before showing.
+    // Without this guard, the walkthrough flashes for ~1-2s on every fresh
+    // login because the local default is false before the profile syncs.
+    if (!hasSeenWalkthrough && profileLoaded) {
       timeoutId = setTimeout(() => {
         setVisible(true);
       }, 1200);
@@ -71,7 +75,7 @@ export function OnboardingWalkthrough() {
       setVisible(false);
     }
     return () => clearTimeout(timeoutId);
-  }, [hasSeenWalkthrough]);
+  }, [hasSeenWalkthrough, profileLoaded]);
 
   useEffect(() => {
     if (visible) {
@@ -95,6 +99,9 @@ export function OnboardingWalkthrough() {
 
   const handleClose = () => {
     setHasSeenWalkthrough(true);
+    // C-ONB-1 FIX: Also trigger completeOnboarding so the app doesn't treat 
+    // them as a new user next time (suppresses the loop).
+    useStore.getState().actions.completeOnboarding();
     setVisible(false);
   };
 

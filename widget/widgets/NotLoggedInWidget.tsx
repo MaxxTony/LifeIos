@@ -57,7 +57,7 @@ export function NotLoggedInWidget() {
 
       {/* ── Subtitle ── */}
       <TextWidget
-        text="Sign in to view your dashboard"
+        text="Open app to sync your data"
         style={{
           fontSize: 12,
           color: '#8888AA',

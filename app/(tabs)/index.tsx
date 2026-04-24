@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { AppState, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -111,11 +111,15 @@ export default function HomeScreen() {
   const colors = useThemeColors();
   const { dashboardTheme } = colors;
   const greeting = getGreeting();
-  // PH-1 PERFORMANCE: Subscribe directly to stable primitives (level, xp) 
+  // PH-1 PERFORMANCE: Subscribe directly to stable primitives (level, xp)
   // instead of useProfileStats() to avoid re-renderingทุก second on timer ticks.
   const level = useStore(s => s.level);
   const totalXP = useStore(s => s.totalXP);
   const { progress: xpProgress } = getLevelProgress(totalXP);
+  // UI-001/007: Detect new user so we can show CTAs instead of empty/0% widgets.
+  const taskCount = useStore(s => s.tasks.length);
+  const habitCount = useStore(s => s.habits.length);
+  const isNewUser = taskCount === 0 && habitCount === 0;
 
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
@@ -153,6 +157,7 @@ export default function HomeScreen() {
     return () => clearTimeout(t);
   }, [isHydrated]);
 
+  // Show skeleton while local store hasn't hydrated yet.
   if (!isHydrated) {
     if (hydrationStuck) {
       return (
@@ -235,14 +240,40 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
-              {userName || 'User'}!
+            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {userName ? `${userName}!` : 'there!'}
             </Text>
 
 
           </View>
 
           {/* Dashboard Widgets */}
+          {isNewUser && (
+            <View style={[styles.newUserBanner, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}>
+              <Text style={[styles.newUserTitle, { color: colors.text }]}>Welcome to LifeOS!</Text>
+              <Text style={[styles.newUserSub, { color: colors.textSecondary }]}>
+                Set up your first habit and task to start building momentum.
+              </Text>
+              <View style={styles.newUserActions}>
+                <TouchableOpacity
+                  style={[styles.newUserBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/all-habits' as any)}
+                  accessibilityLabel="Add your first habit"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.newUserBtnText}>+ Add Habit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.newUserBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/all-tasks' as any)}
+                  accessibilityLabel="Add your first task"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.newUserBtnText}>+ Add Task</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           <AIInsightCard />
           <View style={{ marginBottom: Spacing.lg }}>
             <QuestDashboard />
@@ -319,8 +350,39 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...Typography.h1Hero,
-    fontSize: 38, // Slightly reduced from 44 to handle long names
-    lineHeight: 46,
+    fontSize: 34,
+    lineHeight: 42,
+  },
+  newUserBanner: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  newUserTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 18,
+    marginBottom: 6,
+  },
+  newUserSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  newUserActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  newUserBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  newUserBtnText: {
+    color: '#fff',
+    fontFamily: 'Outfit-Bold',
+    fontSize: 14,
   },
   aiSection: {
     alignItems: 'center',

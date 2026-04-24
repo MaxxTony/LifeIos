@@ -50,7 +50,7 @@ export const useStore = create<UserState>()(
           sessionStartSeconds: 0,
           pomodoroOverflow: 0,
         },
-        focusGoalHours: 8,
+        focusGoalHours: 2,
         focusHistory: {},
         moodHistory: {},
         mood: null,

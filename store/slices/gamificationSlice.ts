@@ -11,6 +11,8 @@ import { analyticsService } from '@/services/analyticsService';
 
 // C-03 FIX: Module-level re-entrancy guard prevents simultaneous double resets.
 let isResetting = false;
+// MED-004: Rate-limit publicProfiles writes — only on level-up or at most once per 5 min.
+let lastPublicProfileWriteTime = 0;
 
 export const createGamificationSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], GamificationActions> = (set, get) => ({
   performDailyReset: () => {
@@ -324,17 +326,22 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
     if (state.userId) {
       fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', newStatData), 'xpUpdate', state.userId);
-      // We also update the publicProfile so friends can see it
-      fireSync(() => setDoc(doc(db, 'publicProfiles', state.userId!), {
-        level: newLevel,
-        weeklyXP: newWeeklyXP,
-        globalStreak: newGlobalStreak,
-        lastActive: Date.now(),
-        userName: state.userName || 'Anonymous',
-        // O9 FIX: Keep userNameLower in sync for case-insensitive search.
-        userNameLower: (state.userName || 'Anonymous').toLowerCase(),
-        avatarUrl: state.avatarUrl || null
-      }, { merge: true }), 'publicProfileSync', state.userId);
+      // MED-004: Only write publicProfiles on level-up or once per 5 minutes to cap write volume.
+      const levelChanged = newLevel !== state.level;
+      const now = Date.now();
+      if (levelChanged || now - lastPublicProfileWriteTime > 5 * 60 * 1000) {
+        lastPublicProfileWriteTime = now;
+        fireSync(() => setDoc(doc(db, 'publicProfiles', state.userId!), {
+          level: newLevel,
+          weeklyXP: newWeeklyXP,
+          globalStreak: newGlobalStreak,
+          lastActive: now,
+          userName: state.userName || 'Anonymous',
+          // O9 FIX: Keep userNameLower in sync for case-insensitive search.
+          userNameLower: (state.userName || 'Anonymous').toLowerCase(),
+          avatarUrl: state.avatarUrl || null
+        }, { merge: true }), 'publicProfileSync', state.userId);
+      }
     }
 
     return {
@@ -471,5 +478,18 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   dismissMilestone: () => set(state => ({ streakMilestones: state.streakMilestones.slice(1) })),
   dismissMoodLog: () => set({ lastMoodLog: null }),
   dismissProactive: () => set({ proactivePrompt: null }),
-  setLastActive: () => set({ lastActiveTimestamp: Date.now() }),
+  setLastActive: () => set((state) => {
+    const today = getTodayLocal();
+    const updates: Record<string, unknown> = { lastActiveTimestamp: Date.now() };
+    if (state.lastActiveDate !== today) {
+      updates.lastActiveDate = today;
+      if (state.userId) {
+        fireSync(
+          () => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', { lastActiveDate: today }),
+          'setLastActive', state.userId
+        );
+      }
+    }
+    return updates;
+  }),
 });

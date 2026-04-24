@@ -1,10 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// multiGet/multiSet/multiRemove exist at runtime but the bundled TS types
-// don't always expose them on the default export — cast once here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AS = AsyncStorage as any;
-
 // Keys that live in the history shard (large, cold, ~1 entry/day)
 const HISTORY_KEYS = new Set(['moodHistory', 'focusHistory', 'lifeScoreHistory']);
 // Keys that live in the tasks shard (medium, changes often during the day)
@@ -34,28 +29,34 @@ export function createShardedStorage(baseName: string) {
   return {
     getItem: async (name: string): Promise<string | null> => {
       try {
-        const results = await AS.multiGet([CORE_KEY, TASKS_KEY, HIST_KEY]);
-        const coreStr = results[0][1];
+        // O18 FIX: Some environments/versions of AsyncStorage have issues with multiGet.
+        // Falling back to individual await calls for maximum robustness.
+        const coreStr = await AsyncStorage.getItem(CORE_KEY);
 
         // No shards written yet → fall back to old monolithic key (migration path)
         if (!coreStr) {
+          console.log('[LifeOS Storage] No shards found. Checking monolith...');
           return await AsyncStorage.getItem(name);
         }
 
-        const coreObj = JSON.parse(coreStr);
-        const tasksObj = results[1][1] ? JSON.parse(results[1][1]) : { state: {} };
-        const histObj = results[2][1] ? JSON.parse(results[2][1]) : { state: {} };
+        const tasksStr = await AsyncStorage.getItem(TASKS_KEY);
+        const histStr = await AsyncStorage.getItem(HIST_KEY);
 
-        // Merge shards back into the shape Zustand persist expects: { state, version }
-        return JSON.stringify({
+        const coreObj = JSON.parse(coreStr);
+        const tasksObj = tasksStr ? JSON.parse(tasksStr) : { state: {} };
+        const histObj = histStr ? JSON.parse(histStr) : { state: {} };
+
+        const merged = {
           ...coreObj,
           state: {
             ...coreObj.state,
             ...tasksObj.state,
             ...histObj.state,
           },
-        });
-      } catch {
+        };
+
+        return JSON.stringify(merged);
+      } catch (e: any) {
         return null;
       }
     },
@@ -77,10 +78,11 @@ export function createShardedStorage(baseName: string) {
           else coreState[key] = val;
         }
 
-        await AS.multiSet([
-          [CORE_KEY, JSON.stringify({ ...meta, state: coreState })],
-          [TASKS_KEY, JSON.stringify({ ...meta, state: tasksState })],
-          [HIST_KEY, JSON.stringify({ ...meta, state: histState })],
+        // O18 FIX: Atomic multiSet fallback to individual sets for compatibility
+        await Promise.all([
+          AsyncStorage.setItem(CORE_KEY, JSON.stringify({ ...meta, state: coreState })),
+          AsyncStorage.setItem(TASKS_KEY, JSON.stringify({ ...meta, state: tasksState })),
+          AsyncStorage.setItem(HIST_KEY, JSON.stringify({ ...meta, state: histState })),
         ]);
 
         // Remove the old monolithic key so it doesn't persist alongside shards
@@ -92,7 +94,14 @@ export function createShardedStorage(baseName: string) {
     },
 
     removeItem: async (name: string): Promise<void> => {
-      await AS.multiRemove([name, CORE_KEY, TASKS_KEY, HIST_KEY]);
+      try {
+        await Promise.all([
+          AsyncStorage.removeItem(name),
+          AsyncStorage.removeItem(CORE_KEY),
+          AsyncStorage.removeItem(TASKS_KEY),
+          AsyncStorage.removeItem(HIST_KEY),
+        ]);
+      } catch { /* silent */ }
     },
   };
 }

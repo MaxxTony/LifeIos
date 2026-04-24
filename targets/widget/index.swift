@@ -89,8 +89,14 @@ struct LifeOSProvider: TimelineProvider {
         completion(LifeOSEntry(date: Date(), data: readData() ?? fallbackData()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<LifeOSEntry>) -> Void) {
-        let entry = LifeOSEntry(date: Date(), data: readData() ?? fallbackData())
-        let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date()
+        let data = readData() ?? fallbackData()
+        let entry = LifeOSEntry(date: Date(), data: data)
+        // WID-001: Shorten refresh to 60s when data was written in the last 90s
+        // (JS debounces widget sync to 500ms, so fresh data appears within ~1 min).
+        // Fall back to 15 min otherwise — half the original 30 min.
+        let dataAge = Date().timeIntervalSince1970 - data.lastUpdated
+        let nextInterval: Int = dataAge < 90 ? 1 : 15
+        let next = Calendar.current.date(byAdding: .minute, value: nextInterval, to: Date()) ?? Date()
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 
@@ -120,26 +126,42 @@ struct LifeOSProvider: TimelineProvider {
 // MARK: - Shared Components
 
 struct WidgetBackground: View {
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
-        LinearGradient(
-            colors: [Color(hex: "#0D0D1A"), Color(hex: "#141428")],
-            startPoint: .top, endPoint: .bottom
-        )
+        // WID-004: Respect system dark/light mode instead of forcing dark.
+        if colorScheme == .dark {
+            LinearGradient(
+                colors: [Color(hex: "#0D0D1A"), Color(hex: "#141428")],
+                startPoint: .top, endPoint: .bottom
+            )
+        } else {
+            LinearGradient(
+                colors: [Color(hex: "#FFFFFF"), Color(hex: "#F2F3F8")],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
     }
 }
 
 struct NotLoggedInView: View {
+    // WID-005: Use lastUpdated to distinguish "never synced" (first install) from
+    // "logged out" — show a syncing hint so users aren't confused on first launch.
+    var lastUpdated: Double = 0
+    @Environment(\.colorScheme) var colorScheme
+
+    private var isFreshInstall: Bool { lastUpdated == 0 }
+
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "lock.fill")
+            Image(systemName: isFreshInstall ? "arrow.triangle.2.circlepath" : "lock.fill")
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(colorScheme == .dark ? .white.opacity(0.4) : .black.opacity(0.3))
             Text("LifeOS")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            Text("Open app to login")
+                .foregroundColor(colorScheme == .dark ? .white : .black)
+            Text(isFreshInstall ? "Open app to sync" : "Sign in to continue")
                 .font(.system(size: 11))
-                .foregroundColor(Color(hex: "#8888AA"))
+                .foregroundColor(Color(hex: colorScheme == .dark ? "#8888AA" : "#666688"))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -539,7 +561,7 @@ struct GuardedWidgetView<Content: View>: View {
             if entry.data.isLoggedIn {
                 content()
             } else {
-                NotLoggedInView()
+                NotLoggedInView(lastUpdated: entry.data.lastUpdated)
             }
         }
         .widgetURL(URL(string: deepLink))
@@ -549,23 +571,40 @@ struct GuardedWidgetView<Content: View>: View {
 
 // MARK: - Widget Definitions
 
+// WID-002: Helper that picks view by widget family — no GeometryReader needed.
+struct FocusTimerAdaptiveView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: LifeOSEntry
+    var body: some View {
+        switch family {
+        case .systemSmall:  FocusTimerSmallView(entry: entry)
+        default:            FocusTimerMediumView(entry: entry)
+        }
+    }
+}
+
+struct HabitsAdaptiveView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: LifeOSEntry
+    var body: some View {
+        switch family {
+        case .systemSmall:  HabitsSmallView(entry: entry)
+        default:            HabitsMediumView(entry: entry)
+        }
+    }
+}
+
 struct LifeOSFocusWidget: Widget {
     let kind = "LifeOSFocusWidget"
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: LifeOSProvider()) { entry in
             GuardedWidgetView(entry: entry, deepLink: "lifeos:///focus-detail") {
-                GeometryReader { geo in
-                    if geo.size.width > 160 {
-                        FocusTimerMediumView(entry: entry)
-                    } else {
-                        FocusTimerSmallView(entry: entry)
-                    }
-                }
+                FocusTimerAdaptiveView(entry: entry)
             }
         }
         .configurationDisplayName("Focus Timer")
         .description("Track your daily focus time and goal.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -574,18 +613,23 @@ struct LifeOSHabitsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: LifeOSProvider()) { entry in
             GuardedWidgetView(entry: entry, deepLink: "lifeos:///all-habits") {
-                GeometryReader { geo in
-                    if geo.size.width > 160 {
-                        HabitsMediumView(entry: entry)
-                    } else {
-                        HabitsSmallView(entry: entry)
-                    }
-                }
+                HabitsAdaptiveView(entry: entry)
             }
         }
         .configurationDisplayName("Habits Today")
         .description("Check your daily habits at a glance.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    }
+}
+
+struct TasksAdaptiveView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: LifeOSEntry
+    var body: some View {
+        switch family {
+        case .systemSmall:  TasksSmallView(entry: entry)
+        default:            TasksMediumView(entry: entry)
+        }
     }
 }
 
@@ -594,18 +638,12 @@ struct LifeOSTasksWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: LifeOSProvider()) { entry in
             GuardedWidgetView(entry: entry, deepLink: "lifeos:///all-tasks") {
-                GeometryReader { geo in
-                    if geo.size.width > 160 {
-                        TasksMediumView(entry: entry)
-                    } else {
-                        TasksSmallView(entry: entry)
-                    }
-                }
+                TasksAdaptiveView(entry: entry)
             }
         }
         .configurationDisplayName("Today's Tasks")
         .description("See your pending tasks for today.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 

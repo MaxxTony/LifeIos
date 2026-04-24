@@ -31,7 +31,15 @@ import Toast from 'react-native-toast-message';
 
 
 
-if (!__DEV__) initCrashAnalytics();
+if (!__DEV__) {
+  initCrashAnalytics();
+  // LOW-001: Strip all console output from production builds.
+  console.log = () => {};
+  console.warn = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  // Keep console.error so Sentry's error boundary still captures breadcrumbs.
+}
 
 
 
@@ -54,6 +62,7 @@ export default function RootLayout() {
   const appState = useRef(AppState.currentState);
   const wasAuthenticated = useRef(false);
   const isValidatingSession = useRef(false); // C-AUTH-6 FIX: Guard against double-fires
+  const pendingSignOut = useRef(false); // queues a null-user fire that arrived during validation
   const router = useRouter();
 
   // Start the global focus timer
@@ -118,8 +127,8 @@ export default function RootLayout() {
     if (!_hasHydrated) {
       const timer = setTimeout(() => {
         if (!useStore.getState()._hasHydrated) {
-          console.error('[LifeOS Watchdog] Hydration stuck for 10s. Forcing reset/logout.');
-          useStore.getState().actions.logout();
+          console.error('[LifeOS Watchdog] Hydration stuck for 10s. Unblocking UI without data loss.');
+          useStore.setState({ _hasHydrated: true });
         }
       }, 10000);
       return () => clearTimeout(timer);
@@ -150,7 +159,7 @@ export default function RootLayout() {
           useStore.setState(s => ({ syncStatus: { ...s.syncStatus, isOffline: true } }));
         }
       };
-      const connInterval = setInterval(checkConnection, 15000);
+      const connInterval = setInterval(checkConnection, 60000);
       checkConnection();
       return () => clearInterval(connInterval);
     }
@@ -270,6 +279,9 @@ export default function RootLayout() {
       console.log('[LifeOS Layout] onAuthStateChanged fired. User:', user?.uid || 'null');
 
       if (isValidatingSession.current) {
+        // If Firebase fires null (sign-out) while we're mid-validation, queue it
+        // so it isn't silently dropped. We'll handle it in the finally block.
+        if (!user) pendingSignOut.current = true;
         console.log('[LifeOS] onAuthStateChanged ignored - already validating session.');
         return;
       }
@@ -289,6 +301,18 @@ export default function RootLayout() {
 
           console.log('[LifeOS Layout] Session valid. Setting auth state.');
           setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
+          // Start Firestore listeners here — this is the single canonical place.
+          // setAuth no longer calls subscribeToCloud internally to prevent the
+          // double-subscription that happened when login.tsx also called setAuth.
+          useStore.getState().actions.subscribeToCloud();
+          // MED-006: Generate session token if auto-restore left none — multi-device detection needs it.
+          if (!useStore.getState().sessionToken) {
+            authService.generateAndSaveSessionToken(user.uid).then(token => {
+              // Only update the token in store; subscribeToCloud is already running.
+              useStore.getState().actions.setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User', token);
+            }).catch(() => {});
+          }
+          useStore.getState().actions.hydrateFromCloud();
         } else {
           console.log('[LifeOS Layout] No user found in onAuthStateChanged.');
           const currentIsAuthenticated = useStore.getState().isAuthenticated;
@@ -302,6 +326,11 @@ export default function RootLayout() {
         // Doing this earlier causes index.tsx to route while isAuthenticated is still false.
         useStore.setState({ _authStateResolved: true });
         isValidatingSession.current = false;
+        // Drain any sign-out event that arrived while validation was in progress.
+        if (pendingSignOut.current) {
+          pendingSignOut.current = false;
+          setAuth(null, null);
+        }
       }
     });
 
@@ -365,18 +394,23 @@ export default function RootLayout() {
       // Handle notification click when app is in background/closed
       const data = response.notification.request.content.data;
       if (data?.habitId) {
-        router.push(`/habit/${data.habitId}`);
+        router.push(`/habit/${data.habitId}` as any);
       } else if (data?.taskId) {
-        // C-22 FIX: Use explicit params for reliable Expo Router dynamic route matching.
         router.push({ pathname: '/tasks/[id]', params: { id: data.taskId } } as any);
       } else if (data?.type === 'PROACTIVE_AI') {
-        router.push('/ai-chat');
+        router.push('/ai-chat' as any);
       } else if (data?.type === 'MORNING_BRIEF') {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)' as any);
       } else if (data?.type === 'QUEST_FOMO') {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)' as any);
       } else if (data?.type === 'WEEKLY_LEADERBOARD') {
-        router.push('/social-leaderboard');
+        router.push('/social-leaderboard' as any);
+      } else if (data?.type === 'STREAK_WARNING') {
+        router.push('/(tabs)' as any);
+      } else if (data?.type === 'MOOD_REMINDER') {
+        router.push('/mood-log' as any);
+      } else if (data?.type === 'HABIT_REMINDER') {
+        router.push('/(tabs)' as any);
       }
     });
 
@@ -386,7 +420,10 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!loaded && !error) {
+  // C-BOOT-1 FIX: Do not render the app UI until both fonts are loaded AND the local store
+  // has been hydrated from AsyncStorage. This ensures the first render uses the user's
+  // preferred theme and settings, eliminating the "theme flash" and "data flickering".
+  if ((!loaded && !error) || !_hasHydrated) {
     return null;
   }
 

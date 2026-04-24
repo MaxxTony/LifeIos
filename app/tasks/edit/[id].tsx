@@ -232,7 +232,7 @@ export default function EditTaskScreen() {
                       mode="time"
                       is24Hour={false}
                       display="spinner"
-                      onChange={(e, d) => {
+                      onValueChange={(_, d) => {
                         if (d) {
                           const now = new Date();
                           if (pickerMode === 'start') {
@@ -271,9 +271,9 @@ export default function EditTaskScreen() {
                   mode="time"
                   is24Hour={false}
                   display="default"
-                  onChange={(e, d) => {
+                  onValueChange={(_, d) => {
                     setPickerMode(null);
-                    if (e.type === 'set' && d) {
+                    if (d) {
                       const now = new Date();
                       if (pickerMode === 'start') {
                         if (d < now) {
@@ -298,6 +298,7 @@ export default function EditTaskScreen() {
                       }
                     }
                   }}
+                  onDismiss={() => setPickerMode(null)}
                 />
               )
             )}

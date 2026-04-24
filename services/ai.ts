@@ -5,8 +5,7 @@ import { httpsCallable } from 'firebase/functions';
 import { aiActionHandler } from './aiActionHandler';
 
 const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
-// const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // NOT EXPO_PUBLIC_ — dev only, never ships in bundle
 
 if (!USE_AI_PROXY && !__DEV__) {
   throw new Error('[FATAL] Gemini API key must not be used directly in production. USE_AI_PROXY must be true.');
@@ -144,14 +143,14 @@ const tools = [
       },
       {
         name: 'removeTask',
-        description: 'Delete a task from the list.',
+        description: 'Delete a task. IMPORTANT: Only call this after the user has explicitly confirmed deletion (e.g. said "yes", "confirm", "delete it"). Never call preemptively.',
         parameters: {
           type: 'object',
           properties: {
             id: { type: 'string', description: 'The task ID from context' },
-            text: { type: 'string', description: 'Optional confirmation' },
+            userConfirmed: { type: 'boolean', description: 'Must be true — only set after user explicitly confirmed deletion in this message' },
           },
-          required: ['id'],
+          required: ['id', 'userConfirmed'],
         },
       },
       {
@@ -169,13 +168,14 @@ const tools = [
       },
       {
         name: 'removeHabit',
-        description: 'Permanently remove a habit.',
+        description: 'Permanently remove a habit. IMPORTANT: Only call this after the user has explicitly confirmed deletion (e.g. said "yes", "confirm", "delete it"). Never call preemptively.',
         parameters: {
           type: 'object',
           properties: {
             id: { type: 'string', description: 'The habit ID from context' },
+            userConfirmed: { type: 'boolean', description: 'Must be true — only set after user explicitly confirmed deletion in this message' },
           },
-          required: ['id'],
+          required: ['id', 'userConfirmed'],
         },
       },
       {
@@ -333,7 +333,7 @@ export const getAIResponse = async (
   }
 
   if (!GEMINI_API_KEY) {
-    console.warn('Gemini API key missing. Please add EXPO_PUBLIC_GEMINI_API_KEY to your .env.local file.');
+    console.warn('Gemini API key missing. Please add GEMINI_API_KEY to your .env.local file.');
     return 'AI is not configured. Please check your environment setup.';
   }
 

@@ -97,20 +97,15 @@ export default function ConfigScreen() {
     );
   };
 
-  const onTimeChange = (event: any, selectedDate?: Date) => {
-    // On Android, we need to hide the picker after selection (or dismissal)
+  const onTimeChange = (selectedDate?: Date) => {
+    if (selectedDate) {
+      setReminderTime(selectedDate);
+    }
+  };
+
+  const handleTimeDismiss = () => {
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
-      
-      // M-3 FIX: Only update if confirmed with 'OK' (event.type === 'set')
-      if (event.type === 'set' && selectedDate) {
-        setReminderTime(selectedDate);
-      }
-    } else {
-      // iOS behavior (spinner/compact/inline often updates immediately or via 'Done' button which we handled in Modal)
-      if (selectedDate) {
-        setReminderTime(selectedDate);
-      }
     }
   };
 
@@ -453,7 +448,7 @@ export default function ConfigScreen() {
                       mode="time"
                       is24Hour={false}
                       display="spinner"
-                      onChange={onTimeChange}
+                      onValueChange={(_, d) => onTimeChange(d)}
                       textColor={colors.text}
                       themeVariant={Platform.OS === 'ios' ? (colors.isDark ? "dark" : "light") : undefined}
                     />
@@ -468,7 +463,11 @@ export default function ConfigScreen() {
                 mode="time"
                 is24Hour={false}
                 display="default"
-                onChange={onTimeChange}
+                onValueChange={(_, d) => {
+                  if (Platform.OS === 'android') setShowTimePicker(false);
+                  onTimeChange(d);
+                }}
+                onDismiss={handleTimeDismiss}
               />
             )
           )}

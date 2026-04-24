@@ -111,9 +111,12 @@ export const aiActionHandler = {
     }
   },
 
-  handleRemoveTask: (params: { id: string }) => {
+  handleRemoveTask: (params: { id: string; userConfirmed?: boolean }) => {
     if (!params.id || typeof params.id !== 'string' || params.id.length > 100) {
       return { success: false, message: 'Invalid task ID.' };
+    }
+    if (!params.userConfirmed) {
+      return { success: false, message: 'Deletion requires explicit user confirmation. Ask the user to confirm before calling this tool.' };
     }
 
     const store = useStore.getState();
@@ -152,9 +155,12 @@ export const aiActionHandler = {
     }
   },
 
-  handleRemoveHabit: (params: { id: string }) => {
+  handleRemoveHabit: (params: { id: string; userConfirmed?: boolean }) => {
     if (!params.id || typeof params.id !== 'string' || params.id.length > 100) {
       return { success: false, message: 'Invalid habit ID.' };
+    }
+    if (!params.userConfirmed) {
+      return { success: false, message: 'Deletion requires explicit user confirmation. Ask the user to confirm before calling this tool.' };
     }
 
     const store = useStore.getState();

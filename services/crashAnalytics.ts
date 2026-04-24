@@ -1,23 +1,13 @@
 import * as Sentry from '@sentry/react-native';
-
-/**
- * Crash Analytics (Sentry)
- * =========================
- * Call initCrashAnalytics() once at app startup (e.g. in app/_layout.tsx).
- * Set EXPO_PUBLIC_SENTRY_DSN in your .env.local — get it from sentry.io.
- *
- * Sentry captures:
- *  - Native crashes (iOS/Android)
- *  - Unhandled JS exceptions
- *  - Performance traces
- *  - Breadcrumbs from analyticsService.logEvent
- */
+import Constants from 'expo-constants';
 
 export const initCrashAnalytics = () => {
-  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+  // Read DSN from app.config.js extra (injected at build time, not bundled as EXPO_PUBLIC_).
+  // For EAS builds: add SENTRY_DSN to EAS Secrets. For local dev: set SENTRY_DSN in .env.local.
+  const dsn = (Constants.expoConfig?.extra?.sentryDsn as string | null) ?? null;
   if (!dsn) {
     if (__DEV__) {
-      console.warn('[CrashAnalytics] EXPO_PUBLIC_SENTRY_DSN is not set. Crash reporting disabled.');
+      console.warn('[CrashAnalytics] SENTRY_DSN is not set. Crash reporting disabled.');
     }
     return;
   }

@@ -10,7 +10,7 @@ import { BlurView } from '@/components/BlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
@@ -120,8 +120,11 @@ export default function LoginScreen() {
   const [setupUser, setSetupUser] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [hasPlayServices, setHasPlayServices] = useState(true);
+  const [hasPlayServices, setHasPlayServices] = useState(Platform.OS !== 'android');
   const [setupSessionToken, setSetupSessionToken] = useState<string | null>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const checkPlay = async () => {
@@ -284,6 +287,8 @@ export default function LoginScreen() {
       return;
     }
     if (isSignUp) {
+      // LOW-004: Client-side only. Enable server-side enforcement via Firebase Auth Password Policy
+      // in Firebase console (Authentication → Password Policy) to block API-level bypasses.
       if (password.length < 8) {
         Toast.show({ type: 'error', text1: 'Weak Password', text2: 'Password must be at least 8 characters.' });
         return;
@@ -304,9 +309,13 @@ export default function LoginScreen() {
 
     setLoading('email');
     try {
-      const { user, sessionToken, error, errorCode } = isSignUp
+      const { user, sessionToken, error, errorCode, emailVerified } = isSignUp
         ? await authService.signUp(email, password)
-        : await authService.login(email, password);
+        : await authService.login(email, password) as any;
+
+      if (user && !isSignUp && emailVerified === false) {
+        Toast.show({ type: 'info', text1: 'Email Not Verified', text2: 'A verification link has been sent. Please verify your email.', visibilityTime: 5000 });
+      }
 
       if (user) {
         const { data: existingProfile } = await dbService.getUserProfile(user.uid);
@@ -517,6 +526,7 @@ export default function LoginScreen() {
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email Address</Text>
                   <TextInput
+                    ref={emailRef}
                     style={[styles.input, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
                     placeholder="name@example.com"
                     placeholderTextColor={colors.textSecondary + '60'}
@@ -524,6 +534,9 @@ export default function LoginScreen() {
                     onChangeText={setEmail}
                     autoCapitalize="none"
                     keyboardType="email-address"
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    blurOnSubmit={false}
                   />
                 </View>
 
@@ -531,12 +544,16 @@ export default function LoginScreen() {
                   <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Password</Text>
                   <View style={styles.passwordInputWrap}>
                     <TextInput
+                      ref={passwordRef}
                       style={[styles.input, styles.passwordInput, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: colors.border, color: colors.text }]}
                       placeholder="••••••••"
                       placeholderTextColor={colors.textSecondary + '60'}
                       value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!showPassword}
+                      returnKeyType={isSignUp ? 'next' : 'done'}
+                      onSubmitEditing={() => isSignUp ? confirmPasswordRef.current?.focus() : handleEmailAuth()}
+                      blurOnSubmit={!isSignUp}
                     />
                     <TouchableOpacity
                       onPress={() => setShowPassword(!showPassword)}
@@ -558,12 +575,15 @@ export default function LoginScreen() {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Confirm Password</Text>
                     <View style={styles.passwordInputWrap}>
                       <TextInput
+                        ref={confirmPasswordRef}
                         style={[styles.input, styles.passwordInput, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: confirmPassword && confirmPassword !== password ? colors.danger : colors.border, color: colors.text }]}
                         placeholder="••••••••"
                         placeholderTextColor={colors.textSecondary + '60'}
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
                         secureTextEntry={!showConfirmPassword}
+                        returnKeyType="done"
+                        onSubmitEditing={handleEmailAuth}
                       />
                       <TouchableOpacity
                         onPress={() => setShowConfirmPassword(!showConfirmPassword)}

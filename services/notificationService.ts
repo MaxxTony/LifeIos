@@ -65,13 +65,11 @@ export const notificationService = {
   },
   
   ensurePermissions: async () => {
+    // UI-004: Check-only — never show the permission dialog implicitly at startup.
+    // Use notificationService.requestPermissions() for explicit user-triggered prompts only.
     if (Platform.OS === 'web') return false;
     const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') {
-      const { status: nextStatus } = await Notifications.requestPermissionsAsync();
-      return nextStatus === 'granted';
-    }
-    return true;
+    return status === 'granted';
   },
 
   scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[], monthlyDay?: number) => {
@@ -192,7 +190,9 @@ export const notificationService = {
         }
 
         // iOS supports a repeating CALENDAR trigger with a day-of-month field.
-        // Android has no native monthly repeat — use TIME_INTERVAL of 30 days with repeats: true.
+        // Android has no native monthly repeat: schedule a one-shot DATE trigger for the next
+        // occurrence. The habit reminder scheduler must be called again after each firing to
+        // reschedule the following month (e.g. on app open or in the AppState change handler).
         const monthlyTrigger: any = Platform.OS === 'ios'
           ? {
               type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
@@ -202,9 +202,8 @@ export const notificationService = {
               repeats: true,
             }
           : {
-              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-              seconds: Math.max(60, Math.floor((nextDate.getTime() - Date.now()) / 1000)),
-              repeats: true,
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: nextDate,
               channelId: DEFAULT_CHANNEL_ID,
             };
 

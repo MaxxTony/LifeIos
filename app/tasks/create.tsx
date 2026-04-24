@@ -295,7 +295,7 @@ export default function CreateTaskScreen() {
                         mode="date"
                         display="spinner"
                         minimumDate={new Date()}
-                        onChange={(e, d) => { if (d) setDate(d); }}
+                        onValueChange={(_, d) => { if (d) setDate(d); }}
                         textColor={colors.text}
                         themeVariant={Platform.OS === 'ios' ? (colors.isDark ? "dark" : "light") : undefined}
                       />
@@ -305,7 +305,7 @@ export default function CreateTaskScreen() {
                         mode="time"
                         is24Hour={false}
                         display="spinner"
-                        onChange={(e, d) => {
+                        onValueChange={(_, d) => {
                           if (!d) return;
                           if (pickerMode === 'start') {
                             setStartTime(d);
@@ -334,10 +334,10 @@ export default function CreateTaskScreen() {
                   is24Hour={false}
                   display="default"
                   minimumDate={pickerMode === 'date' ? new Date() : undefined}
-                  onChange={(e, d) => {
+                  onValueChange={(_, d) => {
                     const mode = pickerMode;
                     setPickerMode(null);
-                    if (e.type === 'set' && d) {
+                    if (d) {
                       if (mode === 'date') {
                         setDate(d);
                       } else if (mode === 'start') {
@@ -353,6 +353,7 @@ export default function CreateTaskScreen() {
                       }
                     }
                   }}
+                  onDismiss={() => setPickerMode(null)}
                 />
               )
             )}

@@ -470,8 +470,8 @@ export default function HabitDetailScreen() {
                     mode="date"
                     display="spinner"
                     minimumDate={new Date()}
-                    onChange={(event, date) => {
-                      if (event.type === 'set' && date) {
+                    onValueChange={(_, date) => {
+                      if (date) {
                         pauseHabit(habit.id, formatLocalDate(date));
                         setShowPausePicker(false);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -490,13 +490,14 @@ export default function HabitDetailScreen() {
                 mode="date"
                 display="default"
                 minimumDate={new Date()}
-                onChange={(event, date) => {
+                onValueChange={(_, date) => {
                   setShowPausePicker(false);
-                  if (event.type === 'set' && date) {
+                  if (date) {
                     pauseHabit(habit.id, formatLocalDate(date));
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   }
                 }}
+                onDismiss={() => setShowPausePicker(false)}
               />
             )
           )}
