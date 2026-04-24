@@ -461,6 +461,8 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
               questsLoaded: true
             }
           }));
+          // C-SYNC-QUEST FIX: Re-trigger generation once we know cloud state
+          get().actions.generateDailyQuests();
         },
         (ref) => {
           const todayQuestPrefix = `quest-${formatLocalDate(new Date())}`;

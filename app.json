@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "LifeOS",
-    "slug": "LifeOS",
+    "name": "LifeOS Prime",
+    "slug": "LifeOS-Prime",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,7 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
-"UIBackgroundModes": [
+        "UIBackgroundModes": [
           "fetch"
         ]
       }
@@ -101,7 +101,7 @@
             {
               "name": "XPLevelWidget",
               "label": "LifeOS Level & XP",
-              "minWidth": "110dp",
+              "minWidth": "250dp",
               "minHeight": "110dp",
               "description": "View your level, XP progress and streak",
               "updatePeriodMillis": 3600000,
@@ -110,7 +110,7 @@
             {
               "name": "MoodWidget",
               "label": "LifeOS Mood",
-              "minWidth": "110dp",
+              "minWidth": "250dp",
               "minHeight": "110dp",
               "description": "Log and track your daily mood",
               "updatePeriodMillis": 3600000,
