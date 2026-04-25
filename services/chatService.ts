@@ -29,6 +29,12 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
+  card?: {
+    type: 'poll' | 'checklist' | 'progress';
+    title: string;
+    options?: string[];
+    value?: number;
+  };
   createdAt?: number | any;
 }
 
@@ -137,7 +143,8 @@ export const chatService = {
     conversationId: string,
     role: 'user' | 'assistant',
     content: string,
-    imageUrl?: string
+    imageUrl?: string,
+    card?: any
   ) => {
     try {
       await addDoc(
@@ -146,6 +153,7 @@ export const chatService = {
           role,
           content,
           imageUrl: imageUrl || null,
+          card: card || null,
           createdAt: serverTimestamp(),
         }
       );

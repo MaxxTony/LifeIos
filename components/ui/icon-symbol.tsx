@@ -21,6 +21,11 @@ const MAPPING = {
   'photo.fill': 'photo',
   'arrow.up': 'arrow-upward',
   'arrow.up.circle': 'arrow-circle-up',
+  'chart.bar.fill': 'bar-chart',
+  'paintbrush.fill': 'brush',
+  'person.2.fill': 'group',
+  'person.crop.circle': 'account-circle',
+  'checklist': 'checklist',
 } as Partial<Record<import('expo-symbols').SymbolViewProps['name'], React.ComponentProps<typeof MaterialIcons>['name']>>;
 
 export type IconSymbolName = keyof typeof MAPPING;

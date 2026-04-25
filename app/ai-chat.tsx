@@ -1,22 +1,22 @@
 import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
+import { BlurView } from '@/components/BlurView';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
-import { IconSymbol } from '../components/ui/icon-symbol'; 
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';
-import { ChatMessage, chatService } from '@/services/chatService';
 import { analyticsService } from '@/services/analyticsService';
+import { ChatMessage, chatService } from '@/services/chatService';
 import { useStore } from '@/store/useStore';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { BlurView } from '@/components/BlurView';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
@@ -30,14 +30,21 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IconSymbol } from '../components/ui/icon-symbol';
+import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 
 const { width } = Dimensions.get('window');
 
 const ACTION_CHIPS = [
   { label: 'Plan my day', icon: 'sparkles' },
+  { label: 'Add a task', icon: 'checklist' },
   { label: 'Add a habit', icon: 'plus' },
+  { label: 'Check trends', icon: 'chart.bar.fill' },
+  { label: 'Leaderboard', icon: 'person.2.fill' },
+  { label: 'Update profile', icon: 'person.crop.circle' },
+  { label: 'Change theme', icon: 'paintbrush.fill' },
   { label: 'Analyze my mood', icon: 'waveform' },
-  { label: 'Give me advice', icon: 'paperplane.fill' },   // M-10 FIX: was "Look something up" — AI doesn't browse the web
+  { label: 'Give me advice', icon: 'paperplane.fill' },
 ];
 
 export default function AIChatScreen() {
@@ -57,6 +64,10 @@ export default function AIChatScreen() {
   const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isRecordingMode, setIsRecordingMode] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const scrollViewRef = useRef<ScrollView>(null);
   const attachmentSheetRef = useRef<BottomSheetModal>(null);
@@ -66,14 +77,107 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    
+    // Voice listeners
+    Voice.onSpeechStart = onSpeechStart;
+    Voice.onSpeechEnd = onSpeechEnd;
+    Voice.onSpeechError = onSpeechError;
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechPartialResults = onSpeechPartialResults;
+
+    return () => { 
+      isMounted.current = false; 
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
   }, []);
+
+  const startPulse = useCallback(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  const stopPulse = useCallback(() => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+  }, [pulseAnim]);
+
+  const onSpeechStart = () => {
+    setIsListening(true);
+    startPulse();
+  };
+
+  const onSpeechEnd = () => {
+    setIsListening(false);
+    stopPulse();
+  };
+
+  const onSpeechError = (e: SpeechErrorEvent) => {
+    const code = e.error?.code;
+    // 216 = iOS speech timeout (natural end), 7 = Android no match — both are silent ends, not real errors
+    if (code === '216' || code === '7' || code === 'recognition_fail') {
+      setIsListening(false);
+      stopPulse();
+      return;
+    }
+    console.error('Speech Error:', e);
+    setIsListening(false);
+    stopPulse();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  };
+
+  const onSpeechResults = (e: SpeechResultsEvent) => {
+    if (e.value && e.value[0]) {
+      setVoiceText(e.value[0]);
+    }
+  };
+
+  const onSpeechPartialResults = (e: SpeechResultsEvent) => {
+    if (e.value && e.value[0]) {
+      setVoiceText(e.value[0]);
+    }
+  };
+
+  const startVoice = async () => {
+    try {
+      setVoiceText('');
+      setIsRecordingMode(true);
+      Keyboard.dismiss();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Voice.start('en-US');
+    } catch (e) {
+      console.error(e);
+      setIsRecordingMode(false);
+    }
+  };
+
+  const cancelVoice = async () => {
+    try { await Voice.cancel(); } catch {}
+    stopPulse();
+    setIsListening(false);
+    setIsRecordingMode(false);
+    setVoiceText('');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const sendVoice = async () => {
+    const text = voiceText.trim();
+    try { await Voice.cancel(); } catch {}
+    stopPulse();
+    setIsListening(false);
+    setIsRecordingMode(false);
+    setVoiceText('');
+    if (text) handleSend(text);
+  };
 
   useEffect(() => {
     if (!currentConversationId && messages.length === 0) {
       const welcomeContent = proactivePrompt
-        ? proactivePrompt.message
-        : `Hi ${userName || 'there'}! I'm your LifeOS assistant. How can I help you manage your day?`;
+        ? `${proactivePrompt.message} ✨`
+        : `Hi ${userName || 'there'}! 👋 I'm your LifeOS assistant. How can I help you manage your day today?`;
 
       setMessages([{
         id: 'welcome',
@@ -103,10 +207,10 @@ export default function AIChatScreen() {
 
   const loadMoreMessages = async () => {
     if (!userId || !currentConversationId || !lastVisibleDoc || isLoadingMore) return;
-    
+
     setIsLoadingMore(true);
     const result = await chatService.getMessages(userId, currentConversationId, lastVisibleDoc);
-    
+
     if (result.messages.length > 0) {
       // M-08 FIX: Cap total in-memory messages at 200 to prevent JS thread lag on long sessions.
       const MAX_MESSAGES = 200;
@@ -139,6 +243,11 @@ export default function AIChatScreen() {
     const text = (textOverride || input).slice(0, 10000);
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
 
+    // Clear input immediately for better UX
+    const currentAttachedImage = attachedImage;
+    if (!textOverride) setInput('');
+    setAttachedImage(null);
+
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     let convId = currentConversationId;
@@ -148,10 +257,6 @@ export default function AIChatScreen() {
       setCurrentConversationId(convId);
     }
 
-    const currentAttachedImage = attachedImage;
-    setAttachedImage(null);
-    setInput('');
-
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -160,9 +265,9 @@ export default function AIChatScreen() {
       createdAt: Date.now()
     };
 
-    analyticsService.logEvent(userId, 'ai_message_sent', { 
+    analyticsService.logEvent(userId, 'ai_message_sent', {
       hasImage: !!currentAttachedImage,
-      textLength: text.length 
+      textLength: text.length
     });
 
     const newMessages = [...messages.filter(m => m.id !== 'welcome'), userMsg];
@@ -206,8 +311,8 @@ export default function AIChatScreen() {
         };
       });
       const response = await getAIResponse(aiInputMessages);
-      
-      if (response === 'UNAUTHENTICATED') {
+
+      if (response.text === 'UNAUTHENTICATED') {
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -222,18 +327,29 @@ export default function AIChatScreen() {
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response,
+        content: response.text,
+        card: response.card,
         createdAt: Date.now()
       };
 
       const finalMessages = [...newMessages, aiMsg];
       setMessages(finalMessages);
 
+      // 📳 Haptic Feedback Patterns
+      if (response.text.includes('🔹')) {
+        // Happy Pulse for success
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (response.text.includes('❌') || response.text.includes('UNAUTHENTICATED')) {
+        // Alert Buzz for errors
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
       await chatService.addMessage(userId, convId, userMsg.role, userMsg.content, finalImageUrl);
-      await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content);
+      await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content, undefined, aiMsg.card);
 
     } catch (error) {
       console.error('AI Chat Error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errMsg: ChatMessage = {
         id: (Date.now() + 2).toString(),
         role: 'assistant',
@@ -300,7 +416,7 @@ export default function AIChatScreen() {
             showsVerticalScrollIndicator={false}
           >
             {hasMore && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={loadMoreMessages}
                 disabled={isLoadingMore}
                 style={[styles.loadMoreBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
@@ -353,6 +469,28 @@ export default function AIChatScreen() {
                     <Text style={[styles.messageText, styles.userText, { fontStyle: 'italic', fontSize: 13, opacity: 0.7 }]}>
                       Image sent
                     </Text>
+                  )}
+                  {m.card && (
+                    <View style={styles.cardContainer}>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>{m.card.title}</Text>
+                      {m.card.type === 'poll' && m.card.options?.map((opt, idx) => (
+                        <TouchableOpacity key={idx} style={[styles.cardItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                          <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {m.card.type === 'checklist' && m.card.options?.map((opt, idx) => (
+                        <View key={idx} style={styles.checklistRow}>
+                          <IconSymbol name="square" size={16} color={colors.textSecondary} />
+                          <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+                        </View>
+                      ))}
+                      {m.card.type === 'progress' && (
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: useStore.getState().accentColor || '#7C5CFF' }]} />
+                          <Text style={styles.progressText}>{m.card.value || 0}%</Text>
+                        </View>
+                      )}
+                    </View>
                   )}
                 </View>
               </View>
@@ -409,54 +547,96 @@ export default function AIChatScreen() {
             </ScrollView>
           )}
 
-          <View style={styles.inputWrapper}>
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={() => {
-                Keyboard.dismiss();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                attachmentSheetRef.current?.present();
-              }}
-              accessibilityLabel="Attach image"
-              accessibilityRole="button"
-            >
-              <View style={[styles.attachIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
-                <IconSymbol name="plus" size={20} color={colors.text} />
-              </View>
-            </TouchableOpacity>
+          {isRecordingMode ? (
+            <View style={styles.recordingWrapper}>
+              <TouchableOpacity onPress={cancelVoice} style={[styles.recordingActionBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} accessibilityLabel="Cancel recording">
+                <IconSymbol name="xmark" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
 
-            <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Message LifeOS..."
-                placeholderTextColor={colors.textSecondary + '60'}
-                value={input}
-                onChangeText={setInput}
-                multiline
-                maxLength={2000}
-                accessibilityLabel="Message input"
-              />
-              {(input.length > 0 || attachedImage) && (
-                <TouchableOpacity
-                  onPress={() => handleSend()}
-                  style={styles.sendBtn}
-                  disabled={uploading || loading || useStore.getState().syncStatus.isOffline}
-                  accessibilityLabel="Send message"
-                  accessibilityRole="button"
+              <View style={[styles.recordingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: isListening ? '#FF4B4B60' : colors.border }]}>
+                <View style={styles.recordingStatus}>
+                  <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
+                  <Text style={[styles.recordingLabel, { color: '#FF4B4B' }]}>
+                    {isListening ? 'Listening...' : 'Done — review & send'}
+                  </Text>
+                </View>
+                <Text style={[styles.recordingTranscript, { color: voiceText ? colors.text : colors.textSecondary + '80' }]} numberOfLines={3}>
+                  {voiceText || 'Start speaking...'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={sendVoice}
+                disabled={!voiceText.trim()}
+                accessibilityLabel="Send voice message"
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.secondary]}
+                  style={[styles.sendBtnGradient, !voiceText.trim() && { opacity: 0.35 }]}
                 >
-                  <LinearGradient
-                    colors={[colors.primary, colors.secondary]}
-                    style={[styles.sendBtnGradient, (uploading || loading || useStore.getState().syncStatus.isOffline) && { opacity: 0.5 }]}
-                  >
-                    {(uploading || loading)
-                      ? <ActivityIndicator size="small" color="#FFF" />
-                      : <IconSymbol name="arrow.up" size={18} color="#FFF" />
-                    }
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
+                  <IconSymbol name="arrow.up" size={18} color="#FFF" />
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={styles.inputWrapper}>
+              <TouchableOpacity
+                style={styles.attachBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  attachmentSheetRef.current?.present();
+                }}
+                accessibilityLabel="Attach image"
+                accessibilityRole="button"
+              >
+                <View style={[styles.attachIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+                  <IconSymbol name="plus" size={20} color={colors.text} />
+                </View>
+              </TouchableOpacity>
+
+              <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Message LifeOS..."
+                  placeholderTextColor={colors.textSecondary + '60'}
+                  value={input}
+                  onChangeText={setInput}
+                  multiline
+                  maxLength={2000}
+                  accessibilityLabel="Message input"
+                />
+                {(input.length > 0 || attachedImage) ? (
+                  <TouchableOpacity
+                    onPress={() => handleSend()}
+                    style={styles.sendBtn}
+                    disabled={uploading || loading || useStore.getState().syncStatus.isOffline}
+                    accessibilityLabel="Send message"
+                    accessibilityRole="button"
+                  >
+                    <LinearGradient
+                      colors={[colors.primary, colors.secondary]}
+                      style={[styles.sendBtnGradient, (uploading || loading || useStore.getState().syncStatus.isOffline) && { opacity: 0.5 }]}
+                    >
+                      {(uploading || loading)
+                        ? <ActivityIndicator size="small" color="#FFF" />
+                        : <IconSymbol name="arrow.up" size={18} color="#FFF" />
+                      }
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={startVoice}
+                    style={styles.voiceBtn}
+                    accessibilityLabel="Start voice input"
+                    accessibilityRole="button"
+                  >
+                    <IconSymbol name="mic.fill" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
         </BlurView>
       </KeyboardAvoidingView>
 
@@ -579,6 +759,53 @@ const styles = StyleSheet.create({
   },
   aiText: {
   },
+  cardContainer: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cardTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 15,
+    marginBottom: 10,
+  },
+  cardItem: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  cardItemText: {
+    fontFamily: 'Outfit-Medium',
+    fontSize: 14,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  progressTrack: {
+    height: 24,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 12,
+  },
+  progressText: {
+    position: 'absolute',
+    alignSelf: 'center',
+    fontSize: 10,
+    fontFamily: 'Outfit-Bold',
+    color: '#FFF',
+  },
   footer: {
     paddingTop: Spacing.md,
     borderTopWidth: 1,
@@ -646,6 +873,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     fontSize: 16,
     maxHeight: 120,
+  },
+  voiceBtn: {
+    padding: 6,
+    marginRight: 4,
+  },
+  recordingWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    paddingVertical: 4,
+  },
+  recordingActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordingBubble: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  recordingStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF4B4B',
+  },
+  recordingLabel: {
+    fontFamily: 'Outfit-Medium',
+    fontSize: 12,
+  },
+  recordingTranscript: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 15,
+    lineHeight: 20,
   },
   sendBtn: {
     marginBottom: 2,

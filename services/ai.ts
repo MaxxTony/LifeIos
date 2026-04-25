@@ -17,7 +17,7 @@ const getGenAIModule = async () => {
   return _genAIModule;
 };
 
-const getCurrentAppContext = () => {
+const getCurrentAppContext = (memories: any[] = []) => {
   const state = useStore.getState();
   const today = getTodayLocal();
 
@@ -66,21 +66,31 @@ const getCurrentAppContext = () => {
         text: t.text,
         priority: t.priority,
         status: t.status,
+        startTime: t.startTime,
+        endTime: t.endTime
       })),
       focusTimeMinutes: Math.round(state.focusSession.totalSecondsToday / 60),
     },
-    habits: habits.map(h => ({
-      id: h.id,
-      title: h.title,
-      isCompletedToday: h.completedDays.includes(today),
-    })),
-    recentMoods: moodHistory
+    habits: habits.map(h => {
+      const last14Days = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        return d.toISOString().split('T')[0];
+      });
+      const completions = last14Days.filter(day => h.completedDays.includes(day)).length;
+      return {
+        id: h.id,
+        title: h.title,
+        isCompletedToday: h.completedDays.includes(today),
+        last14DaysRate: `${Math.round((completions / 14) * 100)}%`,
+        missed: last14Days.filter(day => !h.completedDays.includes(day)).slice(0, 3)
+      };
+    }),
+    recentMoods: moodHistory,
+    memories: memories.map(m => m.content).slice(0, 5)
   };
 
-  const snapshot = `CURRENT APP STATE SNAPSHOT (${today}):\n${JSON.stringify(context, null, 2)}`;
-
-  // C-AI-2: Enforce hard character limit to prevent proxy failures & protect PII
-  return snapshot.length > 2000 ? snapshot.substring(0, 1997) + '...' : snapshot;
+  return `STATE: ${JSON.stringify(context)}`;
 };
 
 const tools = [
@@ -232,26 +242,76 @@ const tools = [
           },
         },
       },
+      {
+        name: 'saveUserMemory',
+        description: 'Save a permanent fact, preference, or life goal about the user to long-term memory. Use this whenever the user shares something significant about themselves that should be remembered in future conversations.',
+        parameters: {
+          type: 'object',
+          properties: {
+            content: { type: 'string', description: 'The fact or preference to remember (e.g. "User is allergic to peanuts" or "User wants to run a marathon")' },
+            category: { type: 'string', enum: ['preference', 'goal', 'fact', 'past_event'], description: 'The type of information' },
+            importance: { type: 'number', minimum: 1, maximum: 5, description: 'How important this is to remember (1 = low, 5 = critical)' },
+          },
+          required: ['content'],
+        },
+      },
+      {
+        name: 'searchTasks',
+        description: 'Search through the user\'s entire task history (beyond just today) to find specific past or future tasks.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search term or keyword' },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'getHabitDetails',
+        description: 'Get the full history and detailed statistics for a specific habit (ID found in context).',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'The habit ID from context' },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'showInteractiveCard',
+        description: 'Show an interactive UI card (poll, checklist, or progress bar) in the chat.',
+        parameters: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['poll', 'checklist', 'progress'], description: 'The card type' },
+            title: { type: 'string', description: 'Heading for the card' },
+            options: { type: 'array', items: { type: 'string' }, description: 'Options for poll or checklist items' },
+            value: { type: 'number', description: 'Value for progress bar (0-100)' },
+          },
+          required: ['type', 'title'],
+        },
+      },
     ],
   },
 ];
 
-async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
+async function callAIProxy(messages: any[], baseSystemInstruction?: string, memories: any[] = []) {
   if (!auth.currentUser) {
     console.warn('[LifeOS] AI call failed: User is not authenticated on the client.');
-    return 'UNAUTHENTICATED';
+    return { text: 'UNAUTHENTICATED' };
   }
 
   try {
     await auth.currentUser.getIdToken();
 
     // Inject full context even through proxy (F-BUG-02)
-    const contextStr = getCurrentAppContext();
+    const contextStr = getCurrentAppContext(memories);
     const fullSystemInstruction = `${baseSystemInstruction || 'You are LifeOS, a premium personal assistant.'}\n\n${contextStr}`;
 
     const result = await httpsCallable(functions, 'callAI')({
       messages,
       systemInstruction: fullSystemInstruction,
+      tools: tools as any,
     });
 
     const data = result.data as any;
@@ -273,6 +333,10 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
         else if (call.name === 'getSocialLeaderboard') res = await aiActionHandler.handleGetSocialLeaderboard();
         else if (call.name === 'sendSocialNudge') res = await aiActionHandler.handleSendSocialNudge(call.args as any);
         else if (call.name === 'getPerformanceTrends') res = aiActionHandler.handleGetPerformanceTrends();
+        else if (call.name === 'saveUserMemory') res = await aiActionHandler.handleSaveUserMemory(call.args as any);
+        else if (call.name === 'searchTasks') res = aiActionHandler.handleSearchTasks(call.args as any);
+        else if (call.name === 'getHabitDetails') res = aiActionHandler.handleGetHabitDetails(call.args as any);
+        else if (call.name === 'showInteractiveCard') res = aiActionHandler.handleShowInteractiveCard(call.args as any);
 
         toolResults.push({
           name: call.name,
@@ -289,12 +353,16 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
         .map(r => r.response?.message || r.name);
 
       const parts: string[] = [];
-      if (successParts.length > 0) parts.push(successParts.join(' '));
-      if (failParts.length > 0) parts.push(`Could not complete: ${failParts.join(', ')}.`);
-      return parts.join(' ') || 'Done! I have updated your system.';
+      if (successParts.length > 0) parts.push(`🔹 ${successParts.join(' ')}`);
+      if (failParts.length > 0) parts.push(`❌ Could not complete: ${failParts.join(', ')}.`);
+      
+      return {
+        text: parts.join('\n\n') || 'Done! I have updated your system.',
+        card: (toolResults.find(r => r.name === 'showInteractiveCard')?.response as any)?.data
+      };
     }
 
-    return data.text || 'Sorry, I could not generate a response.';
+    return { text: data.text || 'Sorry, I could not generate a response.' };
   } catch (err: any) {
     console.error('[LifeOS] callAIProxy error:', err);
     throw err;
@@ -303,38 +371,48 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string) {
 
 export const getAIResponse = async (
   messages: { role: 'user' | 'assistant' | 'system', content: string, image?: { base64: string, mimeType: string } }[]
-) => {
+): Promise<{ text: string, card?: any }> => {
+  const state = useStore.getState();
+  const userId = state.userId;
+  let memories: any[] = [];
+  
+  if (userId) {
+    try {
+      const { getDocs, query, collection, orderBy, limit } = require('firebase/firestore');
+      const { db } = require('@/firebase/config');
+      const memoriesRef = collection(db, 'users', userId, 'memories');
+      const q = query(memoriesRef, orderBy('importance', 'desc'), limit(10));
+      const snap = await getDocs(q);
+      memories = snap.docs.map((d: any) => d.data());
+    } catch (err) {
+      console.warn('[AI] Failed to fetch memories:', err);
+    }
+  }
+
   if (USE_AI_PROXY) {
     try {
       const state = useStore.getState();
-      const systemInstruction = `You are LifeOS, a premium personal assistant.
-      You help users manage tasks, habits, and moods.
-      Be supportive, proactive, and concise.
-      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.
-      
-      CRITICAL: You HAVE the permission and the tool (updateSettings) to change the app's appearance. 
-      NEVER tell the user "I cannot change the theme" or "I don't have permission". 
-      When a user asks to change the theme or color, you MUST use the updateSettings tool.
+      const systemInstruction = `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
+      CRITICAL: NO MARKDOWN (* or **). Use CAPS for focus and emojis for bullets.
+      ALWAYS provide a full verbal response along with every tool call in the same message.
+      APPEARANCE: For theme/mode puchiye: LIGHT☀️, DARK🌙, SYSTEM⚙️. Colors offer kariye: Royal👑, Azure💙, Neo🌿, Coral🪸, Sunset🌅. Use updateSettings tool.
+      MEMORY: Use saveUserMemory for user facts (goals, diet, names). Personalize advice using context memories.
+      PATTERNS: Analyze "missed" habits, suggest solutions.
+      RESEARCH: Use searchTasks/getHabitDetails for history.
+      EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
+      CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
+      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
 
-      APPEARANCE CONTROL:
-      - **KEYWORDS: "theme", "mode", "light", "dark"** -> Focus on lighting mode.
-        Ask: "I can switch you to **Light Mode**, **Dark Mode**, or **System Default**. Which one would you like?"
-      - **KEYWORDS: "color", "accent"** -> Focus on the color style.
-        Offer these official colors: Royal (#7C5CFF), Azure (#5B8CFF), Neo (#00D68F), Coral (#FF4B4B), Sunset (#FFB347), Candy (#FF69B4), Cyber (#00CED1), Emerald (#10B981), Violet (#8B5CF6), Crimson (#DC2626), Amber (#D97706), Rose (#E11D48).
-        Ask: "Which one would you like to try?"
-      
-      Always use the **updateSettings** tool to apply the final choice. Both options are available to you!`;
-
-      return await callAIProxy(messages, systemInstruction);
+      return await callAIProxy(messages, systemInstruction, memories);
     } catch (err: any) {
       console.error('getAIResponse proxy error:', err);
-      return 'I am sorry, I am having trouble connecting right now. Please try again.';
+      return { text: 'I am sorry, I am having trouble connecting right now. Please try again.' };
     }
   }
 
   if (!GEMINI_API_KEY) {
     console.warn('Gemini API key missing. Please add GEMINI_API_KEY to your .env.local file.');
-    return 'AI is not configured. Please check your environment setup.';
+    return { text: 'AI is not configured. Please check your environment setup.' };
   }
 
   try {
@@ -342,29 +420,16 @@ export const getAIResponse = async (
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: `You are LifeOS, a premium personal assistant.
-      You help users manage tasks, habits, and moods.
-      Be supportive, proactive, and concise.
-      You have access to the user's current app state via context.
-      
-      CRITICAL: You HAVE the permission and the tool (updateSettings) to change the app's appearance. 
-      NEVER tell the user "I cannot change the theme" or "I don't have permission". 
-      When a user asks to change the theme or color, you MUST use the updateSettings tool.
-
-      Important: You can actually perform actions like adding tasks or habits using the provided tools.
-      If a user asks to "remind me to..." or "add a habit...", use the tools!
-      If the user provides an image, analyze it carefully to help them.
-
-      APPEARANCE CONTROL:
-      - **KEYWORDS: "theme", "mode", "light", "dark"** -> Focus on lighting mode.
-        Ask: "I can switch you to **Light Mode**, **Dark Mode**, or **System Default**. Which one would you like?"
-      - **KEYWORDS: "color", "accent"** -> Focus on the color style.
-        Offer these official colors: Royal (#7C5CFF), Azure (#5B8CFF), Neo (#00D68F), Coral (#FF4B4B), Sunset (#FFB347), Candy (#FF69B4), Cyber (#00CED1), Emerald (#10B981), Violet (#8B5CF6), Crimson (#DC2626), Amber (#D97706), Rose (#E11D48).
-        Ask: "Which one would you like to try?"
-      
-      Always use the **updateSettings** tool to apply the final choice. Both options are available to you!
-
-      ${getCurrentAppContext()}`,
+      systemInstruction: `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
+      CRITICAL: NO MARKDOWN. Use CAPS for focus and emojis for bullets.
+      ALWAYS provide a full verbal response along with every tool call in the same message.
+      APPEARANCE: Use updateSettings for theme (LIGHT☀️/DARK🌙/SYSTEM⚙️) and colors.
+      MEMORY: Use saveUserMemory for user facts (goals/diet/names). Personalize using context.
+      PATTERNS: Analyze missed habits, suggest solutions.
+      RESEARCH: Use searchTasks/getHabitDetails for history.
+      EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
+      CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
+      ${getCurrentAppContext(memories)}`,
       tools: tools as any,
     });
 
@@ -419,6 +484,10 @@ export const getAIResponse = async (
         else if (call.name === 'getSocialLeaderboard') res = await aiActionHandler.handleGetSocialLeaderboard();
         else if (call.name === 'sendSocialNudge') res = await aiActionHandler.handleSendSocialNudge(call.args as any);
         else if (call.name === 'getPerformanceTrends') res = aiActionHandler.handleGetPerformanceTrends();
+        else if (call.name === 'saveUserMemory') res = await aiActionHandler.handleSaveUserMemory(call.args as any);
+        else if (call.name === 'searchTasks') res = aiActionHandler.handleSearchTasks(call.args as any);
+        else if (call.name === 'getHabitDetails') res = aiActionHandler.handleGetHabitDetails(call.args as any);
+        else if (call.name === 'showInteractiveCard') res = aiActionHandler.handleShowInteractiveCard(call.args as any);
 
         toolResults.push({
           name: call.name,
@@ -431,13 +500,16 @@ export const getAIResponse = async (
           functionResponse: tr
         }))
       );
-      return result2.response.text();
+      return {
+        text: result2.response.text(),
+        card: (toolResults.find(r => r.name === 'showInteractiveCard')?.response as any)?.data
+      };
     }
 
-    return response.text();
+    return { text: response.text() };
   } catch (error) {
     console.error('Gemini AI Service Error:', error);
-    return 'I am sorry, I am having trouble connecting to my brain right now. Please try again.';
+    return { text: 'I am sorry, I am having trouble connecting to my brain right now. Please try again.' };
   }
 };
 
@@ -445,10 +517,11 @@ export const getFocusQuote = async () => {
   if (!USE_AI_PROXY && !GEMINI_API_KEY) return null;
 
   try {
-    const prompt = 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words.';
+    const prompt = 'Generate a short, powerful, single-sentence motivational quote for a deep work focus session. Max 15 words. Include a relevant emoji at the end! ✨';
 
     if (USE_AI_PROXY) {
-      return await callAIProxy([{ role: 'user', content: prompt }]);
+      const res = await callAIProxy([{ role: 'user', content: prompt }]);
+      return res.text || null;
     } else {
       const { GoogleGenerativeAI } = await getGenAIModule();
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
@@ -469,10 +542,11 @@ export const getMoodInsight = async (moodData: any[]) => {
   try {
     const safeData = moodData.slice(-30);
     const summary = JSON.stringify(safeData);
-    const prompt = `Analyze this mood data and give ONE short, actionable insight (max 25 words). Data: ${summary}`;
+    const prompt = `Analyze this mood data and give ONE short, actionable insight (max 25 words). Include helpful emojis! 🌈 Data: ${summary}`;
 
     if (USE_AI_PROXY) {
-      return await callAIProxy([{ role: 'user', content: prompt }]);
+      const res = await callAIProxy([{ role: 'user', content: prompt }]);
+      return res.text || null;
     } else {
       const { GoogleGenerativeAI } = await getGenAIModule();
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);

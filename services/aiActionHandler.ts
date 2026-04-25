@@ -105,7 +105,7 @@ export const aiActionHandler = {
       const { id, ...updates } = params;
       store.actions.updateTask(id, updates);
       analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateTask' });
-      return { success: true, message: `Updated task ${id}` };
+      return { success: true, message: 'Task updated successfully! ✅' };
     } catch (error: any) {
       return { success: false, message: `Failed to update task: ${error.message}` };
     }
@@ -282,5 +282,103 @@ export const aiActionHandler = {
       console.error('AI Trends Error:', error);
       return { success: false, message: `Failed to analyze trends: ${error.message}` };
     }
+  },
+
+  /**
+   * Saves a long-term memory/fact about the user to Firestore
+   */
+  handleSaveUserMemory: async (params: { content: string; category?: string; importance?: number }) => {
+    if (!params.content || typeof params.content !== 'string' || params.content.length > 500) {
+      return { success: false, message: 'Invalid memory content (max 500 chars).' };
+    }
+
+    const store = useStore.getState();
+    if (!store.userId) return { success: false, message: 'User not authenticated.' };
+
+    try {
+      const { dbService } = require('./dbService');
+      const memoryId = `mem_${Date.now()}`;
+      await dbService.saveCollectionDoc(store.userId, 'memories', memoryId, {
+        content: params.content,
+        category: params.category || 'fact',
+        importance: params.importance || 3,
+        createdAt: new Date().toISOString()
+      });
+
+      analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'saveUserMemory', category: params.category });
+      return { success: true, message: `Memory saved: "${params.content}"` };
+    } catch (error: any) {
+      console.error('AI Save Memory Error:', error);
+      return { success: false, message: `Failed to save memory: ${error.message}` };
+    }
+  },
+
+  /**
+   * Search through all tasks in the store
+   */
+  handleSearchTasks: (params: { query: string }) => {
+    const store = useStore.getState();
+    const searchStr = params.query.toLowerCase();
+    
+    const results = store.tasks
+      .filter(t => t.text.toLowerCase().includes(searchStr))
+      .slice(0, 10)
+      .map(t => ({ text: t.text, date: t.date, status: t.status, priority: t.priority }));
+
+    analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'searchTasks', query: params.query });
+    
+    if (results.length === 0) return { success: true, message: `No tasks found matching "${params.query}".` };
+    return { 
+      success: true, 
+      message: `Found ${results.length} tasks matching "${params.query}":`, 
+      data: results 
+    };
+  },
+
+  /**
+   * Get full details and long-term history for a specific habit
+   */
+  handleGetHabitDetails: (params: { id: string }) => {
+    const store = useStore.getState();
+    const habit = store.habits.find(h => h.id === params.id);
+    
+    if (!habit) return { success: false, message: `Habit with ID ${params.id} not found.` };
+
+    const totalCompletions = habit.completedDays.length;
+    const bestStreak = habit.bestStreak || 0;
+    
+    analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'getHabitDetails', habitId: params.id });
+
+    return {
+      success: true,
+      message: `Details for "${habit.title}":`,
+      data: {
+        title: habit.title,
+        category: habit.category,
+        frequency: habit.frequency,
+        totalCompletions,
+        bestStreak,
+        currentStreak: habit.currentStreak,
+        createdAt: habit.createdAt
+      }
+    };
+  },
+
+  /**
+   * Return a payload for an interactive card
+   */
+  handleShowInteractiveCard: (params: { type: string; title: string; options?: string[]; value?: number }) => {
+    analyticsService.logEvent(useStore.getState().userId, 'ai_tool_call', { toolName: 'showInteractiveCard', type: params.type });
+    
+    return {
+      success: true,
+      message: `Showing ${params.type} card: "${params.title}"`,
+      data: {
+        type: params.type,
+        title: params.title,
+        options: params.options,
+        value: params.value
+      }
+    };
   }
 };

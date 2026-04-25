@@ -19,6 +19,8 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "LifeOS needs access to your photos to let you share them with the AI assistant.",
         "NSCameraUsageDescription": "LifeOS needs access to your camera to let you take photos for the AI assistant.",
+        "NSMicrophoneUsageDescription": "LifeOS needs access to your microphone for voice commands.",
+        "NSSpeechRecognitionUsageDescription": "LifeOS needs speech recognition to convert your voice to actions.",
         "UIBackgroundModes": [
           "fetch"
         ]
@@ -38,7 +40,8 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -130,6 +133,13 @@
         "@bacons/apple-targets",
         {
           "appleTeamId": "3DZVM2GN57"
+        }
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow LifeOS to access your microphone",
+          "speechRecognitionPermission": "Allow LifeOS to recognize your speech"
         }
       ]
     ],

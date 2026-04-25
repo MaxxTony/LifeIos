@@ -105,6 +105,10 @@ service cloud.firestore {
             && request.resource.data.rewardXP <= 500
           ));
       }
+
+      match /memories/{memoryId} {
+        allow read, write: if isOwner(userId);
+      }
     } // end of match /users/{userId}
 
     match /publicProfiles/{profileId} {
