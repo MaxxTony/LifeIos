@@ -18,23 +18,23 @@ const { width } = Dimensions.get('window');
  * Individual Floating XP Item
  * Handles its own animation lifecycle from entrance to floating exit.
  */
-const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => void }) => {
+const XPFloatingItem = ({ amount, isLucky, onFinish }: { amount: number; isLucky?: boolean; onFinish: () => void }) => {
   const colors = useThemeColors();
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(40);
+  const translateY = useSharedValue(60);
   const scale = useSharedValue(0.5);
 
   useEffect(() => {
     // Entrance & Continuous Float
-    opacity.value = withTiming(1, { duration: 300 });
+    opacity.value = withTiming(1, { duration: 400 });
     scale.value = withTiming(1, {
-      duration: 500,
+      duration: 600,
       easing: Easing.out(Easing.back(1.5))
     });
 
-    translateY.value = withTiming(-120, {
-      duration: 2500,
-      easing: Easing.linear
+    translateY.value = withTiming(-150, {
+      duration: 3500,
+      easing: Easing.out(Easing.quad)
     }, (finished) => {
       if (finished) {
         runOnJS(onFinish)();
@@ -43,8 +43,8 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
 
     // Fade out before the float finishes
     const fadeOutTimer = setTimeout(() => {
-      opacity.value = withTiming(0, { duration: 500 });
-    }, 1800);
+      opacity.value = withTiming(0, { duration: 600 });
+    }, 2800);
 
     return () => {
       clearTimeout(fadeOutTimer);
@@ -68,14 +68,14 @@ const XPFloatingItem = ({ amount, onFinish }: { amount: number; onFinish: () => 
         styles.xpItem,
         animatedStyle,
         {
-          backgroundColor: colors.isDark ? 'rgba(50, 50, 80, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-          borderColor: colors.primary,
-          shadowColor: colors.primary,
+          backgroundColor: isLucky ? '#FFD700' : (colors.isDark ? 'rgba(50, 50, 80, 0.95)' : 'rgba(255, 255, 255, 0.95)'),
+          borderColor: isLucky ? '#FFF' : colors.primary,
+          shadowColor: isLucky ? '#FFD700' : colors.primary,
         }
       ]}
     >
-      <Text style={[styles.xpText, { color: colors.isDark ? '#FFF' : colors.primary }]}>
-        +{amount} XP! 🔥
+      <Text style={[styles.xpText, { color: isLucky ? '#000' : (colors.isDark ? '#FFF' : colors.primary) }]}>
+        {isLucky ? '🍀 LUCKY ' : ''}+{amount} XP! 🔥
       </Text>
     </Animated.View>
   );
@@ -86,15 +86,14 @@ const MAX_ACTIVE_POPUPS = 3;
 export const XPPopUp = React.memo(function XPPopUp() {
   const recentXP = useStore(s => s.recentXP);
   const dismissXP = useStore(s => s.actions.dismissXP);
-  const [activeXPs, setActiveXPs] = useState<{ id: number; amount: number }[]>([]);
+  const [activeXPs, setActiveXPs] = useState<{ id: number; amount: number; isLucky?: boolean }[]>([]);
 
   useEffect(() => {
     if (recentXP) {
       const id = recentXP.timestamp;
-      // C-05 FIX: Cap active popups to prevent animation queue freeze on rapid XP events.
       setActiveXPs(prev => {
         if (prev.length >= MAX_ACTIVE_POPUPS) return prev;
-        return [...prev, { id, amount: recentXP.amount }];
+        return [...prev, { id, amount: recentXP.amount, isLucky: recentXP.isLucky }];
       });
       dismissXP();
     }
@@ -109,6 +108,7 @@ export const XPPopUp = React.memo(function XPPopUp() {
       {activeXPs.map((xp) => (
         <XPFloatingItem
           key={xp.id}
+          isLucky={xp.isLucky}
           amount={xp.amount}
           onFinish={() => removeItem(xp.id)}
         />

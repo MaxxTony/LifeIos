@@ -171,12 +171,13 @@ struct ProgressBar: View {
     var progress: Double
     var color: Color
     var height: CGFloat = 6
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: height / 2)
-                    .fill(Color.white.opacity(0.08))
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
                     .frame(height: height)
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(LinearGradient(
@@ -203,7 +204,7 @@ func priorityColor(_ priority: String) -> Color {
     switch priority {
     case "high":   return Color(hex: "#FF4B4B")
     case "medium": return Color(hex: "#FFB347")
-    default:       return Color.white.opacity(0.35)
+    default:       return Color.secondary
     }
 }
 
@@ -235,6 +236,7 @@ func moodBarColor(_ mood: Int) -> Color {
 
 struct FocusTimerSmallView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -255,8 +257,8 @@ struct FocusTimerSmallView: View {
             Spacer()
             Text(formatFocusTime(d.focus.totalSecondsToday))
                 .font(.system(size: 26, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-                .shadow(color: accent.opacity(0.5), radius: 8)
+                .foregroundColor(colorScheme == .dark ? .white : .black)
+                .shadow(color: accent.opacity(colorScheme == .dark ? 0.5 : 0.2), radius: 8)
             Spacer()
             ProgressBar(progress: progress, color: accent)
             Text("\(percent)% of goal")
@@ -268,6 +270,7 @@ struct FocusTimerSmallView: View {
 
 struct FocusTimerMediumView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -293,15 +296,15 @@ struct FocusTimerMediumView: View {
                 } else {
                     Text("TODAY").font(.system(size: 10, weight: .bold)).foregroundColor(Color(hex: "#8888AA"))
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.white.opacity(0.06))
+                        .background(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             Spacer()
             Text(formatFocusTime(d.focus.totalSecondsToday))
                 .font(.system(size: 38, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-                .shadow(color: accent.opacity(0.4), radius: 12)
+                .foregroundColor(colorScheme == .dark ? .white : .black)
+                .shadow(color: accent.opacity(colorScheme == .dark ? 0.4 : 0.15), radius: 12)
             Spacer()
             VStack(spacing: 6) {
                 ProgressBar(progress: progress, color: accent, height: 6)
@@ -318,10 +321,80 @@ struct FocusTimerMediumView: View {
     }
 }
 
+struct FocusTimerLargeView: View {
+    let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
+    var body: some View {
+        let d = entry.data
+        let accent = Color(hex: d.accentColor)
+        let progress = d.focus.goalSeconds > 0 ? d.focus.totalSecondsToday / d.focus.goalSeconds : 0
+        let percent = Int(min(100, progress * 100))
+        
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("🔥  FOCUS & PRODUCTIVITY")
+                    .font(.system(size: 12, weight: .black)).foregroundColor(Color(hex: "#8888AA")).kerning(0.5)
+                Spacer()
+                if d.focus.isActive {
+                    Text("LIVE SESSION").font(.system(size: 10, weight: .bold)).foregroundColor(Color(hex: "#FF4B4B"))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color(hex: "#FF4B4B").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+            }
+            
+            HStack(alignment: .firstTextBaseline) {
+                Text(formatFocusTime(d.focus.totalSecondsToday))
+                    .font(.system(size: 44, weight: .bold, design: .monospaced))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                Text("today")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hex: "#8888AA"))
+            }
+            .padding(.top, 12)
+            
+            ProgressBar(progress: progress, color: accent, height: 8).padding(.top, 16)
+            
+            HStack {
+                Text("\(percent)% of daily goal completed")
+                    .font(.system(size: 13, weight: .medium)).foregroundColor(colorScheme == .dark ? .white : .black)
+                Spacer()
+                Text("\(Int(d.focus.goalSeconds/3600))h goal")
+                    .font(.system(size: 12)).foregroundColor(Color(hex: "#8888AA"))
+            }
+            .padding(.top, 8)
+            
+            Spacer()
+            
+            // Mood / Focus Context
+            Text("MOOD TREND")
+                .font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#8888AA")).padding(.bottom, 12)
+            
+            HStack(alignment: .bottom, spacing: 12) {
+                ForEach(d.mood.last5Days.indices, id: \.self) { i in
+                    let m = d.mood.last5Days[i]
+                    let h: CGFloat = m > 0 ? max(8, CGFloat(m) / 5 * 60) : 8
+                    VStack {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(moodBarColor(m))
+                            .frame(height: h)
+                        Text(["M", "T", "W", "T", "F"][i])
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(hex: "#8888AA"))
+                    }
+                }
+            }
+            .frame(height: 80)
+        }
+        .padding(20)
+    }
+}
+
 // MARK: - Habits Widget
 
 struct HabitsSmallView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -330,12 +403,13 @@ struct HabitsSmallView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("✅ HABITS").font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#8888AA"))
             Spacer()
-            Text("\(d.stats.streak)").font(.system(size: 28, weight: .bold, design: .rounded)).foregroundColor(.white)
-                .shadow(color: accent.opacity(0.5), radius: 8)
+            Text("\(d.stats.streak)").font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(colorScheme == .dark ? .white : .black)
+                .shadow(color: accent.opacity(colorScheme == .dark ? 0.5 : 0.2), radius: 8)
             Text("🔥 day streak").font(.system(size: 11)).foregroundColor(accent)
             Spacer()
             HStack(spacing: 4) {
-                Text("\(done)/\(total)").font(.system(size: 13, weight: .bold)).foregroundColor(done == total && total > 0 ? accent : .white)
+                Text("\(done)/\(total)").font(.system(size: 13, weight: .bold)).foregroundColor(done == total && total > 0 ? accent : (colorScheme == .dark ? .white : .black))
                 Text("done").font(.system(size: 11)).foregroundColor(Color(hex: "#8888AA"))
             }
         }
@@ -345,6 +419,7 @@ struct HabitsSmallView: View {
 
 struct HabitsMediumView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -362,13 +437,13 @@ struct HabitsMediumView: View {
             HStack {
                 Text(total == 0 ? "No habits today" : "\(done) / \(total) completed")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(allDone ? accent : .white)
+                    .foregroundColor(allDone ? accent : (colorScheme == .dark ? .white : .black))
                 Spacer()
                 if allDone { Text("🎉").font(.system(size: 14)) }
             }
             .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(allDone ? accent.opacity(0.15) : Color.white.opacity(0.05))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(allDone ? accent.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1))
+            .background(allDone ? accent.opacity(0.15) : (colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.03)))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(allDone ? accent.opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.top, 8)
             // Habit rows
@@ -377,16 +452,16 @@ struct HabitsMediumView: View {
                     HStack {
                         Text("\(h.icon)  \(h.title)")
                             .font(.system(size: 12, weight: h.isDoneToday ? .regular : .medium))
-                            .foregroundColor(h.isDoneToday ? Color(hex: "#555570") : Color(hex: "#DDDDEE"))
+                            .foregroundColor(h.isDoneToday ? Color(hex: "#8888AA") : (colorScheme == .dark ? .white : .black))
                             .lineLimit(1)
                         Spacer()
                         Text(h.isDoneToday ? "✅" : "○")
                             .font(.system(size: 13))
-                            .foregroundColor(h.isDoneToday ? accent : Color(hex: "#333352"))
+                            .foregroundColor(h.isDoneToday ? accent : Color.gray.opacity(0.4))
                     }
                 }
                 if d.habits.count == 0 {
-                    Text("Add habits in the app").font(.system(size: 12)).foregroundColor(Color(hex: "#444460"))
+                    Text("Add habits in the app").font(.system(size: 12)).foregroundColor(Color(hex: "#8888AA"))
                 }
             }
             .padding(.top, 8)
@@ -396,10 +471,71 @@ struct HabitsMediumView: View {
     }
 }
 
+struct HabitsLargeView: View {
+    let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
+    var body: some View {
+        let d = entry.data
+        let accent = Color(hex: d.accentColor)
+        let done = d.habitProgress.completed
+        let total = d.habitProgress.total
+        
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("✅  HABITS").font(.system(size: 12, weight: .black)).foregroundColor(Color(hex: "#8888AA"))
+                    Text("\(done) of \(total) done")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("STREAK").font(.system(size: 10, weight: .bold)).foregroundColor(Color(hex: "#8888AA"))
+                    Text("🔥 \(d.stats.streak) days")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(accent)
+                }
+            }
+            
+            ProgressBar(progress: total > 0 ? Double(done)/Double(total) : 0, color: accent, height: 8).padding(.top, 16)
+            
+            Divider().padding(.vertical, 16).opacity(0.1)
+            
+            VStack(spacing: 12) {
+                ForEach(d.habits.prefix(6)) { h in
+                    HStack {
+                        ZStack {
+                            Circle().fill(h.isDoneToday ? accent.opacity(0.15) : Color.gray.opacity(0.08)).frame(width: 32, height: 32)
+                            Text(h.icon).font(.system(size: 16))
+                        }
+                        Text(h.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(h.isDoneToday ? Color(hex: "#8888AA") : (colorScheme == .dark ? .white : .black))
+                            .strikethrough(h.isDoneToday)
+                        Spacer()
+                        if h.isDoneToday {
+                            Image(systemName: "checkmark.circle.fill").foregroundColor(accent).font(.system(size: 20))
+                        } else {
+                            Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2).frame(width: 20, height: 20)
+                        }
+                    }
+                }
+                if d.habits.isEmpty {
+                    Text("No habits scheduled for today").font(.system(size: 14)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 20)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(20)
+    }
+}
+
 // MARK: - Tasks Widget
 
 struct TasksSmallView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -414,7 +550,9 @@ struct TasksSmallView: View {
                     ForEach(Array(pending), id: \.id) { t in
                         HStack(spacing: 5) {
                             Circle().fill(priorityColor(t.priority)).frame(width: 6, height: 6)
-                            Text(t.text).font(.system(size: 11)).foregroundColor(.white.opacity(0.9)).lineLimit(1)
+                            Text(t.text).font(.system(size: 11))
+                                .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : .black.opacity(0.8))
+                                .lineLimit(1)
                         }
                     }
                 }
@@ -432,6 +570,7 @@ struct TasksSmallView: View {
 
 struct TasksMediumView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
@@ -455,18 +594,20 @@ struct TasksMediumView: View {
                 if allDone {
                     Text("🎉  All tasks done!").font(.system(size: 13, weight: .bold)).foregroundColor(Color(hex: "#10B981"))
                 } else if pending.isEmpty && total == 0 {
-                    Text("No tasks for today").font(.system(size: 12)).foregroundColor(Color(hex: "#444460"))
+                    Text("No tasks for today").font(.system(size: 12)).foregroundColor(Color(hex: "#8888AA"))
                 } else {
                     ForEach(Array(pending.prefix(3)), id: \.id) { t in
                         HStack(spacing: 8) {
                             Circle().fill(priorityColor(t.priority)).frame(width: 7, height: 7)
                             Text(t.text)
-                                .font(.system(size: 12)).foregroundColor(Color(hex: "#DDDDEE")).lineLimit(1)
+                                .font(.system(size: 12))
+                                .foregroundColor(colorScheme == .dark ? Color(hex: "#DDDDEE") : .black)
+                                .lineLimit(1)
                         }
                     }
                     if pending.count > 3 {
                         Text("+\(pending.count - 3) more")
-                            .font(.system(size: 11)).foregroundColor(Color(hex: "#555570"))
+                            .font(.system(size: 11)).foregroundColor(Color(hex: "#8888AA"))
                     }
                 }
             }
@@ -477,14 +618,86 @@ struct TasksMediumView: View {
     }
 }
 
+struct TasksLargeView: View {
+    let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
+    var body: some View {
+        let d = entry.data
+        let accent = Color(hex: d.accentColor)
+        let done = d.tasks.filter { $0.completed }.count
+        let total = d.tasks.count
+        let pending = d.tasks.filter { !$0.completed }
+        
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("📋  TASKS").font(.system(size: 12, weight: .black)).foregroundColor(Color(hex: "#8888AA"))
+                    Text("\(done) of \(total) completed")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                }
+                Spacer()
+                ZStack {
+                    Circle().stroke(Color.gray.opacity(0.2), lineWidth: 4).frame(width: 44, height: 44)
+                    Circle()
+                        .trim(from: 0, to: total > 0 ? Double(done)/Double(total) : 0)
+                        .stroke(accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .frame(width: 44, height: 44)
+                        .rotationEffect(.degrees(-90))
+                    Text("\(total > 0 ? Int(Double(done)/Double(total)*100) : 0)%")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                }
+            }
+            
+            Divider().padding(.vertical, 16).opacity(0.1)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                if total == 0 {
+                    Text("No tasks scheduled for today.").font(.system(size: 14)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 10)
+                } else if pending.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("All caught up! 🎊").font(.system(size: 18, weight: .bold)).foregroundColor(Color(hex: "#10B981"))
+                        Text("You've completed all tasks for today.").font(.system(size: 14)).foregroundColor(Color(hex: "#8888AA"))
+                    }
+                    .padding(.top, 10)
+                } else {
+                    ForEach(Array(pending.prefix(7)), id: \.id) { t in
+                        HStack(spacing: 12) {
+                            Circle().fill(priorityColor(t.priority)).frame(width: 8, height: 8)
+                            Text(t.text)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                    }
+                    if pending.count > 7 {
+                        Text("+\(pending.count - 7) more tasks...")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(accent)
+                            .padding(.leading, 20)
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(20)
+    }
+}
+
 // MARK: - XP Level Widget
 
 struct XPLevelSmallView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
         let percent = Int(d.stats.xpProgress * 100)
+        let primaryText = colorScheme == .dark ? Color.white : Color.black
+        let secondaryText = colorScheme == .dark ? Color(hex: "#8888AA") : Color(hex: "#666688")
         VStack(alignment: .leading, spacing: 0) {
             // Level badge
             Text("Lv. \(d.stats.level)")
@@ -497,14 +710,14 @@ struct XPLevelSmallView: View {
             // Level name
             Text(d.stats.levelName)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(primaryText)
                 .shadow(color: accent.opacity(0.5), radius: 8)
             Text("⭐ \(percent)% to next")
-                .font(.system(size: 10)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 2)
+                .font(.system(size: 10)).foregroundColor(secondaryText).padding(.top, 2)
             Spacer()
             ProgressBar(progress: d.stats.xpProgress, color: accent, height: 5)
             Text("🔥 \(d.stats.streak)-day streak")
-                .font(.system(size: 11)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 5)
+                .font(.system(size: 11)).foregroundColor(secondaryText).padding(.top, 5)
         }
         .padding(14)
     }
@@ -514,12 +727,14 @@ struct XPLevelSmallView: View {
 
 struct MoodSmallView: View {
     let entry: LifeOSEntry
+    @Environment(\.colorScheme) var colorScheme
     var body: some View {
         let d = entry.data
         let accent = Color(hex: d.accentColor)
         let hasMood = d.mood.today > 0
+        let secondaryText = colorScheme == .dark ? Color(hex: "#8888AA") : Color(hex: "#666688")
         VStack(alignment: .leading, spacing: 0) {
-            Text("MOOD").font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#8888AA")).kerning(1)
+            Text("MOOD").font(.system(size: 10, weight: .black)).foregroundColor(secondaryText).kerning(1)
             Spacer()
             if hasMood {
                 Text(moodEmoji(d.mood.today)).font(.system(size: 28))
@@ -529,7 +744,7 @@ struct MoodSmallView: View {
                     .padding(.top, 2)
             } else {
                 Text("+").font(.system(size: 30, weight: .bold)).foregroundColor(accent)
-                Text("Log mood").font(.system(size: 12)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 2)
+                Text("Log mood").font(.system(size: 12)).foregroundColor(secondaryText).padding(.top, 2)
             }
             Spacer()
             // 5-day mini bar chart
@@ -578,6 +793,8 @@ struct FocusTimerAdaptiveView: View {
     var body: some View {
         switch family {
         case .systemSmall:  FocusTimerSmallView(entry: entry)
+        case .systemMedium: FocusTimerMediumView(entry: entry)
+        case .systemLarge:  FocusTimerLargeView(entry: entry)
         default:            FocusTimerMediumView(entry: entry)
         }
     }
@@ -589,6 +806,8 @@ struct HabitsAdaptiveView: View {
     var body: some View {
         switch family {
         case .systemSmall:  HabitsSmallView(entry: entry)
+        case .systemMedium: HabitsMediumView(entry: entry)
+        case .systemLarge:  HabitsLargeView(entry: entry)
         default:            HabitsMediumView(entry: entry)
         }
     }
@@ -628,6 +847,8 @@ struct TasksAdaptiveView: View {
     var body: some View {
         switch family {
         case .systemSmall:  TasksSmallView(entry: entry)
+        case .systemMedium: TasksMediumView(entry: entry)
+        case .systemLarge:  TasksLargeView(entry: entry)
         default:            TasksMediumView(entry: entry)
         }
     }

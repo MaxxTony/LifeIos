@@ -19,6 +19,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { analyticsService } from '@/services/analyticsService';
 import { registerAllBackgroundTasks, unregisterAllBackgroundTasks } from '@/services/backgroundService';
 import { initCrashAnalytics } from '@/services/crashAnalytics';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { useEffect, useRef } from 'react';
@@ -253,14 +254,14 @@ export default function RootLayout() {
           const granted = status === 'granted';
           if (!granted) return;
           habits.forEach(habit => {
-            if (habit.reminderTime && habit.targetDays && habit.targetDays.length > 0) {
+            if (habit.reminderTime) {
               notificationService.scheduleHabitReminder(
                 habit.id,
                 habit.title,
                 habit.icon || '📅',
                 habit.reminderTime,
                 habit.frequency || 'daily',
-                habit.targetDays,
+                habit.targetDays || [],
                 habit.monthlyDay
               );
             }
@@ -388,6 +389,19 @@ export default function RootLayout() {
         return;
       }
 
+      // Android monthly habits use a one-shot DATE trigger — reschedule for next month
+      if (Platform.OS === 'android' && data?.type === 'HABIT_REMINDER' && data?.habitId) {
+        const habit = useStore.getState().habits.find((h: any) => h.id === data.habitId);
+        if (habit?.frequency === 'monthly' && habit.reminderTime) {
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleHabitReminder(
+              habit.id, habit.title, habit.icon || '📅',
+              habit.reminderTime!, 'monthly', [], habit.monthlyDay
+            );
+          });
+        }
+      }
+
       Toast.show({
         type: 'info',
         text1: title || 'LifeOS Notification',
@@ -422,6 +436,18 @@ export default function RootLayout() {
       } else if (data?.type === 'MOOD_REMINDER') {
         router.push('/mood-log' as any);
       } else if (data?.type === 'HABIT_REMINDER') {
+        // Android monthly habits use a one-shot DATE trigger — reschedule for next month when clicked
+        if (Platform.OS === 'android' && data?.habitId) {
+          const habit = useStore.getState().habits.find((h: any) => h.id === data.habitId);
+          if (habit?.frequency === 'monthly' && habit.reminderTime) {
+            import('@/services/notificationService').then(({ notificationService }) => {
+              notificationService.scheduleHabitReminder(
+                habit.id, habit.title, habit.icon || '📅',
+                habit.reminderTime!, 'monthly', [], habit.monthlyDay
+              );
+            });
+          }
+        }
         router.push('/(tabs)' as any);
       }
     });
@@ -441,52 +467,60 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <BottomSheetModalProvider>
-        <ThemeProvider value={navTheme}>
-          <OfflineBanner />
-          <Stack screenOptions={{
-            headerTintColor: accentColor || '#7C5CFF',
-            headerShown: false
-          }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(habits)" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="focus-detail" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="social-leaderboard" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="mood-log" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="all-habits" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="all-tasks" options={{ presentation: 'modal', headerShown: false }} />
-            <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center', headerBackButtonDisplayMode: "generic" }} />
-            <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
-          </Stack>
-          <StatusBar style={isDark ? "light" : "dark"} />
-          {globalConfetti && (
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <ConfettiCannon
-                count={150}
-                origin={{ x: -10, y: 0 }}
-                autoStart={true}
-                fadeOut={true}
-                fallSpeed={3000}
-                explosionSpeed={350}
-                colors={['#7C5CFF', '#00D1FF', '#FF00B8', '#FFD700', '#10B981']}
-              />
-            </View>
-          )}
-          <Toast />
-        </ThemeProvider>
-      </BottomSheetModalProvider>
+      <ErrorBoundary>
+        <BottomSheetModalProvider>
+          <ThemeProvider value={navTheme}>
+            <OfflineBanner />
+            <Stack screenOptions={{
+              headerTintColor: accentColor || '#7C5CFF',
+              headerShown: false
+            }}>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(onboarding)/index" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(habits)" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="tasks/create" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="tasks/[id]" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="focus-detail" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="social-leaderboard" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="mood-history" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="mood-log" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="mood-themes" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="habit/[id]" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="all-habits" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="all-tasks" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: 'Notifications', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/appearance" options={{ headerShown: true, title: 'Appearance', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/privacy" options={{ headerShown: true, title: 'Privacy & Security', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/feedback" options={{ headerShown: true, title: 'Send Feedback', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/help" options={{ headerShown: true, title: 'Help Center', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/change-password" options={{ headerShown: true, title: 'Change Password', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/terms" options={{ headerShown: true, title: 'Terms & Conditions', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="edit-profile" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="tasks/edit/[id]" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="focus-room" options={{ headerShown: false }} />
+              <Stack.Screen name="weekly-review" options={{ presentation: 'modal', headerShown: false }} />
+            </Stack>
+            <StatusBar style={isDark ? "light" : "dark"} />
+            {globalConfetti && (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ConfettiCannon
+                  count={150}
+                  origin={{ x: -10, y: 0 }}
+                  autoStart={true}
+                  fadeOut={true}
+                  fallSpeed={3000}
+                  explosionSpeed={350}
+                  colors={['#7C5CFF', '#00D1FF', '#FF00B8', '#FFD700', '#10B981']}
+                />
+              </View>
+            )}
+            <Toast />
+          </ThemeProvider>
+        </BottomSheetModalProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

@@ -318,12 +318,30 @@ export const dbService = {
     // 1. Delete Firestore subcollections under /users/{userId}
     const subcollections = [
       'tasks', 'habits', 'moodHistory', 'focusHistory',
-      'dailyQuests', 'stats', 'lifeScoreHistory'
+      'dailyQuests', 'stats', 'lifeScoreHistory',
+      'conversations', 'memories'
     ];
     for (const sub of subcollections) {
       try {
-        const snap = await getDocs(collection(db, 'users', userId, sub));
+        const collRef = collection(db, 'users', userId, sub);
+        const snap = await getDocs(collRef);
         if (!snap.empty) {
+          // GDPR-DEEP: If this is conversations, we must ALSO delete the messages subcollection
+          // for every single conversation document before deleting the conversation itself.
+          if (sub === 'conversations') {
+            for (const convDoc of snap.docs) {
+              const msgSnap = await getDocs(collection(db, convDoc.ref.path, 'messages'));
+              if (!msgSnap.empty) {
+                for (let i = 0; i < msgSnap.docs.length; i += 499) {
+                  const batch = writeBatch(db);
+                  msgSnap.docs.slice(i, i + 499).forEach(d => batch.delete(d.ref));
+                  await batch.commit();
+                }
+              }
+            }
+          }
+
+          // Delete the documents in the main subcollection
           for (let i = 0; i < snap.docs.length; i += 499) {
             const batch = writeBatch(db);
             snap.docs.slice(i, i + 499).forEach(d => batch.delete(d.ref));

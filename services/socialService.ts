@@ -150,16 +150,20 @@ export const socialService = {
     }
   },
 
-  // Fetches all LifeOS users for the Discover tab (limited to 50 most recently active)
-  getAllUsers: async (currentUserId: string): Promise<PublicProfile[]> => {
+  // Fetches all LifeOS users for the Discover tab with pagination support
+  getAllUsers: async (currentUserId: string, lastVisibleDoc?: any): Promise<{ profiles: PublicProfile[], lastDoc: any }> => {
     try {
-      // O13 FIX: Added orderBy('lastActive', 'desc') so the most recently active
-      // users appear first instead of 50 users in arbitrary hash order.
-      const q = query(
+      let q = query(
         collection(db, 'publicProfiles'),
         orderBy('lastActive', 'desc'),
-        limit(50)
+        limit(20)
       );
+
+      if (lastVisibleDoc) {
+        const { startAfter } = await import('firebase/firestore');
+        q = query(q, startAfter(lastVisibleDoc));
+      }
+
       const snap = await getDocs(q);
       const profiles: PublicProfile[] = [];
       snap.forEach(docSnap => {
@@ -167,10 +171,12 @@ export const socialService = {
           profiles.push({ userId: docSnap.id, ...docSnap.data() } as PublicProfile);
         }
       });
-      return profiles;
+
+      const lastDoc = snap.docs[snap.docs.length - 1];
+      return { profiles, lastDoc };
     } catch(e) {
       console.error('Error getting all users:', e);
-      return [];
+      return { profiles: [], lastDoc: null };
     }
   },
 
@@ -224,6 +230,8 @@ export const socialService = {
     let friendIds = new Set<string>([userId]);
     let unsubProfiles: (() => void) | null = null;
 
+    let lastRank = -1;
+
     const setupProfileListener = (ids: string[]) => {
       if (unsubProfiles) unsubProfiles();
       if (ids.length === 0) {
@@ -233,10 +241,27 @@ export const socialService = {
 
       // Firestore 'in' limit is 30 for onSnapshot (usually)
       const chunk = ids.slice(0, 30);
-      unsubProfiles = onSnapshot(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)), (snap) => {
+      unsubProfiles = onSnapshot(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)), async (snap) => {
         const profiles: PublicProfile[] = [];
         snap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
-        callback(profiles.sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0)));
+        const sorted = profiles.sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0));
+        
+        // Surpass Logic: Check if rank decreased
+        const currentRank = sorted.findIndex(p => p.userId === userId);
+        if (lastRank !== -1 && currentRank > lastRank) {
+          const surpassingUser = sorted[currentRank - 1];
+          if (surpassingUser) {
+            const { notificationService } = await import('./notificationService');
+            notificationService.sendImmediateNotification(
+              'Rival Alert! ⚔️',
+              `${surpassingUser.userName} just passed you on the leaderboard!`,
+              { type: 'WEEKLY_LEADERBOARD' }
+            );
+          }
+        }
+        lastRank = currentRank;
+        
+        callback(sorted);
       });
     };
 

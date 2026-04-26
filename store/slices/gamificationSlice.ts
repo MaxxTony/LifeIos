@@ -94,15 +94,13 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
               // Streak broken!
               newGlobalStreak = 0;
               if ((state.globalStreak || 0) > 2) {
-                setTimeout(() => {
-                  import('react-native-toast-message').then(Toast => {
-                    Toast.default.show({
-                      type: 'error',
-                      text1: 'Streak Broken 🧊',
-                      text2: `You missed a day. Time to start fresh!`
-                    });
-                  });
-                }, 2000);
+                // PHASE 6: Trigger full-screen Grief/Recovery UI
+                return {
+                  ...state,
+                  globalStreak: 0,
+                  showStreakBroken: true,
+                  lastResetDate: today
+                };
               }
             }
           }
@@ -246,20 +244,28 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   },
 
   addXP: (amount: number) => set((state) => {
-    const newTotalXP = state.totalXP + amount;
-    const newLevel = computeLevel(newTotalXP);
-    
     // --- Phase 6 Gamification Gameloop ---
     const todayStr = getTodayLocal();
     let newGlobalStreak = state.globalStreak || 0;
     let newLastActiveDate = state.lastActiveDate;
+    let finalAmount = amount;
+    let isLuckyBoost = false;
+
+    // 1. Lucky XP Boost (5% chance to double XP)
+    if (Math.random() < 0.05) {
+      finalAmount = amount * 2;
+      isLuckyBoost = true;
+    }
+
+    const newTotalXP = state.totalXP + finalAmount;
+    const newLevel = computeLevel(newTotalXP);
 
     // Reset comeback notifications on any activity (XP gain)
     import('@/services/notificationService').then(({ notificationService }) => {
       notificationService.scheduleComebackNotifications();
     });
 
-    // 1. Check Global Streak
+    // 2. Check Global Streak
     if (state.lastActiveDate !== todayStr) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -277,67 +283,106 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         notificationService.cancelStreakWarningNotification();
       });
       
-      
       // Toast notification for streak if > 1
       if (newGlobalStreak > 1) {
         setTimeout(() => {
           import('react-native-toast-message').then(Toast => {
             Toast.default.show({
               type: 'success',
-              text1: 'Streak Saved! 🔥',
-              text2: `You're on a ${newGlobalStreak}-day streak!`
+              text1: isLuckyBoost ? '🍀 LUCKY BOOST!' : 'Streak Saved! 🔥',
+              text2: isLuckyBoost 
+                ? `You earned DOUBLE XP (+${finalAmount}) and your ${newGlobalStreak}-day streak is alive!`
+                : `You're on a ${newGlobalStreak}-day streak!`
             });
           });
-        }, 1500); // show slightly after level up
+        }, 1500);
       }
     }
 
-    // 2. Check Weekly XP (Resets every Monday)
+    // 3. Streak Milestones (+500 XP at 3, 7, 14, 30, 60, 100 days)
+    const milestones = [3, 7, 14, 30, 60, 100];
+    let milestoneBonus = 0;
+    const newStreakMilestones = [...(state.streakMilestones || [])];
+
+    if (milestones.includes(newGlobalStreak) && state.lastActiveDate !== todayStr) {
+      milestoneBonus = 500;
+      newStreakMilestones.push({
+        id: `milestone-${newGlobalStreak}-${Date.now()}`,
+        days: newGlobalStreak,
+        rewardXP: 500,
+        timestamp: Date.now()
+      });
+      
+      analyticsService.logMilestone(state.userId, 'streak_milestone', { days: newGlobalStreak });
+
+      // PHASE 8: 100-Day Master Content Unlock
+      if (newGlobalStreak === 100 && !state.masterUnlocked) {
+        setTimeout(() => {
+          import('react-native-toast-message').then(Toast => {
+            Toast.default.show({
+              type: 'success',
+              text1: '🏆 LEGENDARY UNLOCKED!',
+              text2: 'You have reached a 100-day streak! The Legendary Gold theme is now yours.',
+              visibilityTime: 6000,
+            });
+          });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }, 3000);
+      }
+    }
+
+    // Atomic update for master status
+    const masterUpdate = (newGlobalStreak >= 100 && !state.masterUnlocked) 
+      ? { masterUnlocked: true, unlockedThemes: [...state.unlockedThemes, 'Legendary Gold'] }
+      : {};
+
+    const adjustedTotalXP = newTotalXP + milestoneBonus;
+    const adjustedLevel = computeLevel(adjustedTotalXP);
+
+    // 4. Check Weekly XP (Resets every Monday)
     const todayDate = new Date();
-    const dayOfWeek = todayDate.getDay() || 7; // Make Sunday 7 instead of 0
+    const dayOfWeek = todayDate.getDay() || 7; 
     const diffToMonday = todayDate.getDate() - dayOfWeek + 1;
     const currentMonday = new Date(todayDate);
     currentMonday.setDate(diffToMonday);
     const currentMondayStr = formatLocalDate(currentMonday);
 
-    let newWeeklyXP = (state.weeklyXP || 0) + amount;
+    let newWeeklyXP = (state.weeklyXP || 0) + finalAmount + milestoneBonus;
     let newLastWeekResetDate = state.lastWeekResetDate;
 
     if (state.lastWeekResetDate !== currentMondayStr) {
-      // New week started! Reset weekly XP.
-      newWeeklyXP = amount;
+      newWeeklyXP = finalAmount + milestoneBonus;
       newLastWeekResetDate = currentMondayStr;
     }
 
     // Check for Level Up
-    if (newLevel > state.level) {
-      analyticsService.logMilestone(state.userId, 'level_up', { newLevel });
+    if (adjustedLevel > state.level) {
+      analyticsService.logMilestone(state.userId, 'level_up', { newLevel: adjustedLevel });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
     const newStatData = { 
-      totalXP: newTotalXP, 
-      level: newLevel,
+      totalXP: adjustedTotalXP, 
+      level: adjustedLevel,
       weeklyXP: newWeeklyXP,
       globalStreak: newGlobalStreak,
       lastActiveDate: newLastActiveDate,
-      lastWeekResetDate: newLastWeekResetDate
+      lastWeekResetDate: newLastWeekResetDate,
+      streakMilestones: newStreakMilestones
     };
 
     if (state.userId) {
       fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', newStatData), 'xpUpdate', state.userId);
-      // MED-004: Only write publicProfiles on level-up or once per 5 minutes to cap write volume.
-      const levelChanged = newLevel !== state.level;
+      const levelChanged = adjustedLevel !== state.level;
       const now = Date.now();
       if (levelChanged || now - lastPublicProfileWriteTime > 5 * 60 * 1000) {
         lastPublicProfileWriteTime = now;
         fireSync(() => setDoc(doc(db, 'publicProfiles', state.userId!), {
-          level: newLevel,
+          level: adjustedLevel,
           weeklyXP: newWeeklyXP,
           globalStreak: newGlobalStreak,
           lastActive: now,
           userName: state.userName || 'Anonymous',
-          // O9 FIX: Keep userNameLower in sync for case-insensitive search.
           userNameLower: (state.userName || 'Anonymous').toLowerCase(),
           avatarUrl: state.avatarUrl || null
         }, { merge: true }), 'publicProfileSync', state.userId);
@@ -346,7 +391,8 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
     return {
       ...newStatData,
-      recentXP: { amount, timestamp: Date.now() }
+      ...masterUpdate,
+      recentXP: { amount: finalAmount + milestoneBonus, timestamp: Date.now(), isLucky: isLuckyBoost }
     };
   }),
 
@@ -478,6 +524,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   dismissMilestone: () => set(state => ({ streakMilestones: state.streakMilestones.slice(1) })),
   dismissMoodLog: () => set({ lastMoodLog: null }),
   dismissProactive: () => set({ proactivePrompt: null }),
+  dismissStreakBroken: () => set({ showStreakBroken: false }),
   setLastActive: () => set((state) => {
     const today = getTodayLocal();
     const updates: Record<string, unknown> = { lastActiveTimestamp: Date.now() };

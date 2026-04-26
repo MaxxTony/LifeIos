@@ -46,6 +46,8 @@ export function createShardedStorage(baseName: string) {
         const tasksObj = tasksStr ? JSON.parse(tasksStr) : { state: {} };
         const histObj = histStr ? JSON.parse(histStr) : { state: {} };
 
+        // O18: Shards are merged back into a single object for Zustand hydration.
+
         const merged = {
           ...coreObj,
           state: {
@@ -75,7 +77,10 @@ export function createShardedStorage(baseName: string) {
         for (const [key, val] of Object.entries(state)) {
           if (HISTORY_KEYS.has(key)) histState[key] = val;
           else if (TASK_KEYS.has(key)) tasksState[key] = val;
-          else coreState[key] = val;
+          else {
+            // Sharding complete. Serialize and write to disk.
+            coreState[key] = val;
+          }
         }
 
         // O18 FIX: Atomic multiSet fallback to individual sets for compatibility

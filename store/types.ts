@@ -137,9 +137,10 @@ export interface UserState {
     comeback48h: boolean;
     comeback7d: boolean;
   };
-  recentXP: { amount: number; timestamp: number } | null;
+  recentXP: { amount: number; timestamp: number; isLucky?: boolean } | null;
   // C-06 FIX: Queue so multiple simultaneous streak milestones all display.
-  streakMilestones: { habitTitle: string; streak: number; timestamp: number }[];
+  streakMilestones: { id: string; habitTitle?: string; days: number; rewardXP: number; timestamp: number }[];
+  showStreakBroken: boolean;
   lastMoodLog: { mood: number; timestamp: number } | null;
   lifeScoreHistory: Record<string, number>;
   lastActiveTimestamp: number;
@@ -147,6 +148,8 @@ export interface UserState {
   level: number;
   weeklyXP: number;
   globalStreak: number;
+  unlockedThemes: string[];
+  masterUnlocked: boolean;
   lastActiveDate: string | null;
   lastWeekResetDate: string | null;
   lastLoginBonusDate: string | null;
@@ -161,6 +164,7 @@ export interface UserState {
   _syncUnsubscribes: (() => void)[];
   _subscriptionGen: number;
   sessionToken: string | null;
+  aiInsight: string | null;
   syncStatus: SyncStatus;
   pendingActions: {
     id: string;
@@ -234,6 +238,7 @@ export interface UserActions {
   dismissMilestone: () => void;
   dismissMoodLog: () => void;
   dismissProactive: () => void;
+  dismissStreakBroken: () => void;
   setLastActive: () => void;
 
   // Sync
@@ -270,5 +275,5 @@ export type MoodActions = Pick<UserActions, 'setMood' | 'setMoodTheme'>;
 export type GamificationActions = Pick<UserActions,
   'performDailyReset' | 'updateLifeScoreHistory' | 'generateDailyQuests' |
   'completeQuest' | 'checkQuestProgress' | 'addXP' | 'triggerProactivePrompt' |
-  'dismissXP' | 'dismissMilestone' | 'dismissMoodLog' | 'dismissProactive' | 'setLastActive'
+  'dismissXP' | 'dismissMilestone' | 'dismissMoodLog' | 'dismissProactive' | 'dismissStreakBroken' | 'setLastActive'
 >;

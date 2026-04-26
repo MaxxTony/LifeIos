@@ -1,4 +1,4 @@
-import { BlurView } from '@/components/BlurView';
+import { BlurView } from 'expo-blur';
 import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
@@ -7,9 +7,10 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bot, Brain, Rocket, Sparkles, Target, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Animated, Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn, SlideInUp } from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const STEPS = [
   {
@@ -59,37 +60,15 @@ export function OnboardingWalkthrough() {
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
 
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const slideAnim = React.useRef(new Animated.Value(20)).current;
-  const scaleAnim = React.useRef(new Animated.Value(0.75)).current;
-
   useEffect(() => {
     let timeoutId: any;
-    // Wait for the cloud profile to confirm hasSeenWalkthrough before showing.
-    // Without this guard, the walkthrough flashes for ~1-2s on every fresh
-    // login because the local default is false before the profile syncs.
     if (!hasSeenWalkthrough && profileLoaded) {
       timeoutId = setTimeout(() => {
         setVisible(true);
-      }, 1200);
-    } else {
-      setVisible(false);
+      }, 1000);
     }
     return () => clearTimeout(timeoutId);
   }, [hasSeenWalkthrough, profileLoaded]);
-
-  useEffect(() => {
-    if (visible) {
-      fadeAnim.setValue(0);
-      slideAnim.setValue(20);
-      scaleAnim.setValue(0.75);
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 6 }),
-      ]).start();
-    }
-  }, [currentStep, visible]);
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -102,79 +81,68 @@ export function OnboardingWalkthrough() {
 
   const handleClose = () => {
     setHasSeenWalkthrough(true);
-    // C-ONB-1 FIX: Also trigger completeOnboarding so the app doesn't treat 
-    // them as a new user next time (suppresses the loop).
     useStore.getState().actions.completeOnboarding();
     setVisible(false);
   };
 
   if (!visible) return null;
 
-  const StepIcon = STEPS[currentStep].icon;
+  const step = STEPS[currentStep];
+  const StepIcon = step.icon;
 
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.overlay}>
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
 
-        <Animated.View style={[
-          styles.container,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
-        ]}>
-          <LinearGradient
-            colors={[STEPS[currentStep].color + '20', 'transparent']}
-            style={styles.cardGlow}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-
-          {currentStep < STEPS.length - 1 && (
-            <TouchableOpacity style={styles.skipBtn} onPress={handleClose}>
-              <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
-            </TouchableOpacity>
-          )}
-
-          <Animated.View style={[styles.iconContainer, { backgroundColor: STEPS[currentStep].color + '15', transform: [{ scale: scaleAnim }] }]}>
-            <StepIcon size={56} color={STEPS[currentStep].color} />
-          </Animated.View>
-
-          <Text style={[styles.title, { color: colors.text }]}>{STEPS[currentStep].title}</Text>
-          <Text style={[styles.description, { color: colors.textSecondary }]}>{STEPS[currentStep].description}</Text>
-
-          {/* Step progress bar */}
-          <View style={[styles.progressTrack, { backgroundColor: colors.textSecondary + '20' }]}>
-            <Animated.View
-              style={[
-                styles.progressFill,
-                {
-                  backgroundColor: STEPS[currentStep].color,
-                  width: `${((currentStep + 1) / STEPS.length) * 100}%`,
-                }
-              ]}
+        <Animated.View 
+          key={currentStep}
+          entering={FadeIn.duration(400)}
+          exiting={FadeOut.duration(400)}
+          style={styles.content}
+        >
+          <View style={[styles.container, { backgroundColor: '#1A1A1A', borderColor: 'rgba(255,255,255,0.1)' }]}>
+            <LinearGradient
+              colors={[step.color + '30', 'transparent']}
+              style={styles.cardGlow}
             />
-          </View>
 
-          <View style={styles.footer}>
-            <Text style={[styles.stepLabel, { color: colors.textSecondary }]}>
-              {currentStep + 1} / {STEPS.length}
-            </Text>
+            {currentStep < STEPS.length - 1 && (
+              <TouchableOpacity style={styles.skipBtn} onPress={handleClose}>
+                <Text style={[styles.skipText, { color: 'rgba(255,255,255,0.4)' }]}>Skip</Text>
+              </TouchableOpacity>
+            )}
+
+            <Animated.View entering={ZoomIn.delay(100)} style={[styles.iconContainer, { backgroundColor: step.color }]}>
+              <StepIcon size={48} color="#FFF" />
+            </Animated.View>
+
+            <Text style={styles.title}>{step.title}</Text>
+            <Text style={styles.description}>{step.description}</Text>
+
+            <View style={styles.progressRow}>
+              {STEPS.map((_, i) => (
+                <View 
+                  key={i} 
+                  style={[
+                    styles.dot, 
+                    { backgroundColor: i === currentStep ? step.color : 'rgba(255,255,255,0.2)' }
+                  ]} 
+                />
+              ))}
+            </View>
 
             <TouchableOpacity
-              style={[styles.nextBtn, { backgroundColor: STEPS[currentStep].color }]}
+              style={[styles.nextBtn, { backgroundColor: step.color }]}
               onPress={handleNext}
+              activeOpacity={0.8}
             >
               <Text style={styles.nextBtnText}>
-                {currentStep === STEPS.length - 1 ? "Let's Go!" : "Next"}
+                {currentStep === STEPS.length - 1 ? "Start Journey" : "Next Step"}
               </Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFF" />
+              <Ionicons name={currentStep === STEPS.length - 1 ? "rocket" : "arrow-forward"} size={20} color="#FFF" />
             </TouchableOpacity>
           </View>
-
         </Animated.View>
       </View>
     </Modal>
@@ -184,90 +152,86 @@ export function OnboardingWalkthrough() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
+  content: {
+    width: '100%',
+    alignItems: 'center',
+  },
   container: {
-    width: width - 48,
-    borderRadius: 36,
+    width: '100%',
+    borderRadius: 40,
     borderWidth: 1,
     padding: 32,
     alignItems: 'center',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.5,
+    shadowRadius: 30,
+    elevation: 10,
   },
   cardGlow: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.5,
+    height: 200,
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
+    width: 88,
+    height: 88,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
   title: {
-    ...Typography.h2,
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 28,
+    fontFamily: 'Outfit-Bold',
+    color: '#FFF',
     textAlign: 'center',
     marginBottom: 16,
   },
   description: {
-    ...Typography.body,
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
   },
-  progressTrack: {
-    width: '100%',
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
-  },
-  footer: {
-    width: '100%',
+  progressRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 32,
   },
-  stepLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    opacity: 0.6,
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   nextBtn: {
+    width: '100%',
+    height: 56,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 18,
+    justifyContent: 'center',
     gap: 8,
   },
   nextBtnText: {
     color: '#FFF',
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 18,
+    fontFamily: 'Outfit-Bold',
   },
   skipBtn: {
     position: 'absolute',
-    top: 20,
+    top: 24,
     right: 24,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    zIndex: 10,
   },
   skipText: {
-    fontSize: 13,
-    fontWeight: '700',
-    opacity: 0.5,
+    fontSize: 14,
+    fontFamily: 'Outfit-Bold',
   }
 });

@@ -378,8 +378,8 @@ export const getAIResponse = async (
   
   if (userId) {
     try {
-      const { getDocs, query, collection, orderBy, limit } = require('firebase/firestore');
-      const { db } = require('@/firebase/config');
+      const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
+      const { db } = await import('@/firebase/config');
       const memoriesRef = collection(db, 'users', userId, 'memories');
       const q = query(memoriesRef, orderBy('importance', 'desc'), limit(10));
       const snap = await getDocs(q);

@@ -258,6 +258,51 @@ export const callAI = onCall(
               properties: {},
             },
           },
+          {
+            name: 'saveUserMemory',
+            description: 'Save an important fact or preference about the user to long-term memory.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                content: { type: 'STRING', description: 'The fact or preference to remember' },
+                category: { type: 'STRING', enum: ['personal', 'preference', 'goal', 'work', 'other'] },
+              },
+              required: ['content'],
+            },
+          },
+          {
+            name: 'searchTasks',
+            description: 'Search through the user\'s past and future tasks by keyword.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                query: { type: 'STRING', description: 'The search term' },
+              },
+              required: ['query'],
+            },
+          },
+          {
+            name: 'getHabitDetails',
+            description: 'Get detailed completion history and streaks for a specific habit.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                id: { type: 'STRING', description: 'The habit ID' },
+              },
+              required: ['id'],
+            },
+          },
+          {
+            name: 'showInteractiveCard',
+            description: 'Show a special interactive UI card (e.g. specialized charts or widgets).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                type: { type: 'STRING', enum: ['productivity_score', 'focus_heatmap', 'habit_consistency'] },
+              },
+              required: ['type'],
+            },
+          },
         ],
       },
     ];

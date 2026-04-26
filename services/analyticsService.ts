@@ -38,6 +38,7 @@ export type AnalyticsEvent =
   | 'ai_tool_call'
   | 'level_up'
   | 'badge_unlocked'
+  | 'streak_milestone'
   | 'pomodoro_phase_complete'
   | 'pomodoro_cycle_step';
 

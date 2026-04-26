@@ -143,15 +143,21 @@ export const DailyTasksWidget = React.memo(function DailyTasksWidget() {
             );
           }) : (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tasks for today. Start fresh? ✨</Text>
+              <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '10' }]}>
+                <Ionicons name="list" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>Focus Your Day</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                What are the three most important things you need to achieve today?
+              </Text>
               <TouchableOpacity
                 onPress={() => router.push('/tasks/create')}
-                style={[styles.emptyCta, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
+                style={[styles.emptyCta, { backgroundColor: colors.primary, borderColor: colors.primary }]}
                 accessibilityLabel="Add your first task for today"
                 accessibilityRole="button"
               >
-                <Plus size={14} color={colors.primary} strokeWidth={2.5} />
-                <Text style={[styles.emptyCtaText, { color: colors.primary }]}>Add a task</Text>
+                <Plus size={16} color="#FFF" strokeWidth={3} />
+                <Text style={[styles.emptyCtaText, { color: '#FFF' }]}>Define Your Focus</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -297,26 +303,45 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   emptyState: {
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.xl,
     alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  emptyTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 16,
+    marginBottom: 6,
   },
   emptyText: {
     fontSize: 13,
-    fontWeight: '500',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: Spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   emptyCtaText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontFamily: 'Outfit-Bold',
   },
   viewMore: {
     marginTop: Spacing.sm,

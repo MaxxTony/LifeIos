@@ -77,6 +77,7 @@ service cloud.firestore {
         match /messages/{msgId} {
           allow read: if isOwner(userId);
           allow create: if isOwner(userId)
+            && request.resource.data.keys().hasOnly(['id', 'content', 'role', 'createdAt', 'type'])
             && request.resource.data.content is string
             && request.resource.data.content.size() <= 10000;
           allow delete: if isOwner(userId);
@@ -86,7 +87,7 @@ service cloud.firestore {
       match /stats/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId)
-          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate', 'lastUpdatedAt']));
+          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate', 'streakMilestones', 'lastUpdatedAt']));
       }
 
       match /lifeScoreHistory/{date} {
@@ -107,7 +108,13 @@ service cloud.firestore {
       }
 
       match /memories/{memoryId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId)
+          && (request.method == 'delete' || (
+            request.resource.data.keys().hasOnly(['id', 'content', 'category', 'importance', 'createdAt', 'lastUsedAt'])
+            && request.resource.data.content is string
+            && request.resource.data.content.size() < 5000
+          ));
       }
     } // end of match /users/{userId}
 

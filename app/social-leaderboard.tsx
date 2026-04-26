@@ -248,6 +248,9 @@ function DiscoverTab({
   const [recentUsers, setRecentUsers] = useState<PublicProfile[]>([]);
   const [searchResults, setSearchResults] = useState<PublicProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMoreLoading, setIsMoreLoading] = useState(false);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [sending, setSending] = useState<string | null>(null);
@@ -255,12 +258,31 @@ function DiscoverTab({
   // Initial load of recently active users
   useEffect(() => {
     const load = async () => {
-      const users = await socialService.getAllUsers(currentUserId);
-      setRecentUsers(users);
+      setLoading(true);
+      const { profiles, lastDoc: doc } = await socialService.getAllUsers(currentUserId);
+      setRecentUsers(profiles);
+      setLastDoc(doc);
+      setHasMore(profiles.length >= 20);
       setLoading(false);
     };
     load();
   }, [currentUserId]);
+
+  const handleLoadMore = async () => {
+    if (isMoreLoading || !hasMore || isSearching || query.trim()) return;
+
+    setIsMoreLoading(true);
+    const { profiles, lastDoc: doc } = await socialService.getAllUsers(currentUserId, lastDoc);
+    
+    if (profiles.length > 0) {
+      setRecentUsers(prev => [...prev, ...profiles]);
+      setLastDoc(doc);
+      setHasMore(profiles.length >= 20);
+    } else {
+      setHasMore(false);
+    }
+    setIsMoreLoading(false);
+  };
 
   // Debounced Search Logic
   useEffect(() => {
@@ -294,7 +316,7 @@ function DiscoverTab({
   const getButtonState = (userId: string) => {
     if (friendIds.has(userId)) return { label: 'Friends ✓', disabled: true };
     if (sentIds.has(userId)) return { label: 'Pending ⏳', disabled: true };
-    if (incomingIds.has(userId)) return { label: 'Review 🏁', disabled: false }; // Allow clicking to switch to Requests
+    if (incomingIds.has(userId)) return { label: 'Review 🏁', disabled: false };
     return { label: 'Challenge', disabled: false };
   };
 
@@ -334,10 +356,17 @@ function DiscoverTab({
           keyExtractor={i => i.userId}
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.4}
           ListHeaderComponent={
             <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 12, marginLeft: 4 }]}>
               {query.trim() ? `SEARCHING FOR "${query.toUpperCase()}"` : `RECENTLY ACTIVE ON LIFEOS (${recentUsers.length})`}
             </Text>
+          }
+          ListFooterComponent={
+            isMoreLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
+            ) : null
           }
           ListEmptyComponent={
             !loading && !isSearching && query.trim() ? (
@@ -357,7 +386,7 @@ function DiscoverTab({
               <UserRow
                 profile={item}
                 colors={colors}
-                pos={index}
+                pos={index % 20} // Reset animation delay per page
                 actionLabel={isSending ? '...' : label}
                 actionColor={isIncoming ? colors.success : (disabled ? undefined : colors.primary)}
                 onAction={() => {

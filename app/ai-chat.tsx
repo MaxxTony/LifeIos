@@ -52,6 +52,8 @@ export default function AIChatScreen() {
   const userName = useStore(s => s.userName);
   const proactivePrompt = useStore(s => s.proactivePrompt);
   const dismissProactive = useStore(s => s.actions.dismissProactive);
+  const isOffline = useStore(s => s.syncStatus.isOffline);
+  const accentColor = useStore(s => s.accentColor);
   const colors = useThemeColors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -234,7 +236,6 @@ export default function AIChatScreen() {
   };
 
   const handleSend = async (textOverride?: string) => {
-    const isOffline = useStore.getState().syncStatus.isOffline;
     if (isOffline) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -286,6 +287,10 @@ export default function AIChatScreen() {
         );
         if (isMounted.current) setUploading(false);
       }
+
+      // BUG-006 FIX: Save user message to Firestore BEFORE the AI call.
+      // This ensures message persistence even if the AI response fails or is slow.
+      await chatService.addMessage(userId, convId, userMsg.role, userMsg.content, finalImageUrl);
 
       // M-4 FIX: Cap history at last 20 messages to control token cost/latency.
       // Always keep the most recent user message (last item) in the window.
@@ -344,7 +349,7 @@ export default function AIChatScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
 
-      await chatService.addMessage(userId, convId, userMsg.role, userMsg.content, finalImageUrl);
+      // Save assistant message
       await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content, undefined, aiMsg.card);
 
     } catch (error) {
@@ -486,7 +491,7 @@ export default function AIChatScreen() {
                       ))}
                       {m.card.type === 'progress' && (
                         <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: useStore.getState().accentColor || '#7C5CFF' }]} />
+                          <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: accentColor || '#7C5CFF' }]} />
                           <Text style={styles.progressText}>{m.card.value || 0}%</Text>
                         </View>
                       )}
@@ -610,13 +615,13 @@ export default function AIChatScreen() {
                   <TouchableOpacity
                     onPress={() => handleSend()}
                     style={styles.sendBtn}
-                    disabled={uploading || loading || useStore.getState().syncStatus.isOffline}
+                    disabled={uploading || loading || isOffline}
                     accessibilityLabel="Send message"
                     accessibilityRole="button"
                   >
                     <LinearGradient
                       colors={[colors.primary, colors.secondary]}
-                      style={[styles.sendBtnGradient, (uploading || loading || useStore.getState().syncStatus.isOffline) && { opacity: 0.5 }]}
+                      style={[styles.sendBtnGradient, (uploading || loading || isOffline) && { opacity: 0.5 }]}
                     >
                       {(uploading || loading)
                         ? <ActivityIndicator size="small" color="#FFF" />

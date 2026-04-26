@@ -251,6 +251,8 @@ const mapAuthErrorToMessage = (code: string): string => {
       return 'Network error, please check your connection';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please try again later';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
     case 'auth/requires-recent-login':
       return 'For security, please log out and log back in before deleting your account.';
     default:

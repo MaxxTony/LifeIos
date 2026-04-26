@@ -7,7 +7,6 @@ const DEFAULT_CHANNEL_ID = 'default';
 
 const parseTimeString = (timeStr: string) => {
   if (!timeStr || typeof timeStr !== 'string') return null;
-  // Robustly handle different space characters and casing (e.g. "12:30pm", "12:30 PM", "12:30\u202fPM")
   const cleaned = timeStr.trim().replace(/\s+/g, ' ').toUpperCase();
   const match = cleaned.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
   
@@ -23,11 +22,9 @@ const parseTimeString = (timeStr: string) => {
   return { hours, minutes };
 };
 
-// Configure how notifications should be handled when the app is foregrounded
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      // Silent trigger — suppress banner so users don't see a "reset" popup at midnight
       if (notification.request.content.data?.type === 'MIDNIGHT_RESET') {
         return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
       }
@@ -36,7 +33,6 @@ if (Platform.OS !== 'web') {
   });
 }
 
-// Ensure notification channel exists on Android
 const ensureChannel = async () => {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(DEFAULT_CHANNEL_ID, {
@@ -66,8 +62,6 @@ export const notificationService = {
   },
   
   ensurePermissions: async () => {
-    // UI-004: Check-only — never show the permission dialog implicitly at startup.
-    // Use notificationService.requestPermissions() for explicit user-triggered prompts only.
     if (Platform.OS === 'web') return false;
     const { status } = await Notifications.getPermissionsAsync();
     return status === 'granted';
@@ -75,51 +69,29 @@ export const notificationService = {
 
   scheduleHabitReminder: async (habitId: string, title: string, icon: string, time: string, frequency: string, days: number[], monthlyDay?: number) => {
     if (Platform.OS === 'web') return;
-
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.masterEnabled || !notificationSettings.habitReminders) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
-
-      // Cancel all existing reminders for this habit first
       await notificationService.cancelHabitReminders(habitId);
 
-      // Fetch habit detail for advanced checks (pause, completion)
       const habit = useStore.getState().habits.find(h => h.id === habitId);
       if (!habit) return;
 
-      // ── Logic Polish: Respect Pause ──
       const today = getTodayLocal();
-      if (habit.pausedUntil && today <= habit.pausedUntil) {
-        // Habit is currently paused; don't schedule reminders.
-        // They will be re-scheduled when the habit is resumed or edited.
-        return;
-      }
+      if (habit.pausedUntil && today <= habit.pausedUntil) return;
 
-      // Parse reminder time (e.g. "8:30 pm")
       const parsed = parseTimeString(time);
       if (!parsed) return;
       const { hours, minutes } = parsed;
 
       if (frequency === 'daily') {
-        // ── Daily: single DAILY trigger (one notification, fires every day) ──
         const trigger: any = Platform.OS === 'ios'
-          ? {
-              type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-              hour: hours,
-              minute: minutes,
-              repeats: true,
-            }
-          : {
-              type: Notifications.SchedulableTriggerInputTypes.DAILY,
-              hour: hours,
-              minute: minutes,
-              channelId: DEFAULT_CHANNEL_ID,
-            };
+          ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: hours, minute: minutes, repeats: true }
+          : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: hours, minute: minutes, channelId: DEFAULT_CHANNEL_ID };
 
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -131,28 +103,12 @@ export const notificationService = {
           trigger,
           identifier: `habit-${habitId}-daily`,
         });
-
       } else if (frequency === 'weekly') {
-        // ── Weekly: one WEEKLY trigger per target weekday ──
-        // days[] contains JS getDay() values (0=Sun … 6=Sat)
-        // expo-notifications weekday: 1=Sun … 7=Sat, so expo = jsDay + 1
         for (const day of days) {
-          const expoDay = day + 1; // convert JS day → expo day
+          const expoDay = day + 1;
           const trigger: any = Platform.OS === 'ios'
-            ? {
-                type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-                hour: hours,
-                minute: minutes,
-                repeats: true,
-                weekday: expoDay,
-              }
-            : {
-                type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-                weekday: expoDay,
-                hour: hours,
-                minute: minutes,
-                channelId: DEFAULT_CHANNEL_ID,
-              };
+            ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: hours, minute: minutes, repeats: true, weekday: expoDay }
+            : { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: expoDay, hour: hours, minute: minutes, channelId: DEFAULT_CHANNEL_ID };
 
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -165,48 +121,20 @@ export const notificationService = {
             identifier: `habit-${habitId}-${day}`,
           });
         }
-
       } else if (frequency === 'monthly') {
-        // ── Monthly: DATE trigger aimed at next occurrence of the scheduled day ──
-        // For count-goal mode (no fixed day), we fire on the 1st of next month as a reminder.
         const now = new Date();
         const targetDay = monthlyDay && monthlyDay > 0 ? monthlyDay : 1;
-
-        // Build next occurrence date
         let nextDate = new Date(now.getFullYear(), now.getMonth(), targetDay, hours, minutes, 0, 0);
-        
-        // ── Logic Polish: Avoid Duplicate/Redundant Prompts ──
-        // If the habit is already completed today, we definitely don't want a reminder.
         const isDoneToday = habit.completedDays.includes(today);
-        
         if (nextDate <= now || isDoneToday) {
-          // Date has passed OR habit already completed today → schedule for next month
           nextDate = new Date(now.getFullYear(), now.getMonth() + 1, targetDay, hours, minutes, 0, 0);
         }
-
-        // Clamp to last valid day of that month (e.g. Feb 30 → Feb 28)
         const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
-        if (targetDay > lastDayOfMonth) {
-          nextDate.setDate(lastDayOfMonth);
-        }
+        if (targetDay > lastDayOfMonth) nextDate.setDate(lastDayOfMonth);
 
-        // iOS supports a repeating CALENDAR trigger with a day-of-month field.
-        // Android has no native monthly repeat: schedule a one-shot DATE trigger for the next
-        // occurrence. The habit reminder scheduler must be called again after each firing to
-        // reschedule the following month (e.g. on app open or in the AppState change handler).
         const monthlyTrigger: any = Platform.OS === 'ios'
-          ? {
-              type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-              day: nextDate.getDate(),
-              hour: hours,
-              minute: minutes,
-              repeats: true,
-            }
-          : {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: nextDate,
-              channelId: DEFAULT_CHANNEL_ID,
-            };
+          ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, day: nextDate.getDate(), hour: hours, minute: minutes, repeats: true }
+          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextDate, channelId: DEFAULT_CHANNEL_ID };
 
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -228,28 +156,13 @@ export const notificationService = {
     if (Platform.OS === 'web') return;
     try {
       const cancels: Promise<void>[] = [];
-
-      // Cancel daily trigger
-      cancels.push(
-        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-daily`).catch(() => {})
-      );
-
-      // Cancel weekly triggers (days 0–6)
+      cancels.push(Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-daily`).catch(() => {}));
       for (let day = 0; day < 7; day++) {
-        cancels.push(
-          Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-${day}`).catch(() => {})
-        );
+        cancels.push(Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-${day}`).catch(() => {}));
       }
-
-      // Cancel monthly trigger
-      cancels.push(
-        Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-monthly`).catch(() => {})
-      );
-
+      cancels.push(Notifications.cancelScheduledNotificationAsync(`habit-${habitId}-monthly`).catch(() => {}));
       await Promise.all(cancels);
-    } catch (e) {
-      // Silence cancel errors
-    }
+    } catch (e) {}
   },
 
   scheduleMissedTaskNotification: async (taskId: string, taskText: string) => {
@@ -259,7 +172,6 @@ export const notificationService = {
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await Notifications.cancelScheduledNotificationAsync(`missed-task-${taskId}`).catch(() => {});
       await Notifications.scheduleNotificationAsync({
@@ -268,44 +180,28 @@ export const notificationService = {
           body: `"${taskText}" passed its end time without being completed.`,
           sound: true,
         },
-        trigger: null, // fire immediately
+        trigger: null,
         identifier: `missed-task-${taskId}`,
       });
-    } catch (e) {
-      // Silence — notifications are best-effort
-    }
+    } catch (e) {}
   },
 
   scheduleTaskNotification: async (taskId: string, title: string, startTime: string, date: string) => {
     if (Platform.OS === 'web') return;
-
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.masterEnabled || !notificationSettings.taskReminders) return;
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await notificationService.cancelTaskNotification(taskId);
-
       const parsed = parseTimeString(startTime);
       if (!parsed) return;
-
-      // C-NOTIF-3: Safe date splitting
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        console.warn('[Notifications] Invalid task date format:', date);
-        return;
-      }
-
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
       const [year, month, day] = date.split('-').map(Number);
       const targetDate = new Date(year, month - 1, day, parsed.hours, parsed.minutes, 0, 0);
-
-      // Schedule for 5 minutes before
       const triggerDate = new Date(targetDate.getTime() - 5 * 60 * 1000);
-      
-      // Safety check: ensure triggerDate is valid and in the future
       if (isNaN(triggerDate.getTime())) return;
-      
       const secondsUntil = Math.floor((triggerDate.getTime() - Date.now()) / 1000);
       if (secondsUntil <= 0) return;
 
@@ -316,10 +212,7 @@ export const notificationService = {
           data: { taskId, type: 'TASK_REMINDER' },
           sound: true,
         },
-        trigger: { 
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate 
-        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate },
         identifier: `task-${taskId}`,
       });
     } catch (e) {
@@ -329,20 +222,12 @@ export const notificationService = {
 
   cancelTaskNotification: async (taskId: string) => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`);
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`); } catch (e) {}
   },
 
   cancelAllNotifications: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-    } catch (e) {
-      console.warn('Failed to cancel all notifications:', e);
-    }
+    try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch (e) {}
   },
 
   scheduleStreakWarningNotification: async () => {
@@ -351,14 +236,11 @@ export const notificationService = {
     if (!notificationSettings.masterEnabled || !notificationSettings.streakWarning) return;
     if (globalStreak <= 0) return; 
 
-
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await notificationService.cancelStreakWarningNotification();
-
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '🔥 Save your streak!',
@@ -366,25 +248,15 @@ export const notificationService = {
           sound: true,
           data: { type: 'STREAK_WARNING' }
         },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 22, // 10:00 PM
-          minute: 0,
-        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 22, minute: 0 },
         identifier: 'streak-warning',
       });
-    } catch (e) {
-      console.warn('Failed to schedule streak warning notification:', e);
-    }
+    } catch (e) {}
   },
 
   cancelStreakWarningNotification: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync('streak-warning');
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync('streak-warning'); } catch (e) {}
   },
 
   scheduleDailyMoodReminder: async () => {
@@ -398,16 +270,12 @@ export const notificationService = {
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await notificationService.cancelMoodReminder();
-
       const today = getTodayLocal();
       const moodEntry = moodHistory[today];
-
       let title = "How are you feeling today? 🌿";
       let body = "Take a moment to record your mood and reflect on your day.";
-
       if (moodEntry) {
         if (moodEntry.mood >= 4) {
           title = "Glad you're having a great day! 🚀";
@@ -417,75 +285,57 @@ export const notificationService = {
           body = "It's okay to have rough days. Take a breath and remember to be kind to yourself.";
         }
       }
-
-      // Schedule for 8:00 PM every day
       const trigger: any = Platform.OS === 'ios'
-        ? {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: 20,
-          minute: 0,
-          repeats: true,
-        }
-        : {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 20,
-          minute: 0,
-        };
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: 20, minute: 0, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 20, minute: 0 };
 
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type: 'MOOD_REMINDER' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'MOOD_REMINDER' }, sound: true },
         trigger,
         identifier: 'daily-mood-reminder',
       });
-    } catch (e) {
-      console.warn('Failed to schedule mood reminder:', e);
-    }
+    } catch (e) {}
   },
 
   cancelMoodReminder: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync('daily-mood-reminder');
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync('daily-mood-reminder'); } catch (e) {}
   },
 
   cancelComebackNotifications: async () => {
     if (Platform.OS === 'web') return;
     try {
-      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
-      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
-    } catch (e) {
-      // Silence
-    }
+      const ids = ['comeback-24h', 'comeback-48h', 'comeback-3d', 'comeback-7d', 'comeback-30d', 'level-up-nudge'];
+      for (const id of ids) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      }
+    } catch (e) {}
   },
 
   scheduleComebackNotifications: async () => {
     if (Platform.OS === 'web') return;
-    const { notificationSettings } = useStore.getState();
-    if (!notificationSettings.masterEnabled || (!notificationSettings.comeback48h && !notificationSettings.comeback7d)) {
-      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
-      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
-      return;
-    }
+    const { notificationSettings, totalXP, level } = useStore.getState();
+    if (!notificationSettings.masterEnabled) return;
 
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
 
-      // 1. Cancel existing comeback notifications using deterministic IDs.
-      // O15 FIX: No longer fetches getAllScheduledNotificationsAsync() (which could
-      // return 100+ items). We know exactly which IDs we used — cancel them directly.
-      await Notifications.cancelScheduledNotificationAsync('comeback-48h').catch(() => {});
-      await Notifications.cancelScheduledNotificationAsync('comeback-7d').catch(() => {});
+      await notificationService.cancelComebackNotifications();
 
-      // 2. Schedule 48h reminder
+      // 24h
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Your goals didn't take a day off 🎯",
+          body: "3 new quests are waiting for you. Let's make today count!",
+          data: { type: 'COMEBACK' },
+          sound: true,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 24 * 3600 },
+        identifier: 'comeback-24h',
+      });
+
+      // 48h
       if (notificationSettings.comeback48h) {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -494,33 +344,67 @@ export const notificationService = {
             data: { type: 'COMEBACK' },
             sound: true,
           },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: 48 * 3600,
-          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 48 * 3600 },
           identifier: 'comeback-48h',
         });
       }
 
-      // 3. Schedule 7 day reminder
+      // 3-day
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Don't let your streak die! 🧊",
+          body: "It's been 3 days. One small action today saves your progress.",
+          data: { type: 'COMEBACK' },
+          sound: true,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3 * 24 * 3600 },
+        identifier: 'comeback-3d',
+      });
+
+      // 7-day
       if (notificationSettings.comeback7d) {
         await Notifications.scheduleNotificationAsync({
           content: {
             title: "Level Up Pending... 🚀",
-            body: "It's been a week! Check in now to see your progress and stay consistent.",
+            body: "A week away! Check in now to see your progress and stay consistent.",
             data: { type: 'COMEBACK' },
             sound: true,
           },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: 7 * 24 * 3600,
-          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 7 * 24 * 3600 },
           identifier: 'comeback-7d',
         });
       }
-    } catch (e) {
-      console.warn('Failed to schedule comeback notifications:', e);
-    }
+
+      // 30-day
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "LifeOS: We kept your account 🏠",
+          body: "Did you keep your goals? Open the app and start fresh today.",
+          data: { type: 'COMEBACK' },
+          sound: true,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 30 * 24 * 3600 },
+        identifier: 'comeback-30d',
+      });
+
+      // Near Level-Up
+      const { getLevelProgress } = await import('@/store/helpers');
+      const { xpInLevel, xpRequiredForNext } = getLevelProgress(totalXP);
+      const xpToNextLevel = xpRequiredForNext - xpInLevel;
+      
+      if (xpRequiredForNext > 0 && xpToNextLevel <= 100) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "So close to Leveling Up! 🚀",
+            body: `You're only ${xpToNextLevel} XP away from Level ${level + 1}. Complete one quest now!`,
+            data: { type: 'LEVEL_NUDGE' },
+            sound: true,
+          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 12 * 3600 },
+          identifier: 'level-up-nudge',
+        });
+      }
+    } catch (e) {}
   },
 
   scheduleMorningBrief: async () => {
@@ -531,221 +415,116 @@ export const notificationService = {
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
-
-      // Cancel old brief before re-scheduling so content stays fresh
       await Notifications.cancelScheduledNotificationAsync('morning-brief').catch(() => {});
-
       const today = getTodayLocal();
       const todayDayOfWeek = new Date().getDay();
-
-      // Count tasks due today
       const tasksDueToday = tasks.filter(t => t.date === today && !t.completed).length;
-
-      // Count habits due today (respects frequency)
       const habitsDueToday = habits.filter(h => {
         if (h.pausedUntil && today <= h.pausedUntil) return false;
-        if (h.completedDays.includes(today)) return false; // already done
+        if (h.completedDays.includes(today)) return false;
         if (h.frequency === 'daily') return true;
         if (h.frequency === 'weekly') return (h.targetDays || []).includes(todayDayOfWeek);
         if (h.frequency === 'monthly') return true;
         return false;
       }).length;
 
-      // Build dynamic title + body
       let title = '🌅 Good morning!';
       let body = "Let's make today count.";
-
       const parts: string[] = [];
       if (tasksDueToday > 0) parts.push(`${tasksDueToday} task${tasksDueToday > 1 ? 's' : ''} waiting`);
       if (habitsDueToday > 0) parts.push(`${habitsDueToday} habit${habitsDueToday > 1 ? 's' : ''} to complete`);
 
-      if (globalStreak > 1) {
-        title = `🔥 Day ${globalStreak} streak — keep it alive!`;
-      } else if (globalStreak === 1) {
-        title = '🌅 Good morning! Day 1 of your new streak.';
-      }
+      if (globalStreak > 1) title = `🔥 Day ${globalStreak} streak — keep it alive!`;
+      else if (globalStreak === 1) title = '🌅 Good morning! Day 1 of your new streak.';
 
-      if (parts.length > 0) {
-        body = `🎯 ${parts.join(' · ')}. Let's go!`;
-      } else if (habits.length === 0 && tasks.filter(t => t.date === today).length === 0) {
-        body = 'Open LifeOS and plan your day. 5 minutes = better results all day.';
-      } else {
-        body = "You're all caught up! Add a task or log your mood to earn XP. 💡";
-      }
+      if (parts.length > 0) body = `🎯 ${parts.join(' · ')}. Let's go!`;
+      else if (habits.length === 0 && tasks.filter(t => t.date === today).length === 0) body = 'Open LifeOS and plan your day. 5 minutes = better results all day.';
+      else body = "You're all caught up! Add a task or log your mood to earn XP. 💡";
 
       const trigger: any = Platform.OS === 'ios'
-        ? {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            hour: 8,
-            minute: 0,
-            repeats: true,
-          }
-        : {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY,
-            hour: 8,
-            minute: 0,
-          };
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: 8, minute: 0, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 8, minute: 0 };
 
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type: 'MORNING_BRIEF' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'MORNING_BRIEF' }, sound: true },
         trigger,
         identifier: 'morning-brief',
       });
-    } catch (e) {
-      console.warn('Failed to schedule morning brief:', e);
-    }
+    } catch (e) {}
   },
 
   cancelMorningBrief: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync('morning-brief');
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync('morning-brief'); } catch (e) {}
   },
 
   scheduleQuestFOMO: async () => {
     if (Platform.OS === 'web') return;
     const { notificationSettings, dailyQuests } = useStore.getState();
     if (!notificationSettings.masterEnabled || !notificationSettings.questCompleted) return;
-
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
-      // Always cancel first — if all quests are done, we don't want a stale notification
       await Notifications.cancelScheduledNotificationAsync('quest-fomo').catch(() => {});
-
       const incompleteQuests = dailyQuests.filter(q => !q.completed);
-      if (incompleteQuests.length === 0) return; // all done — no FOMO needed
-
+      if (incompleteQuests.length === 0) return;
       const totalXPLeft = incompleteQuests.reduce((sum, q) => sum + q.rewardXP, 0);
       const questWord = incompleteQuests.length === 1 ? 'quest' : 'quests';
-
       const title = `⏰ ${incompleteQuests.length} ${questWord} expiring at midnight!`;
       const body = `${totalXPLeft} XP on the line. Complete them before the day resets. 🏆`;
-
       const trigger: any = Platform.OS === 'ios'
-        ? {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            hour: 21,
-            minute: 0,
-            repeats: true,
-          }
-        : {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY,
-            hour: 21,
-            minute: 0,
-          };
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: 21, minute: 0, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 0 };
 
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type: 'QUEST_FOMO' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'QUEST_FOMO' }, sound: true },
         trigger,
         identifier: 'quest-fomo',
       });
-    } catch (e) {
-      console.warn('Failed to schedule quest FOMO notification:', e);
-    }
+    } catch (e) {}
   },
 
   cancelQuestFOMO: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync('quest-fomo');
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync('quest-fomo'); } catch (e) {}
   },
 
   scheduleWeeklyLeaderboardAlert: async (userRank?: number) => {
     if (Platform.OS === 'web') return;
     const { notificationSettings } = useStore.getState();
     if (!notificationSettings.masterEnabled || !notificationSettings.weeklyLeaderboard) return;
-
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard').catch(() => {});
-
-      // Build rank-aware body copy
       let title = '📊 Weekly XP resets tonight at midnight!';
       let body = "Last chance to climb the leaderboard before Monday's reset. 🚀";
-
       if (userRank !== undefined && userRank > 0) {
-        if (userRank === 1) {
-          title = '👑 You\'re #1! Defend your throne.';
-          body = "Weekly reset in 3 hours. Log one more habit to lock in your top spot. 🔥";
-        } else if (userRank <= 3) {
-          title = `🥇 You're #${userRank} on the leaderboard!`;
-          body = "Weekly reset in 3 hours — stay in the top 3. Complete a quest now. 💪";
-        } else if (userRank <= 10) {
-          title = `📊 You're #${userRank} — top 10 is yours.`;
-          body = "Weekly reset in 3 hours. Push one more habit or task to climb higher. 🏆";
-        } else {
-          title = `📊 Weekly reset in 3 hours! You're #${userRank}.`;
-          body = "Complete your quests to earn XP and climb the leaderboard tonight. ⚡";
-        }
+        if (userRank === 1) { title = '👑 You\'re #1! Defend your throne.'; body = "Weekly reset in 3 hours. Log one more habit to lock in your top spot. 🔥"; }
+        else if (userRank <= 3) { title = `🥇 You're #${userRank} on the leaderboard!`; body = "Weekly reset in 3 hours — stay in the top 3. Complete a quest now. 💪"; }
+        else if (userRank <= 10) { title = `📊 You're #${userRank} — top 10 is yours.`; body = "Weekly reset in 3 hours. Push one more habit or task to climb higher. 🏆"; }
+        else { title = `📊 Weekly reset in 3 hours! You're #${userRank}.`; body = "Complete your quests to earn XP and climb the leaderboard tonight. ⚡"; }
       }
-
-      // Fire every Sunday at 9 PM (weekday 1=Sun in expo, JS getDay()=0)
       const trigger: any = Platform.OS === 'ios'
-        ? {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            weekday: 1, // Sunday (expo: 1=Sun)
-            hour: 21,
-            minute: 0,
-            repeats: true,
-          }
-        : {
-            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-            weekday: 1, // Sunday (expo: 1=Sun)
-            hour: 21,
-            minute: 0,
-          };
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: 1, hour: 21, minute: 0, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 21, minute: 0 };
 
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type: 'WEEKLY_LEADERBOARD' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'WEEKLY_LEADERBOARD' }, sound: true },
         trigger,
         identifier: 'weekly-leaderboard',
       });
-    } catch (e) {
-      console.warn('Failed to schedule weekly leaderboard alert:', e);
-    }
+    } catch (e) {}
   },
 
   cancelWeeklyLeaderboardAlert: async () => {
     if (Platform.OS === 'web') return;
-    try {
-      await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard');
-    } catch (e) {
-      // Silence
-    }
+    try { await Notifications.cancelScheduledNotificationAsync('weekly-leaderboard'); } catch (e) {}
   },
 
-  // Schedules a silent daily trigger at 00:01 AM so performDailyReset() fires close
-  // to midnight even when the app is in the background. The banner is suppressed by the
-  // setNotificationHandler above — users never see this notification.
   scheduleMidnightReset: async () => {
     if (Platform.OS === 'web') return;
     try {
@@ -764,15 +543,28 @@ export const notificationService = {
         },
         trigger,
       });
-    } catch (e) {
-      console.warn('[Notifications] Failed to schedule midnight reset:', e);
-    }
+    } catch (e) {}
+  },
+
+  sendImmediateNotification: async (title: string, body: string, data: any = {}) => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.masterEnabled) return;
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+      await ensureChannel();
+      await Notifications.scheduleNotificationAsync({
+        content: { title, body, data, sound: true },
+        trigger: null,
+      });
+    } catch (e) {}
   },
 
   sendProactiveAI: async (title: string, body: string, type: 'ai' | 'pomodoro' = 'ai') => {
     if (Platform.OS === 'web') return;
     const { notificationSettings } = useStore.getState();
-    
     if (!notificationSettings.masterEnabled) return;
     if (type === 'ai' && !notificationSettings.aiCoachNudge) return;
     if (type === 'pomodoro' && !notificationSettings.pomodoroAlert) return;
@@ -780,19 +572,22 @@ export const notificationService = {
     try {
       const hasPermission = await notificationService.ensurePermissions();
       if (!hasPermission) return;
-
       await ensureChannel();
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type: 'PROACTIVE_AI' },
-          sound: true,
-        },
-        trigger: null, // fire immediately
+        content: { title, body, data: { type: 'PROACTIVE_AI' }, sound: true },
+        trigger: null,
       });
-    } catch (e) {
-      // Silence
+    } catch (e) {}
+  },
+
+  rescheduleAllHabits: async () => {
+    if (Platform.OS === 'web') return;
+    const { habits, userId } = useStore.getState();
+    if (!userId) return;
+    for (const habit of habits) {
+      if (habit.reminderTime) {
+        await notificationService.scheduleHabitReminder(habit.id, habit.title, habit.icon, habit.reminderTime, habit.frequency, habit.targetDays || [], habit.monthlyDay);
+      }
     }
   }
 };

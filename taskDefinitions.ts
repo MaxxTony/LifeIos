@@ -19,6 +19,11 @@ TaskManager.defineTask('sync-fetch', async () => {
     const { actions, userId } = useStore.getState();
     if (!userId) return BackgroundFetch.BackgroundFetchResult.NoData;
     await actions.retrySync();
+    
+    // BUG-007 FIX: Reschedule notifications in background to prevent one-shot expiry on Android
+    const { notificationService } = require('@/services/notificationService');
+    await notificationService.rescheduleAllHabits();
+    
     return BackgroundFetch.BackgroundFetchResult.NewData;
   } catch {
     return BackgroundFetch.BackgroundFetchResult.Failed;

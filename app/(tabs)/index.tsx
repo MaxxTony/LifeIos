@@ -9,17 +9,18 @@ import { OnboardingWalkthrough } from '@/components/Onboarding/OnboardingWalkthr
 import { QuestDashboard } from '@/components/QuestDashboard';
 import { StreakCelebration } from '@/components/StreakCelebration';
 import { XPPopUp } from '@/components/XPPopUp';
+import { StreakBrokenOverlay } from '@/components/StreakBrokenOverlay';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
-import { Ionicons } from '@expo/vector-icons';
 import { getTodayLocal } from '@/utils/dateUtils';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
@@ -74,18 +75,26 @@ function HomeSkeleton() {
     <View style={skeletonStyles.container}>
       {/* Header skeleton */}
       <View style={skeletonStyles.headerSk}>
-        <SkeletonBlock width={100} height={12} borderRadius={6} />
-        <View style={{ marginTop: 8 }}>
-          <SkeletonBlock width={180} height={28} borderRadius={10} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <SkeletonBlock width={100} height={12} borderRadius={6} />
+            <View style={{ marginTop: 8 }}>
+              <SkeletonBlock width={150} height={28} borderRadius={10} />
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+             <SkeletonBlock width={140} height={44} borderRadius={20} />
+          </View>
         </View>
       </View>
       {/* Card skeletons */}
-      {[180, 260, 160, 200].map((h, i) => (
-        <View key={i} style={[skeletonStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SkeletonBlock width="40%" height={13} borderRadius={6} />
-          <View style={{ marginTop: 12 }}>
-            <SkeletonBlock width="100%" height={h - 50} borderRadius={16} />
+      {[220, 180, 260, 160].map((h, i) => (
+        <View key={i} style={[skeletonStyles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <SkeletonBlock width={32} height={32} borderRadius={16} />
+            <SkeletonBlock width="40%" height={14} borderRadius={6} />
           </View>
+          <SkeletonBlock width="100%" height={h - 60} borderRadius={20} />
         </View>
       ))}
     </View>
@@ -103,6 +112,39 @@ const skeletonStyles = StyleSheet.create({
 });
 
 
+function PulseButton({ children, style, onPress, accessibilityLabel }: { children: React.ReactNode; style: any; onPress: () => void; accessibilityLabel: string }) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 800 }),
+        withTiming(1, { duration: 800 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View style={[style, animatedStyle]}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={onPress}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {children}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 import { getLevelProgress } from '@/store/helpers';
 
 export default function HomeScreen() {
@@ -115,11 +157,16 @@ export default function HomeScreen() {
   // instead of useProfileStats() to avoid re-renderingทุก second on timer ticks.
   const level = useStore(s => s.level);
   const totalXP = useStore(s => s.totalXP);
-  const { progress: xpProgress } = getLevelProgress(totalXP);
+  const { progress: xpProgress, xpInLevel, xpRequiredForNext } = getLevelProgress(totalXP);
   // UI-001/007: Detect new user so we can show CTAs instead of empty/0% widgets.
-  const taskCount = useStore(s => s.tasks.length);
-  const habitCount = useStore(s => s.habits.length);
-  const isNewUser = taskCount === 0 && habitCount === 0;
+  const tasks = useStore(s => s.tasks);
+  const habits = useStore(s => s.habits);
+  const taskCount = tasks.length;
+  const habitCount = habits.length;
+  const { tasksLoaded, habitsLoaded } = useStore(s => s.syncStatus);
+  // PHASE 2 FIX: Only show the "Welcome" banner if sync is finished AND no data was found.
+  // This prevents returning users from seeing the banner while their cloud data is loading.
+  const isNewUser = (tasksLoaded && habitsLoaded) && taskCount === 0 && habitCount === 0;
 
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
@@ -222,70 +269,131 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => router.push('/(tabs)/profile')}
-                style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
-                accessibilityLabel={`Level ${level}, ${Math.round(xpProgress * 100)}% to next level. Tap to view profile.`}
-                accessibilityRole="button"
-              >
-                <View style={styles.xpInfo}>
-                  <Text style={[styles.levelLabel, { color: colors.text }]}>LVL {level}</Text>
-                  <View style={styles.xpBarContainer}>
-                    <View style={[styles.xpBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                      <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
+              <View style={styles.headerRight}>
+                {useStore.getState().streakFreezes > 0 && (
+                  <View style={[styles.freezeBadge, { backgroundColor: colors.isDark ? 'rgba(0,180,255,0.15)' : 'rgba(0,180,255,0.1)', borderColor: '#00B4FF40' }]}>
+                    <Ionicons name="snow" size={14} color="#00B4FF" />
+                    <Text style={[styles.freezeCount, { color: '#00B4FF' }]}>{useStore.getState().streakFreezes}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/(tabs)/profile')}
+                  style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
+                  accessibilityLabel={`Level ${level}, ${Math.round(xpProgress * 100)}% to next level. Tap to view profile.`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.xpInfo}>
+                    <View style={styles.levelBadge}>
+                       <Text style={[styles.levelLabel, { color: '#FFF' }]}>{level}</Text>
+                    </View>
+                    <View style={styles.xpBarWrapper}>
+                      <View style={styles.xpTextRow}>
+                         <Text style={[styles.xpValueText, { color: colors.text }]}>
+                           {Math.round(xpInLevel)} <Text style={{ color: colors.textSecondary, fontSize: 8 }}>/ {xpRequiredForNext} XP</Text>
+                         </Text>
+                      </View>
+                      <View style={styles.xpBarContainer}>
+                        <View style={[styles.xpBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                          <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
+                        </View>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {userName ? `${userName}!` : 'there!'}
             </Text>
-
-
           </View>
 
           {/* Dashboard Widgets */}
           {isNewUser && (
-            <View style={[styles.newUserBanner, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}>
-              <Text style={[styles.newUserTitle, { color: colors.text }]}>Welcome to LifeOS!</Text>
-              <Text style={[styles.newUserSub, { color: colors.textSecondary }]}>
-                Set up your first habit and task to start building momentum.
-              </Text>
+            <Animated.View
+              entering={FadeIn.delay(600)}
+              style={[styles.newUserBanner, { borderColor: colors.primary + '40' }]}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary || colors.primary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.bannerGradient}
+              />
+              <View style={styles.bannerContent}>
+                <View style={styles.bannerIconContainer}>
+                  <Ionicons name="rocket" size={24} color="#FFF" />
+                </View>
+                <View style={styles.bannerTextContainer}>
+                  <Text style={[styles.newUserTitle, { color: '#FFF' }]}>Your Journey Starts Here</Text>
+                  <Text style={[styles.newUserSub, { color: 'rgba(255,255,255,0.85)' }]}>
+                    Complete your first quest by setting up a habit or task.
+                  </Text>
+                </View>
+              </View>
+
               <View style={styles.newUserActions}>
-                <TouchableOpacity
-                  style={[styles.newUserBtn, { backgroundColor: colors.primary }]}
+                <PulseButton
+                  style={[styles.newUserBtn, { backgroundColor: '#FFF' }]}
                   onPress={() => router.push('/all-habits' as any)}
                   accessibilityLabel="Add your first habit"
-                  accessibilityRole="button"
                 >
-                  <Text style={styles.newUserBtnText}>+ Add Habit</Text>
-                </TouchableOpacity>
+                  <Text style={[styles.newUserBtnText, { color: colors.primary }]}>+ Add Habit</Text>
+                </PulseButton>
                 <TouchableOpacity
-                  style={[styles.newUserBtn, { backgroundColor: colors.primary }]}
+                  style={[styles.newUserBtn, { backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }]}
                   onPress={() => router.push('/all-tasks' as any)}
                   accessibilityLabel="Add your first task"
                   accessibilityRole="button"
                 >
-                  <Text style={styles.newUserBtnText}>+ Add Task</Text>
+                  <Text style={[styles.newUserBtnText, { color: '#FFF' }]}>+ Add Task</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           )}
           <AIInsightCard />
           <View style={{ marginBottom: Spacing.lg }}>
-            <QuestDashboard />
+            {tasks.filter(t => t.date === getTodayLocal()).length === 0 ? (
+              <TouchableOpacity 
+                style={[styles.emptyCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
+                onPress={() => router.push('/tasks/create' as any)}
+              >
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="create" size={24} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Plan Your Day</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>No tasks for today. Start fresh!</Text>
+              </TouchableOpacity>
+            ) : (
+              <QuestDashboard />
+            )}
           </View>
+
           <View style={{ marginBottom: Spacing.lg }}>
             <FocusWidget />
           </View>
+
           <View style={{ marginBottom: Spacing.lg }}>
             <DailyTasksWidget />
           </View>
+
           <View style={{ marginBottom: Spacing.lg }}>
-            <HabitGrid />
+            {habits.length === 0 ? (
+              <TouchableOpacity 
+                style={[styles.emptyCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
+                onPress={() => router.push('/all-habits' as any)}
+              >
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="sparkles" size={24} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Build a Habit</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Add your first habit to track streaks.</Text>
+              </TouchableOpacity>
+            ) : (
+              <HabitGrid />
+            )}
           </View>
           <View style={{ marginBottom: Spacing.lg }}>
             <MoodTrend />
@@ -304,6 +412,7 @@ export default function HomeScreen() {
           <StreakCelebration />
           <XPPopUp />
           <MoodFeedbackOverlay />
+          <StreakBrokenOverlay />
         </View>
       </SafeAreaView>
     </View>
@@ -345,8 +454,8 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontSize: 14,
     fontWeight: '800',
-    letterSpacing: 0.8,
     textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   userName: {
     ...Typography.h1Hero,
@@ -354,69 +463,165 @@ const styles = StyleSheet.create({
     lineHeight: 42,
   },
   newUserBanner: {
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
-    padding: Spacing.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+  },
+  bannerGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.lg,
+    gap: 16,
+  },
+  bannerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerTextContainer: {
+    flex: 1,
   },
   newUserTitle: {
     fontFamily: 'Outfit-Bold',
-    fontSize: 18,
-    marginBottom: 6,
+    fontSize: 20,
+    marginBottom: 4,
   },
   newUserSub: {
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: Spacing.md,
+    fontFamily: 'Outfit-Medium',
   },
   newUserActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   newUserBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   newUserBtnText: {
-    color: '#fff',
     fontFamily: 'Outfit-Bold',
-    fontSize: 14,
+    fontSize: 15,
   },
   aiSection: {
     alignItems: 'center',
     marginTop: Spacing.md,
   },
-  xpHeaderContainer: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    minWidth: 100,
-  },
-  xpInfo: {
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  freezeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  freezeCount: {
+    fontSize: 12,
+    fontFamily: 'Outfit-Bold',
+  },
+  xpHeaderContainer: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 140,
+  },
+  xpInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  levelBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#7C5CFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7C5CFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
   levelLabel: {
+    fontSize: 12,
+    fontFamily: 'Outfit-Bold',
+  },
+  xpBarWrapper: {
+    flex: 1,
+    gap: 4,
+  },
+  xpTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'baseline',
+  },
+  xpValueText: {
     fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontFamily: 'Outfit-Bold',
+    letterSpacing: 0.2,
   },
   xpBarContainer: {
-    width: 60,
+    width: '100%',
   },
   xpBarBg: {
-    height: 4,
+    height: 6,
     width: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   xpBarFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
   },
 
+  emptyCard: {
+    padding: Spacing.xl,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(124, 92, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontFamily: 'Outfit-Bold',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    fontFamily: 'Outfit-Regular',
+    textAlign: 'center',
+  },
 });

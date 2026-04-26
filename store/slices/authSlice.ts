@@ -56,7 +56,7 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   pronouns: '',
   phoneNumber: null,
   birthday: null,
-  skills: [],
+  skills: null,
   socialLinks: {},
   // Gamification
   totalXP: 0,
@@ -185,6 +185,15 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       ...LOGGED_OUT_STATE,
       _subscriptionGen: s._subscriptionGen + 1,
     }));
+
+    // BUG-010 FIX: Complete purge of local sharded storage to prevent PII leaks
+    // between users on shared devices.
+    try {
+      const { useStore } = await import('../useStore');
+      await useStore.persist.clearStorage();
+    } catch (e) {
+      console.warn('[LifeOS Store] Storage clear failed on logout:', e);
+    }
   },
 
   subscribeToCloud: () => {
@@ -465,7 +474,12 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         },
         (ref) => {
           const todayQuestPrefix = `quest-${formatLocalDate(new Date())}`;
-          return query(ref, where(documentId(), '>=', todayQuestPrefix), where(documentId(), '<=', `${todayQuestPrefix}`));
+          const tomorrowStr = formatLocalDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
+          return query(
+            ref, 
+            where(documentId(), '>=', todayQuestPrefix), 
+            where(documentId(), '<', `quest-${tomorrowStr}`)
+          );
         }
       );
       collected.push(unsubQuests);

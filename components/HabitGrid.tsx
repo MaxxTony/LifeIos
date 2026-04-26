@@ -416,8 +416,17 @@ export const HabitGrid = React.memo(function HabitGrid() {
               accessibilityLabel="Add habits to track streaks"
               accessibilityRole="button"
             >
-              <Ionicons name="sparkles-outline" size={22} color={colors.textSecondary + '40'} style={{ marginBottom: 6 }} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Add habits to track streaks</Text>
+              <View style={[container.emptyIcon, { backgroundColor: colors.secondary + '15' }]}>
+                <Ionicons name="sparkles" size={24} color={colors.secondary} />
+              </View>
+              <Text style={[container.emptyTitle, { color: colors.text }]}>Build Your Rituals</Text>
+              <Text style={[container.emptySub, { color: colors.textSecondary }]}>
+                Small wins every day lead to massive results over time.
+              </Text>
+              <View style={[container.emptyAction, { backgroundColor: colors.secondary }]}>
+                <Plus size={16} color="#FFF" strokeWidth={3} />
+                <Text style={container.emptyActionText}>Start a Habit</Text>
+              </View>
             </TouchableOpacity>
           )}
         </View>
@@ -467,7 +476,42 @@ const container = StyleSheet.create({
   empty: {
     alignItems: 'center', justifyContent: 'center',
     paddingVertical: Spacing.xl,
-    borderStyle: 'dashed', borderWidth: 1, borderRadius: 16,
+    paddingHorizontal: Spacing.md,
+    borderStyle: 'dashed', borderWidth: 1, borderRadius: 24,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: 'gray',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    lineHeight: 16,
+  },
+  emptyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  emptyActionText: {
+    color: '#FFF',
+    fontFamily: 'Outfit-Bold',
+    fontSize: 13,
   },
   viewMore: {
     marginTop: Spacing.sm, paddingTop: Spacing.sm,

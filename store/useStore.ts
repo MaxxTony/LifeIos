@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { Appearance } from 'react-native';
 import { UserState } from './types';
 import { createShardedStorage } from './shardedStorage';
 import { formatLocalDate } from '@/utils/dateUtils';
@@ -92,16 +93,20 @@ export const useStore = create<UserState>()(
         level: 1,
         weeklyXP: 0,
         globalStreak: 0,
+        unlockedThemes: [],
+        masterUnlocked: false,
         lastActiveDate: null,
         lastWeekResetDate: null,
         lastLoginBonusDate: null,
         streakFreezes: 0,
         globalConfetti: false,
         dailyQuests: [],
+        aiInsight: null,
+        showStreakBroken: false,
         completedQuests: [],
         proactivePrompt: null,
         syncError: null,
-        _lastRetryAt: 0,
+        _lastRetryAt: Date.now(),
         hasSeenWalkthrough: false,
         _syncUnsubscribes: [],
         _subscriptionGen: 0,
@@ -204,6 +209,9 @@ export const useStore = create<UserState>()(
           focusHistory: prunedFocusHistory,
           lifeScoreHistory: prunedLifeScoreHistory,
           tasks: prunedTasks,
+          // BUG-011 FIX: Explicitly nullify PII fields in the storage blob
+          phoneNumber: null,
+          birthday: null,
         };
       },
       onRehydrateStorage: () => (state) => {
@@ -239,6 +247,7 @@ useStore.subscribe((state) => {
       focus: { isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: null },
       stats: { level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: 'Spark' },
       mood: { today: 0, last5Days: [0, 0, 0, 0, 0] },
+      theme: 'dark',
       lastUpdated: Date.now(),
     });
     return;
@@ -310,6 +319,9 @@ useStore.subscribe((state) => {
         today: state.moodHistory?.[today]?.mood ?? 0,
         last5Days: last5Moods,
       },
+      theme: state.themePreference === 'system'
+        ? (Appearance.getColorScheme() ?? 'dark')
+        : state.themePreference,
       lastUpdated: Date.now(),
     };
 

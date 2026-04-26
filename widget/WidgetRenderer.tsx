@@ -5,17 +5,20 @@ import { MoodWidget } from './widgets/MoodWidget';
 import { NotLoggedInWidget } from './widgets/NotLoggedInWidget';
 import { TasksWidget } from './widgets/TasksWidget';
 import { XPLevelWidget } from './widgets/XPLevelWidget';
+import { useColorScheme } from 'react-native';
 import { FlexWidget } from 'react-native-android-widget';
 import { resolveAccent, getLevelInfo, getToday, getDateOffset, ThemeMode } from './widgets/utils';
 
-export function renderWidgetByName(widgetName: string, state: any, widgetInfo?: any) {
+export function WidgetRenderer({ widgetName, state, widgetInfo }: { widgetName: string, state: any, widgetInfo?: any }) {
+  const systemTheme = useColorScheme() as ThemeMode;
   // Handle both raw state and mapped WidgetData
   const isLoggedIn = state?.userId || state?.isLoggedIn;
   if (!isLoggedIn) {
     return <NotLoggedInWidget />;
   }
 
-  const theme: ThemeMode = state.theme || 'dark';
+  const themePref = state.theme || 'dark';
+  const theme: ThemeMode = themePref === 'system' ? (systemTheme || 'dark') : themePref;
   const accent = resolveAccent(state.accentColor);
   const today = getToday();
 

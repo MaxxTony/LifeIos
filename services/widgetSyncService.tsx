@@ -1,3 +1,4 @@
+import React from 'react';
 import { Platform } from 'react-native';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,7 +28,7 @@ export interface WidgetData {
     today: number;
     last5Days: number[];
   };
-  theme?: 'light' | 'dark';
+  theme?: 'light' | 'dark' | 'system';
   moodTheme?: string;
   lastUpdated: number;
 }
@@ -45,7 +46,7 @@ export const widgetSyncService = {
         await AsyncStorage.setItem('widgetData', JSON.stringify(data));
         
         const { requestWidgetUpdate } = await import('react-native-android-widget');
-        const { renderWidgetByName } = await import('../widget/WidgetRenderer');
+        const { WidgetRenderer } = await import('../widget/WidgetRenderer');
         const widgetNames = [
           'XPLevelWidget',
           'TasksWidget',
@@ -57,7 +58,7 @@ export const widgetSyncService = {
         for (const name of widgetNames) {
           requestWidgetUpdate({
             widgetName: name,
-            renderWidget: (widgetInfo) => renderWidgetByName(name, data, widgetInfo),
+            renderWidget: (widgetInfo) => <WidgetRenderer widgetName={name} state={data} widgetInfo={widgetInfo} />,
           });
         }
 
