@@ -1,6 +1,7 @@
 import { Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { useStore } from '@/store/useStore';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { getFocusQuote } from '@/services/ai';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +20,7 @@ export default function FocusDetailScreen() {
   const toggleFocusSession = useStore(s => s.actions.toggleFocusSession);
   const togglePomodoro = useStore(s => s.actions.togglePomodoro);
   const colors = useThemeColors();
+  const { isPro, openPaywall } = useProGate();
 
   // T-30 FIX: Dynamic Keep-Awake to save battery
   useEffect(() => {
@@ -45,7 +47,12 @@ export default function FocusDetailScreen() {
       setIsLoadingQuote(false);
     };
 
-    fetchQuote();
+    // Gate 8: AI focus quotes — Pro only, free users get static quote
+    if (isPro) {
+      fetchQuote();
+    } else {
+      setAiQuote('"Focus on being productive instead of busy." — Tim Ferriss');
+    }
   }, []);
 
   const formatTimeParts = (totalSeconds: number) => {
@@ -157,6 +164,12 @@ export default function FocusDetailScreen() {
               { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: focusSession.isPomodoro ? colors.primary : colors.border }
             ]} 
             onPress={() => {
+              // Gate 6: Pomodoro is Pro-only
+              if (!isPro) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                openPaywall();
+                return;
+              }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               togglePomodoro();
             }}

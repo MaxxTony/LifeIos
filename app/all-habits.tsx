@@ -3,6 +3,7 @@ import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
+import { useProGate } from '@/hooks/useProFeature';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
@@ -334,6 +335,7 @@ export default function AllHabitsScreen() {
   const toggleHabit = useStore(s => s.actions.toggleHabit);
   const removeHabit = useStore(s => s.actions.removeHabit);
   const getStreak = useStore(s => s.actions.getStreak);
+  const { isPro, openPaywall } = useProGate();
 
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
   const toggleLockRef = useRef<Set<string>>(new Set());
@@ -403,7 +405,14 @@ export default function AllHabitsScreen() {
       <Text style={[styles.emptyTitle, { color: colors.text }]}>Plant your first habit</Text>
       <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Consistency is the bridge between goals and accomplishment 🌱</Text>
       <TouchableOpacity
-        onPress={() => router.push('/(habits)/templates')}
+        onPress={() => {
+          // Gate 3: Free users limited to 5 habits
+          if (!isPro && habits.length >= 5) {
+            openPaywall();
+            return;
+          }
+          router.push('/(habits)/templates');
+        }}
         style={{ marginTop: 20 }}
       >
         <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.emptyBtn}>
@@ -478,7 +487,14 @@ export default function AllHabitsScreen() {
 
       {/* Floating Add Button */}
       <TouchableOpacity
-        onPress={() => router.push('/(habits)/templates')}
+        onPress={() => {
+          // Gate 3: Free users limited to 5 habits
+          if (!isPro && habits.length >= 5) {
+            openPaywall();
+            return;
+          }
+          router.push('/(habits)/templates');
+        }}
         style={styles.fab}
         activeOpacity={0.85}
       >

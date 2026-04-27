@@ -39,19 +39,11 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
 
       match /tasks/{taskId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['id', 'text', 'priority', 'date', 'completed', 'status', 'createdAt', 'dueTime', 'startTime', 'endTime', 'systemComment', 'repeat', 'subtasks', 'xpAwarded', 'serverCreatedAt', 'lastUpdatedAt'])
-          && request.resource.data.text is string;
-        allow delete: if isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
  
       match /habits/{habitId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['id', 'title', 'icon', 'category', 'color', 'frequency', 'targetDays', 'monthlyTarget', 'monthlyDay', 'reminderTime', 'goalDays', 'completedDays', 'bestStreak', 'currentStreak', 'xpAwardedDays', 'createdAt', 'pausedUntil', 'serverCreatedAt', 'lastUpdatedAt'])
-          && request.resource.data.title is string;
-        allow delete: if isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
  
       match /moodHistory/{date} {
@@ -75,19 +67,12 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
         
         match /messages/{msgId} {
-          allow read: if isOwner(userId);
-          allow create: if isOwner(userId)
-            && request.resource.data.keys().hasOnly(['id', 'content', 'role', 'createdAt', 'type'])
-            && request.resource.data.content is string
-            && request.resource.data.content.size() <= 10000;
-          allow delete: if isOwner(userId);
+          allow read, write: if isOwner(userId);
         }
       }
  
       match /stats/{docId} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId)
-          && (request.method == 'delete' || request.resource.data.keys().hasOnly(['totalXP', 'level', 'weeklyXP', 'globalStreak', 'lastActiveDate', 'lastWeekResetDate', 'streakMilestones', 'lastUpdatedAt']));
+        allow read, write: if isOwner(userId);
       }
 
       match /lifeScoreHistory/{date} {
@@ -97,24 +82,11 @@ service cloud.firestore {
       }
  
       match /dailyQuests/{questId} {
-        allow read: if isOwner(userId);
-        allow write, create: if isOwner(userId)
-          && (request.method == 'delete' || (
-            request.resource.data.keys().hasOnly(['id', 'title', 'targetCount', 'currentCount', 'rewardXP', 'icon', 'type', 'completed', 'date'])
-            && request.resource.data.rewardXP is number
-            && request.resource.data.rewardXP >= 0
-            && request.resource.data.rewardXP <= 500
-          ));
+        allow read, write: if isOwner(userId);
       }
 
       match /memories/{memoryId} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId)
-          && (request.method == 'delete' || (
-            request.resource.data.keys().hasOnly(['id', 'content', 'category', 'importance', 'createdAt', 'lastUsedAt'])
-            && request.resource.data.content is string
-            && request.resource.data.content.size() < 5000
-          ));
+        allow read, write: if isOwner(userId);
       }
     } // end of match /users/{userId}
 

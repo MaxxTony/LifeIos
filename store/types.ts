@@ -165,6 +165,13 @@ export interface UserState {
   _subscriptionGen: number;
   sessionToken: string | null;
   aiInsight: string | null;
+
+  // Subscription (Pro)
+  isPro: boolean;
+  subscriptionExpiryDate: string | null;
+  dailyAIMessageCount: number;
+  lastAIMessageCountReset: string | null;
+
   syncStatus: SyncStatus;
   pendingActions: {
     id: string;
@@ -241,6 +248,12 @@ export interface UserActions {
   dismissStreakBroken: () => void;
   setLastActive: () => void;
 
+  // Subscription
+  checkEntitlements: () => Promise<void>;
+  setProStatus: (isPro: boolean, expiry?: string | null) => void;
+  incrementAIMessageCount: () => boolean;
+  resetDailyAICount: () => void;
+
   // Sync
   subscribeToCloud: () => void;
   clearSyncError: () => void;
@@ -276,4 +289,8 @@ export type GamificationActions = Pick<UserActions,
   'performDailyReset' | 'updateLifeScoreHistory' | 'generateDailyQuests' |
   'completeQuest' | 'checkQuestProgress' | 'addXP' | 'triggerProactivePrompt' |
   'dismissXP' | 'dismissMilestone' | 'dismissMoodLog' | 'dismissProactive' | 'dismissStreakBroken' | 'setLastActive'
+>;
+
+export type SubscriptionActions = Pick<UserActions,
+  'checkEntitlements' | 'setProStatus' | 'incrementAIMessageCount' | 'resetDailyAICount'
 >;

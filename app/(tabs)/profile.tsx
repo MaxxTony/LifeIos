@@ -3,6 +3,7 @@ import { ProfileMenuItem } from '@/components/Profile/ProfileMenuItem';
 import { StatsBentoGrid } from '@/components/Profile/StatsBentoGrid';
 import { TrophyCabinet } from '@/components/Profile/TrophyCabinet';
 import { Spacing, Typography } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/services/authService';
 import { useStore } from '@/store/useStore';
@@ -31,6 +32,7 @@ export default function ProfileScreen() {
   const themePreference = useStore(s => s.themePreference);
   const colors = useThemeColors();
   const router = useRouter();
+  const { isPro, openPaywall } = useProGate();
 
   const [notifStatus, setNotifStatus] = React.useState<string | null>(null);
 
@@ -66,10 +68,10 @@ export default function ProfileScreen() {
             try {
               // 1. Save progress and clear local state
               await logout({ shouldSaveFocus: true });
-              
+
               // 2. Sign out of Firebase
               const { error } = await authService.logout();
-              
+
               if (!error) {
                 router.replace('/(auth)/login');
               } else {
@@ -105,27 +107,28 @@ export default function ProfileScreen() {
           {/* Stats Section */}
           <Animated.View entering={FadeIn.delay(400).duration(600)}>
             <View style={styles.sectionTitleRow}>
-              <History size={16} color={colors.textSecondary} />
-              <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>YOUR PROGRESS</Text>
+              <History size={18} color={colors.primary} />
+              <Text style={[styles.sectionHeader, { color: colors.text }]}>YOUR PROGRESS</Text>
             </View>
             <StatsBentoGrid />
           </Animated.View>
 
           {/* Gamification Badges */}
-          <TrophyCabinet />
+          <TrophyCabinet isPro={isPro} onLockPress={openPaywall} />
 
           {/* Preferences Section */}
           <Animated.View entering={FadeIn.delay(500).duration(600)} style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Settings2 size={16} color={colors.textSecondary} />
-              <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>PREFERENCES</Text>
+              <Settings2 size={18} color={colors.primary} />
+              <Text style={[styles.sectionHeader, { color: colors.text }]}>PREFERENCES</Text>
             </View>
             <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
               <ProfileMenuItem
                 icon={History}
                 label="Weekly Review"
                 accentColor={colors.primary}
-                onPress={() => router.push('/weekly-review')}
+                isLocked={!isPro}
+                onPress={() => isPro ? router.push('/weekly-review') : openPaywall()}
               />
               <ProfileMenuItem
                 icon={User}
@@ -165,8 +168,8 @@ export default function ProfileScreen() {
           {/* Support Section */}
           <Animated.View entering={FadeIn.delay(600).duration(600)} style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <HelpCircle size={16} color={colors.textSecondary} />
-              <Text style={[styles.sectionHeader, { color: colors.textSecondary, marginBottom: 0 }]}>SUPPORT</Text>
+              <HelpCircle size={18} color={colors.primary} />
+              <Text style={[styles.sectionHeader, { color: colors.text }]}>SUPPORT</Text>
             </View>
             <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
               <ProfileMenuItem
@@ -256,10 +259,10 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     fontFamily: 'Outfit-Bold',
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.5,
     marginBottom: 0,
-    opacity: 0.5,
+    opacity: 1,
   },
   menuList: {
     borderRadius: 16,

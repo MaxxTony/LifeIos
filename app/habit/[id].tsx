@@ -2,6 +2,7 @@ import { BlurView } from '@/components/BlurView';
 import { HabitCalendar } from '@/components/HabitCalendar';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +39,7 @@ export default function HabitDetailScreen() {
   const getStreak = useStore(s => s.actions.getStreak);
   const toggleHabit = useStore(s => s.actions.toggleHabit);
   const pauseHabit = useStore(s => s.actions.pauseHabit);
+  const { isPro, openPaywall } = useProGate();
 
   const [showPausePicker, setShowPausePicker] = React.useState(false);
   const isTogglingRef = React.useRef(false);
@@ -410,12 +412,17 @@ export default function HabitDetailScreen() {
                   <TouchableOpacity
                     style={[styles.pauseBtn, { backgroundColor: habit.pausedUntil ? colors.success + '15' : colors.warning + '15' }]}
                     onPress={() => {
+                      // Gate 4: Habit pause is Pro-only
+                      if (!isPro && !habit.pausedUntil) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        openPaywall();
+                        return;
+                      }
                       if (habit.pausedUntil) {
                         pauseHabit(habit.id, null);
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       } else {
                         if (habit.frequency === 'monthly') {
-                          // Skip This Month: set pausedUntil to last day of current month
                           const now = new Date();
                           const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
                           pauseHabit(habit.id, formatLocalDate(lastDay));

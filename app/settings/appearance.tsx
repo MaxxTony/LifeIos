@@ -1,6 +1,7 @@
 import { BlurView } from '@/components/BlurView';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -107,6 +108,7 @@ export default function AppearanceSettings() {
   const setThemePreference = useStore(s => s.actions.setThemePreference);
   const setAccentColor = useStore(s => s.actions.setAccentColor);
   const colors = useThemeColors();
+  const { isPro, openPaywall } = useProGate();
   const headerHeight = useHeaderHeight();
 
   // Background animation values
@@ -133,7 +135,13 @@ export default function AppearanceSettings() {
     setThemePreference(theme);
   };
 
-  const handleSetAccent = (color: string) => {
+  const handleSetAccent = (color: string, index: number) => {
+    // Gate 17: Free users limited to first 3 accent colors
+    if (!isPro && index >= 3) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      openPaywall();
+      return;
+    }
     Haptics.selectionAsync();
     setAccentColor(color);
   };
@@ -167,19 +175,21 @@ export default function AppearanceSettings() {
             contentContainerStyle={styles.accentScroll}
             decelerationRate="fast"
           >
-            {ACCENTS.map((item) => {
+            {ACCENTS.map((item, index) => {
               const isSelected = accentColor === item.color;
+              const isLocked = !isPro && index >= 3;
               return (
                 <TouchableOpacity
                   key={item.color}
                   activeOpacity={0.8}
                   style={styles.accentItem}
-                  onPress={() => handleSetAccent(item.color)}
+                  onPress={() => handleSetAccent(item.color, index)}
                 >
                   <View
                     style={[
                       styles.accentCircle,
                       { backgroundColor: item.color },
+                      isLocked && { opacity: 0.4 },
                       isSelected && {
                         shadowColor: item.color,
                         shadowOffset: { width: 0, height: 6 },
@@ -191,11 +201,13 @@ export default function AppearanceSettings() {
                     ]}
                   >
                     {isSelected && <View style={styles.accentInnerCircle} />}
+                    {isLocked && <Ionicons name="lock-closed" size={12} color="#FFF" />}
                   </View>
                   <Text style={[
                     styles.accentName,
                     { color: isSelected ? colors.text : colors.textSecondary },
-                    isSelected && { fontFamily: 'Outfit-Bold' }
+                    isSelected && { fontFamily: 'Outfit-Bold' },
+                    isLocked && { opacity: 0.5 }
                   ]}>
                     {item.name}
                   </Text>

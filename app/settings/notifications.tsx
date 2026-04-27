@@ -1,29 +1,33 @@
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BlurView } from '@/components/BlurView';
+import { Spacing } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
-import { 
-  Bell, 
-  Calendar, 
-  Clock, 
-  MessageSquare, 
-  ShieldCheck, 
-  Zap, 
-  Target, 
-  Trophy, 
-  Sparkles, 
-  Timer, 
-  History, 
-  Sunrise, 
-  AlertCircle 
+import * as Haptics from 'expo-haptics';
+import {
+  AlertCircle,
+  Bell,
+  Calendar,
+  Clock,
+  History,
+  MessageSquare,
+  ShieldCheck,
+  Sparkles,
+  Sunrise,
+  Target,
+  Timer,
+  Trophy,
+  Zap
 } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View, Pressable } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, Layout } from 'react-native-reanimated';
 
 export default function NotificationsSettings() {
   const notificationSettings = useStore(s => s.notificationSettings);
   const updateNotificationSettings = useStore(s => s.actions.updateNotificationSettings);
   const colors = useThemeColors();
+  const { isPro, openPaywall } = useProGate();
 
   const toggle = (key: keyof typeof notificationSettings) => {
     updateNotificationSettings({ [key]: !notificationSettings[key] });
@@ -37,8 +41,8 @@ export default function NotificationsSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView 
-        contentContainerStyle={styles.content} 
+      <ScrollView
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
@@ -65,138 +69,170 @@ export default function NotificationsSettings() {
         </Animated.View>
 
         {/* Habits & Tasks */}
-        <Section title="Habits & Tasks" delay={300} disabled={isMasterOff}>
+        <Section
+          title="Habits & Tasks"
+          delay={300}
+          disabled={isMasterOff}
+          isLocked={!isPro}
+          onLockPress={openPaywall}
+        >
           <ToggleItem
             icon={Calendar}
             label="Habit Reminders"
             description="Nudges for your routines"
-            value={notificationSettings.habitReminders}
+            value={!isPro ? true : notificationSettings.habitReminders}
             onToggle={() => toggle('habitReminders')}
             accentColor="#FF6B6B"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Clock}
             label="Task Reminders"
             description="5min before start"
-            value={notificationSettings.taskReminders}
+            value={!isPro ? true : notificationSettings.taskReminders}
             onToggle={() => toggle('taskReminders')}
             accentColor="#4DABF7"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={AlertCircle}
             label="Missed Alerts"
             description="Passed end time nudges"
-            value={notificationSettings.missedTaskAlert}
+            value={!isPro ? true : notificationSettings.missedTaskAlert}
             onToggle={() => toggle('missedTaskAlert')}
             accentColor="#FF922B"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Sunrise}
             label="Morning Brief"
             description="8:00 AM daily overview"
-            value={notificationSettings.morningBrief}
+            value={!isPro ? true : notificationSettings.morningBrief}
             onToggle={() => toggle('morningBrief')}
             accentColor="#FCC419"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
             isLast
           />
         </Section>
 
         {/* Streaks & XP */}
-        <Section title="Streaks & XP" delay={400} disabled={isMasterOff}>
+        <Section
+          title="Streaks & XP"
+          delay={400}
+          disabled={isMasterOff}
+          isLocked={!isPro}
+          onLockPress={openPaywall}
+        >
           <ToggleItem
             icon={Zap}
             iconSize={16}
             label="Streak Warning"
             description="10 PM panic alert"
-            value={notificationSettings.streakWarning}
+            value={!isPro ? true : notificationSettings.streakWarning}
             onToggle={() => toggle('streakWarning')}
             accentColor="#7950F2"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Target}
             label="Quest Progress"
             description="9 PM FOMO reminder"
-            value={notificationSettings.questCompleted}
+            value={!isPro ? true : notificationSettings.questCompleted}
             onToggle={() => toggle('questCompleted')}
             accentColor="#22B8CF"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Trophy}
             label="Leaderboard"
             description="Sunday Night alerts"
-            value={notificationSettings.weeklyLeaderboard}
+            value={!isPro ? true : notificationSettings.weeklyLeaderboard}
             onToggle={() => toggle('weeklyLeaderboard')}
             accentColor="#FAB005"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
             isLast
           />
         </Section>
 
         {/* Wellness & Focus */}
-        <Section title="Wellness & Focus" delay={500} disabled={isMasterOff}>
-           <ToggleItem
+        <Section
+          title="Wellness & Focus"
+          delay={500}
+          disabled={isMasterOff}
+          isLocked={!isPro}
+          onLockPress={openPaywall}
+        >
+          <ToggleItem
             icon={MessageSquare}
             label="Mood Check-in"
             description="8 PM daily reflections"
-            value={notificationSettings.dailyMoodCheckin}
+            value={!isPro ? true : notificationSettings.dailyMoodCheckin}
             onToggle={() => toggle('dailyMoodCheckin')}
             accentColor="#FF8787"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Sparkles}
             label="AI Coach"
             description="Supportive progress insights"
-            value={notificationSettings.aiCoachNudge}
-            onToggle={() => toggle('aiCoachNudge')}
+            value={!isPro ? true : notificationSettings.aiCoachNudge}
+            onToggle={() => {
+              if (!isPro) return openPaywall();
+              toggle('aiCoachNudge');
+            }}
             accentColor="#20C997"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
+            isLocked={!isPro}
           />
           <ToggleItem
             icon={Timer}
             label="Pomodoro"
             description="Phase completion alerts"
-            value={notificationSettings.pomodoroAlert}
+            value={!isPro ? true : notificationSettings.pomodoroAlert}
             onToggle={() => toggle('pomodoroAlert')}
             accentColor="#5C7CFA"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
             isLast
           />
         </Section>
 
         {/* Retention */}
-        <Section title="System" delay={600} disabled={isMasterOff}>
+        <Section
+          title="System"
+          delay={600}
+          disabled={isMasterOff}
+          isLocked={!isPro}
+          onLockPress={openPaywall}
+        >
           <ToggleItem
             icon={History}
             label="Comeback (48h)"
             description="2-day inactivity nudge"
-            value={notificationSettings.comeback48h}
+            value={!isPro ? true : notificationSettings.comeback48h}
             onToggle={() => toggle('comeback48h')}
             accentColor="#AE3EC9"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
           />
           <ToggleItem
             icon={Bell}
             label="Weekly Recaps"
             description="7-day summary alert"
-            value={notificationSettings.comeback7d}
-            onToggle={() => toggle('comeback7d')}
+            value={!isPro ? true : notificationSettings.comeback7d}
+            onToggle={() => {
+              if (!isPro) return openPaywall();
+              toggle('comeback7d');
+            }}
             accentColor="#94A3B8"
-            disabled={isMasterOff}
+            disabled={isMasterOff || !isPro}
             isLast
+            isLocked={!isPro}
           />
         </Section>
 
         <Animated.View entering={FadeInUp.delay(800)} style={styles.footer}>
-          <View style={[styles.infoBox, { 
-            backgroundColor: colors.isDark ? 'rgba(30, 41, 59, 0.4)' : 'rgba(241, 245, 249, 0.6)', 
-            borderColor: borderColor 
+          <View style={[styles.infoBox, {
+            backgroundColor: colors.isDark ? 'rgba(30, 41, 59, 0.4)' : 'rgba(241, 245, 249, 0.6)',
+            borderColor: borderColor
           }]}>
             <ShieldCheck size={16} color={colors.textSecondary} />
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -209,43 +245,64 @@ export default function NotificationsSettings() {
   );
 }
 
-function Section({ title, children, delay, disabled }: any) {
+function Section({ title, children, delay, disabled, isLocked, onLockPress }: any) {
   const colors = useThemeColors();
   const cardBg = colors.isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.8)';
   const borderColor = colors.isDark ? 'rgba(30, 41, 59, 0.7)' : 'rgba(226, 232, 240, 0.8)';
 
   return (
-    <Animated.View 
-      entering={FadeInDown.delay(delay)} 
+    <Animated.View
+      entering={FadeInDown.delay(delay)}
       layout={Layout.springify().damping(15)}
       style={[styles.section, disabled && styles.disabledSection]}
     >
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
       <View style={[styles.card, { backgroundColor: cardBg, borderColor, borderWidth: 1 }]}>
         {children}
+        {isLocked && (
+          <BlurView intensity={Platform.OS === 'ios' ? 20 : 100} tint={colors.isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+            <View style={styles.lockOverlay}>
+              <View style={[styles.lockCircle, { backgroundColor: colors.primary + '20' }]}>
+                <ShieldCheck size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.lockTitle, { color: colors.text }]}>Unlock Custom Notifications</Text>
+              <Text style={[styles.lockSub, { color: colors.textSecondary }]}>Only Pro users can customize specific alerts</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  onLockPress();
+                }}
+                style={[styles.unlockBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.unlockBtnText}>Unlock Now</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        )}
       </View>
     </Animated.View>
   );
 }
 
-function ToggleItem({ 
-  icon: Icon, 
-  label, 
-  description, 
-  value, 
-  onToggle, 
-  disabled, 
+function ToggleItem({
+  icon: Icon,
+  label,
+  description,
+  value,
+  onToggle,
+  disabled,
   accentColor,
   isLast,
-  isMaster
+  isMaster,
+  isLocked
 }: any) {
   const colors = useThemeColors();
-  
+
   return (
-    <Pressable 
-      onPress={!disabled || isMaster ? onToggle : undefined}
+    <Pressable
+      onPress={isLocked ? onToggle : (!disabled || isMaster ? onToggle : undefined)}
       style={({ pressed }) => [
-        styles.item, 
+        styles.item,
         !isLast && { borderBottomWidth: 1, borderBottomColor: colors.isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(226, 232, 240, 0.5)' },
         pressed && !disabled && { backgroundColor: 'rgba(0,0,0,0.02)' }
       ]}
@@ -255,16 +312,19 @@ function ToggleItem({
           <Icon size={18} color={accentColor} />
         </View>
         <View style={styles.textContainer}>
-          <Text 
-            style={[
-              isMaster ? styles.itemLabelMaster : styles.itemLabel, 
-              { color: colors.text }
-            ]}
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-          <Text 
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text
+              style={[
+                isMaster ? styles.itemLabelMaster : styles.itemLabel,
+                { color: colors.text }
+              ]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+            {isLocked && <ShieldCheck size={12} color={colors.primary} style={{ marginLeft: 6 }} />}
+          </View>
+          <Text
             style={[styles.itemDescription, { color: colors.textSecondary }]}
             numberOfLines={1}
           >
@@ -379,5 +439,42 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     flex: 1,
     lineHeight: 16,
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  lockCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  lockTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  lockSub: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 14,
+    opacity: 0.8,
+  },
+  unlockBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  unlockBtnText: {
+    color: '#FFF',
+    fontFamily: 'Outfit-Bold',
+    fontSize: 13,
   },
 });

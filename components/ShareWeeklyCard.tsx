@@ -1,54 +1,81 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BorderRadius, Spacing } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Typography, Spacing, BorderRadius } from '@/constants/theme';
-import { Camera, ArrowRight, Share2, Sparkles } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { ArrowRight, Camera, Lock, Sparkles } from 'lucide-react-native';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export const ShareWeeklyCard = () => {
   const colors = useThemeColors();
   const router = useRouter();
+  const { isPro, openPaywall } = useProGate();
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/weekly-review');
+    if (isPro) {
+      router.push('/weekly-review');
+    } else {
+      openPaywall();
+    }
   };
 
   return (
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.9}
-      style={styles.container}
+      style={[styles.container, !isPro && styles.containerLocked]}
     >
       <LinearGradient
-        colors={[colors.primary, colors.secondary]}
+        colors={isPro ? [colors.primary, colors.secondary] : ['#4B5563', '#1F2937']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.gradient}
       >
+
         <View style={styles.content}>
           <View style={styles.textContainer}>
             <View style={styles.titleRow}>
-              <Sparkles size={16} color="#FFF" />
-              <Text style={styles.title}>Snap your wins! 📸</Text>
+              {isPro ? (
+                <Sparkles size={16} color="#FFF" />
+              ) : (
+                <Lock size={16} color="rgba(255,255,255,0.6)" />
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.title, !isPro && { color: 'rgba(255,255,255,0.6)' }]}>Snap your wins! 📸</Text>
+                {!isPro && (
+                  <View style={styles.miniProBadge}>
+                    <Text style={styles.miniProBadgeText}>PRO</Text>
+                  </View>
+                )}
+              </View>
             </View>
-            <Text style={styles.subtitle}>
-              You dominated this week. Share your evolution with the world.
+            <Text style={[styles.subtitle, !isPro && { color: 'rgba(255,255,255,0.4)' }]}>
+              {isPro
+                ? "You dominated this week. Share your evolution with the world."
+                : "Unlock Weekly Evolution summaries to share your growth with friends."
+              }
             </Text>
           </View>
-          
+
           <View style={styles.actionContainer}>
-            <View style={styles.iconCircle}>
-              <Camera size={24} color={colors.primary} />
+            <View style={[styles.iconCircle, !isPro && { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+              {isPro ? (
+                <Camera size={24} color={colors.primary} />
+              ) : (
+                <Lock size={24} color="rgba(255,255,255,0.5)" />
+              )}
             </View>
           </View>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Get your high-res summary</Text>
-          <ArrowRight size={14} color="rgba(255,255,255,0.8)" />
+        <View style={[styles.footer, !isPro && { borderTopColor: 'rgba(255,255,255,0.1)' }]}>
+          <Text style={[styles.footerText, !isPro && { color: 'rgba(255,255,255,0.4)' }]}>
+            {isPro ? 'GET YOUR HIGH-RES SUMMARY' : 'UPGRADE TO UNLOCK SUMMARY'}
+          </Text>
+          <ArrowRight size={14} color={isPro ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)"} />
         </View>
       </LinearGradient>
     </TouchableOpacity>
@@ -59,15 +86,31 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    marginBottom: Spacing.lg,
+    marginTop: Spacing.sm,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 15,
     elevation: 10,
   },
+  containerLocked: {
+    shadowOpacity: 0.1,
+  },
   gradient: {
     padding: 20,
+    position: 'relative',
+  },
+  miniProBadge: {
+    backgroundColor: '#FBBF24',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  miniProBadgeText: {
+    fontFamily: 'Inter-Bold',
+    color: '#000',
+    fontSize: 9,
+    letterSpacing: 0.5,
   },
   content: {
     flexDirection: 'row',
@@ -86,12 +129,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: {
-    ...Typography.h3,
+    fontFamily: 'Outfit-Bold',
     color: '#FFF',
     fontSize: 20,
+    letterSpacing: 0.2,
   },
   subtitle: {
-    ...Typography.body,
+    fontFamily: 'Inter-Regular',
     color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
     lineHeight: 18,
@@ -122,9 +166,9 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.2)',
   },
   footerText: {
-    ...Typography.labelSmall,
+    fontFamily: 'Inter-Bold',
     color: 'rgba(255,255,255,0.8)',
     fontSize: 11,
-    fontWeight: '800',
+    letterSpacing: 1.5,
   }
 });

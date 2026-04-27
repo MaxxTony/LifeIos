@@ -2,6 +2,7 @@ import { MoodEmoji } from '@/components/MoodEmoji';
 import { MOOD_LEVELS, getMoodConfig, getMoodFromLegacy } from '@/constants/moods';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,6 +90,13 @@ export default function MoodHistoryScreen() {
   // instead of a blank/zero-filled screen on first open or slow connection.
   const moodLoaded = useStore(s => s.syncStatus.moodLoaded);
   const colors = useThemeColors();
+  const { isPro } = useProGate();
+
+  // Gate 10: Free users only see calendar + detail; distribution + flow are Pro-only
+  const visibleSections = useMemo(() => {
+    if (isPro) return SECTION_KEYS;
+    return SECTION_KEYS.filter(k => k !== 'distribution' && k !== 'flow');
+  }, [isPro]);
 
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -232,7 +240,7 @@ export default function MoodHistoryScreen() {
           // We pass selectedEntry / monthStats / moodFlowData via extraData so
           // FlatList re-renders items only when relevant data changes.
           <FlatList
-            data={SECTION_KEYS}
+            data={visibleSections}
             keyExtractor={(item) => item}
             contentContainerStyle={styles.scrollContent}
             extraData={[selectedDate, currentMonth, moodHistory]}

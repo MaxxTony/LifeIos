@@ -1,6 +1,7 @@
 import { BlurView } from '@/components/BlurView';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import * as Crypto from 'expo-crypto';
@@ -22,6 +23,7 @@ export default function TaskDetailScreen() {
   const updateSubtask = useStore(s => s.actions.updateSubtask);
   const toggleSubtask = useStore(s => s.actions.toggleSubtask);
   const updateTask = useStore(s => s.actions.updateTask);
+  const { isPro, openPaywall } = useProGate();
 
   const [newSubtaskText, setNewSubtaskText] = React.useState('');
 
@@ -205,14 +207,20 @@ export default function TaskDetailScreen() {
               ))}
 
               <View style={styles.addSubtaskRow}>
-                <Plus size={20} color={colors.primary} />
+                <Plus size={20} color={!isPro && (task.subtasks?.length || 0) >= 3 ? colors.textSecondary + '40' : colors.primary} />
                 <TextInput
                   style={[styles.subtaskInput, { color: colors.text }]}
-                  placeholder="Add a subtask..."
+                  placeholder={!isPro && (task.subtasks?.length || 0) >= 3 ? '🔒 Upgrade to Pro for more' : 'Add a subtask...'}
                   placeholderTextColor={colors.textSecondary + '60'}
                   value={newSubtaskText}
                   onChangeText={setNewSubtaskText}
+                  editable={isPro || (task.subtasks?.length || 0) < 3}
                   onSubmitEditing={() => {
+                    // Gate 1: Free users limited to 3 subtasks
+                    if (!isPro && (task.subtasks?.length || 0) >= 3) {
+                      openPaywall();
+                      return;
+                    }
                     if (!newSubtaskText.trim()) return;
                     const newSubtask = { id: Crypto.randomUUID(), text: newSubtaskText.trim(), completed: false };
                     const updatedSubtasks = [...(task.subtasks || []), newSubtask];

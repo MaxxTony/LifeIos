@@ -295,6 +295,18 @@ const tools = [
   },
 ];
 
+// Gate 13+14: Free users only get basic tools. Pro users get the full set.
+const FREE_TOOL_NAMES = ['addTask', 'addHabit', 'setMood'];
+
+function getFilteredTools(isPro: boolean) {
+  if (isPro) return tools;
+  return [{
+    functionDeclarations: tools[0].functionDeclarations.filter(
+      (t: any) => FREE_TOOL_NAMES.includes(t.name)
+    ),
+  }];
+}
+
 async function callAIProxy(messages: any[], baseSystemInstruction?: string, memories: any[] = []) {
   if (!auth.currentUser) {
     console.warn('[LifeOS] AI call failed: User is not authenticated on the client.');
@@ -306,12 +318,16 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string, memo
 
     // Inject full context even through proxy (F-BUG-02)
     const contextStr = getCurrentAppContext(memories);
-    const fullSystemInstruction = `${baseSystemInstruction || 'You are LifeOS, a premium personal assistant.'}\n\n${contextStr}`;
+    const fullSystemInstruction = `${baseSystemInstruction || 'You are LifeOS, a premium assistant.'}\n\n${contextStr}`;
+
+    // Gate 13+14: Pass filtered tools based on Pro status
+    const isPro = useStore.getState().isPro;
+    const filteredTools = getFilteredTools(isPro);
 
     const result = await httpsCallable(functions, 'callAI')({
       messages,
       systemInstruction: fullSystemInstruction,
-      tools: tools as any,
+      tools: filteredTools as any,
     });
 
     const data = result.data as any;

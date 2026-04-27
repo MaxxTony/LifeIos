@@ -4,7 +4,7 @@ import { useStore } from '@/store/useStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Clock, Flame, Lock, ShieldCheck, Smile, Star, Target, Trophy, Wind, Zap } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 // ─── Achievement Definitions ─────────────────────────────────────────────────
@@ -286,20 +286,26 @@ const badge = StyleSheet.create({
 });
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function TrophyCabinet() {
+export function TrophyCabinet({ isPro, onLockPress }: { isPro: boolean; onLockPress: () => void }) {
   const colors = useThemeColors();
   const state = useStore(s => s);
 
   const earnedCount = ACHIEVEMENTS.filter(a => a.earn(state)).length;
   const total = ACHIEVEMENTS.length;
 
+  const displayAchievements = isPro 
+    ? ACHIEVEMENTS 
+    : ACHIEVEMENTS.slice(0, 3);
+
+  const lockedRemaining = !isPro && ACHIEVEMENTS.length > 3;
+
   return (
     <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.container}>
       {/* Header Row */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Trophy size={14} color={colors.primary} strokeWidth={2.5} />
-          <Text style={[styles.title, { color: colors.textSecondary }]}>ACHIEVEMENTS</Text>
+          <Trophy size={18} color={colors.primary} strokeWidth={2.5} />
+          <Text style={[styles.title, { color: colors.text }]}>ACHIEVEMENTS</Text>
         </View>
         <View style={[styles.pill, { backgroundColor: colors.primary + '20' }]}>
           <Text style={[styles.pillText, { color: colors.primary }]}>
@@ -315,7 +321,7 @@ export function TrophyCabinet() {
         contentContainerStyle={styles.scroll}
       >
         {/* Earned first */}
-        {ACHIEVEMENTS
+        {displayAchievements
           .filter(a => a.earn(state))
           .map((achieve, i) => (
             <Badge
@@ -327,8 +333,8 @@ export function TrophyCabinet() {
             />
           ))}
 
-        {/* Locked second (in progress > 0 first, then 0%) */}
-        {ACHIEVEMENTS
+        {/* Locked second */}
+        {displayAchievements
           .filter(a => !a.earn(state))
           .sort((a, b) => b.progress(state) - a.progress(state))
           .map((achieve, i) => (
@@ -340,6 +346,29 @@ export function TrophyCabinet() {
               progress={achieve.progress(state)}
             />
           ))}
+
+        {/* Pro Lock Placeholder */}
+        {lockedRemaining && (
+          <TouchableOpacity 
+            activeOpacity={0.8}
+            onPress={onLockPress}
+            style={[
+              badge.card, 
+              { 
+                backgroundColor: colors.primary + '10',
+                borderColor: colors.primary + '30',
+                justifyContent: 'center',
+                borderStyle: 'dashed'
+              }
+            ]}
+          >
+            <View style={[badge.iconLockedWrap, { backgroundColor: colors.primary + '20', borderColor: 'transparent' }]}>
+              <Lock size={18} color={colors.primary} />
+            </View>
+            <Text style={[badge.title, { color: colors.primary, marginTop: 8 }]}>PRO ONLY</Text>
+            <Text style={[badge.desc, { color: colors.primary + '80' }]}>Unlock 7+ more trophies</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </Animated.View>
   );
@@ -362,9 +391,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   title: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontFamily: 'Outfit-Bold',
+    fontSize: 12,
+    letterSpacing: 1.5,
   },
   pill: {
     paddingHorizontal: 10,

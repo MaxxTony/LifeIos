@@ -1,6 +1,7 @@
 import { BlurView } from '@/components/BlurView';
 import { Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useProGate } from '@/hooks/useProFeature';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +47,7 @@ export default function CreateTaskScreen() {
   const colors = useThemeColors();
   const addTask = useStore(s => s.actions.addTask);
   const updateTask = useStore(s => s.actions.updateTask);
+  const { isPro, openPaywall } = useProGate();
 
   const [text, setText] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
@@ -237,6 +239,12 @@ export default function CreateTaskScreen() {
                   <TouchableOpacity
                     key={r}
                     onPress={() => {
+                      // Gate 2: Recurring tasks locked for free users
+                      if (r !== 'none' && !isPro) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        openPaywall();
+                        return;
+                      }
                       setRepeat(r);
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     }}

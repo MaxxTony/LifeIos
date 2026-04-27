@@ -7,6 +7,7 @@ const APP_GROUP = 'group.com.lifeos.prime';
 
 export interface WidgetData {
   isLoggedIn: boolean;
+  isPro: boolean;
   accentColor: string;
   tasks: { id: string; text: string; completed: boolean; priority: string }[];
   habits: { id: string; title: string; icon: string; isDoneToday: boolean }[];

@@ -23,7 +23,8 @@
         "NSSpeechRecognitionUsageDescription": "LifeOS needs speech recognition to convert your voice to actions.",
         "UIBackgroundModes": [
           "fetch"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -70,6 +71,7 @@
         }
       ],
       "expo-notifications",
+      "./plugins/withInAppPurchases",
       [
         "react-native-android-widget",
         {

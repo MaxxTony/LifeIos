@@ -10,6 +10,7 @@ import { createHabitSlice } from './slices/habitSlice';
 import { createFocusSlice } from './slices/focusSlice';
 import { createMoodSlice } from './slices/moodSlice';
 import { createGamificationSlice } from './slices/gamificationSlice';
+import { createSubscriptionSlice } from './slices/subscriptionSlice';
 import { wireSyncErrorPublisher, wireStore } from './syncHelper';
 import { widgetSyncService } from '@/services/widgetSyncService';
 import { getTodayLocal } from '@/utils/dateUtils';
@@ -25,6 +26,7 @@ export const useStore = create<UserState>()(
       const focus = createFocusSlice(set, get, api);
       const mood = createMoodSlice(set, get, api);
       const gamification = createGamificationSlice(set, get, api);
+      const subscription = createSubscriptionSlice(set, get, api);
 
       return {
         // Initial State
@@ -111,6 +113,13 @@ export const useStore = create<UserState>()(
         _syncUnsubscribes: [],
         _subscriptionGen: 0,
         sessionToken: null,
+
+        // Subscription (Pro)
+        isPro: false,
+        subscriptionExpiryDate: null,
+        dailyAIMessageCount: 0,
+        lastAIMessageCountReset: null,
+
         syncStatus: {
           tasksLoaded: false,
           habitsLoaded: false,
@@ -131,6 +140,7 @@ export const useStore = create<UserState>()(
           ...focus,
           ...mood,
           ...gamification,
+          ...subscription,
         },
       };
     },
@@ -242,7 +252,7 @@ useStore.subscribe((state) => {
   // widget shows the lock screen instead of stale data from the previous session.
   if (!state.userId) {
     widgetSyncService.syncWholeStoreToWidget({
-      isLoggedIn: false, accentColor: '#7C5CFF',
+      isLoggedIn: false, isPro: false, accentColor: '#7C5CFF',
       tasks: [], habits: [], habitProgress: { completed: 0, total: 0 },
       focus: { isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: null },
       stats: { level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: 'Spark' },
@@ -282,6 +292,7 @@ useStore.subscribe((state) => {
 
     const widgetData = {
       isLoggedIn: true,
+      isPro: state.isPro,
       accentColor: state.accentColor ?? '#7C5CFF',
       moodTheme: state.moodTheme ?? 'classic',
       tasks: todayTasks

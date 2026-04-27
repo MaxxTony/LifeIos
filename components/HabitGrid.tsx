@@ -1,13 +1,13 @@
 import { BlurView } from '@/components/BlurView';
 import { BorderRadius, Spacing } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
-import { Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -378,6 +378,9 @@ export const HabitGrid = React.memo(function HabitGrid() {
     }, 500);
   }, [toggleHabit]);
 
+  const { isPro, openPaywall } = useProGate();
+  const isLimitReached = !isPro && habits.length >= 3;
+
   return (
     <View style={[container.wrap, { borderColor: colors.border }]}>
       <BlurView intensity={25} tint={colors.isDark ? 'dark' : 'light'} style={container.blur}>
@@ -385,12 +388,21 @@ export const HabitGrid = React.memo(function HabitGrid() {
         <View style={container.header}>
           <Text style={[container.sectionTitle, { color: colors.text }]}>Habit Streaks</Text>
           <TouchableOpacity
-            onPress={() => router.push('/(habits)/templates')}
-            style={[container.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}
-            accessibilityLabel="Add new habit"
-            accessibilityRole="button"
+            onPress={() => isLimitReached ? openPaywall() : router.push('/(habits)/templates')}
+            style={[
+              container.addBtn,
+              {
+                backgroundColor: isLimitReached ? 'rgba(255,165,0,0.15)' : colors.primaryTransparent,
+                borderColor: isLimitReached ? 'rgba(255,165,0,0.3)' : colors.primary + '40'
+              }
+            ]}
+            accessibilityLabel={isLimitReached ? "Unlock Pro to add more habits" : "Add new habit"}
           >
-            <Plus size={18} color={colors.primary} strokeWidth={2.5} />
+            {isLimitReached ? (
+              <Ionicons name="lock-closed" size={16} color="#FFA500" />
+            ) : (
+              <Plus size={18} color={colors.primary} strokeWidth={2.5} />
+            )}
           </TouchableOpacity>
         </View>
 

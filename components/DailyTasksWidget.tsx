@@ -1,5 +1,6 @@
 import { BlurView } from '@/components/BlurView';
 import { Spacing, Typography } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
@@ -39,19 +40,30 @@ export const DailyTasksWidget = React.memo(function DailyTasksWidget() {
   const pendingActions = useStore(s => s.pendingActions);
   const isSyncing = (id: string) => pendingActions.some(a => a.id === id);
 
+  const { isPro, openPaywall } = useProGate();
+  const isLimitReached = !isPro && todayTasks.length >= 5;
+
   return (
     <View style={[styles.container, { borderColor: colors.border }]}>
       <BlurView intensity={20} tint={colors.isDark ? "dark" : "light"} style={styles.blur}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Daily Tasks</Text>
           <TouchableOpacity
-            onPress={() => router.push('/tasks/create')}
-            style={[styles.addBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primary + '40' }]}
-            accessibilityLabel="Create new task"
-            accessibilityRole="button"
-            accessibilityHint="Navigates to the task creation screen"
+            onPress={() => isLimitReached ? openPaywall() : router.push('/tasks/create')}
+            style={[
+              styles.addBtn,
+              {
+                backgroundColor: isLimitReached ? 'rgba(255,165,0,0.15)' : colors.primaryTransparent,
+                borderColor: isLimitReached ? 'rgba(255,165,0,0.3)' : colors.primary + '40'
+              }
+            ]}
+            accessibilityLabel={isLimitReached ? "Unlock Pro to add more tasks" : "Create new task"}
           >
-            <Plus size={18} color={colors.primary} strokeWidth={2.5} accessibilityLabel="Plus icon" />
+            {isLimitReached ? (
+              <Ionicons name="lock-closed" size={16} color="#FFA500" />
+            ) : (
+              <Plus size={18} color={colors.primary} strokeWidth={2.5} />
+            )}
           </TouchableOpacity>
         </View>
 

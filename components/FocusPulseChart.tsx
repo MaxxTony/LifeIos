@@ -11,7 +11,7 @@ interface FocusPulseChartProps {
 
 export function FocusPulseChart({ data, goal }: FocusPulseChartProps) {
   const colors = useThemeColors();
-  const chartHeight = 110;
+  const chartHeight = 180;
 
   if (!data || data.length === 0) {
     return <View style={[styles.container, { height: chartHeight + 25 }]} />;

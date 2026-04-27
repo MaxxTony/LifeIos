@@ -20,6 +20,7 @@ import { analyticsService } from '@/services/analyticsService';
 import { registerAllBackgroundTasks, unregisterAllBackgroundTasks } from '@/services/backgroundService';
 import { initCrashAnalytics } from '@/services/crashAnalytics';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { purchaseService } from '@/services/purchaseService';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { useEffect, useRef } from 'react';
@@ -274,6 +275,19 @@ export default function RootLayout() {
         registerAllBackgroundTasks();
       } else {
         unregisterAllBackgroundTasks();
+      }
+
+      // Phase B: Initialize RevenueCat for subscription management
+      const rcUserId = useStore.getState().userId;
+      if (isAuthenticated && rcUserId) {
+        purchaseService.initialize(rcUserId).then(() => {
+          // Check current entitlements on init
+          useStore.getState().actions.checkEntitlements();
+          // Listen for real-time subscription changes
+          purchaseService.addListener((isPro) => {
+            useStore.getState().actions.setProStatus(isPro);
+          });
+        });
       }
     }
   }, [_hasHydrated, isAuthenticated]);

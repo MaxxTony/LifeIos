@@ -11,7 +11,8 @@ export function ProfileMenuItem({
   onPress,
   isLast = false,
   destructive = false,
-  accentColor
+  accentColor,
+  isLocked = false
 }: { 
   icon: any; 
   label: string; 
@@ -20,8 +21,10 @@ export function ProfileMenuItem({
   isLast?: boolean;
   destructive?: boolean;
   accentColor?: string;
+  isLocked?: boolean;
 }) {
   const colors = useThemeColors();
+  const { ShieldCheck } = require('lucide-react-native');
   const defaultAccent = destructive ? colors.danger : colors.text;
   const effectiveAccent = accentColor || defaultAccent;
   
@@ -29,10 +32,11 @@ export function ProfileMenuItem({
     <TouchableOpacity 
       style={[
         styles.container, 
-        !isLast && { borderBottomColor: colors.isDark ? '#1F2937' : '#F8FAFC', borderBottomWidth: 1 }
+        !isLast && { borderBottomColor: colors.isDark ? '#1F2937' : '#F8FAFC', borderBottomWidth: 1 },
+        isLocked && { opacity: 0.6 }
       ]} 
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={isLocked ? 0.9 : 0.7}
     >
       <View style={styles.left}>
         <View style={[
@@ -41,7 +45,12 @@ export function ProfileMenuItem({
         ]}>
           <Icon size={18} color={effectiveAccent} />
         </View>
-        <Text style={[styles.label, { color: destructive ? colors.danger : colors.text }]}>{label}</Text>
+        <Text style={[styles.label, { color: destructive ? colors.danger : colors.text }, isLocked && { color: colors.textSecondary }]}>{label}</Text>
+        {isLocked && (
+          <View style={[styles.proBadge, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.proBadgeText, { color: colors.primary }]}>PRO</Text>
+          </View>
+        )}
       </View>
       <View style={styles.right}>
         {value && <Text style={[styles.value, { color: colors.textSecondary }]}>{value}</Text>}
@@ -84,5 +93,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 13,
     opacity: 0.6,
+  },
+  proBadge: {
+    backgroundColor: 'rgba(124, 92, 255, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 2,
+  },
+  proBadgeText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 9,
+    letterSpacing: 0.5,
   }
 });

@@ -3,6 +3,7 @@ import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { presenceService } from '@/services/presenceService';
 import { useStore } from '@/store/useStore';
+import { useProGate } from '@/hooks/useProFeature';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -55,6 +56,71 @@ export default function FocusRoomScreen() {
   const isFocusing = useStore(state => state.focusSession.isActive);
   const toggleFocusSession = useStore(state => state.actions.toggleFocusSession);
   const router = useRouter();
+  const { isPro, openPaywall } = useProGate();
+
+  // Gate 7: Focus Room is Pro-only
+  if (!isPro) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#000' }]}>
+        <LinearGradient 
+          colors={['#1A1A1A', '#0D0D0D']} 
+          style={StyleSheet.absoluteFill} 
+        />
+        
+        {/* Abstract background glow */}
+        <View style={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: 150, backgroundColor: colors.primary, opacity: 0.2, filter: 'blur(80px)' }} />
+        <View style={{ position: 'absolute', bottom: -50, left: -50, width: 250, height: 250, borderRadius: 125, backgroundColor: '#00D1FF', opacity: 0.15, filter: 'blur(60px)' }} />
+
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 32 }}>
+          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+            <View style={{ width: 100, height: 100, borderRadius: 30, backgroundColor: 'rgba(124, 92, 255, 0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: 'rgba(124, 92, 255, 0.3)' }}>
+              <Ionicons name="flame" size={48} color="#7C5CFF" />
+            </View>
+            <Text style={{ color: '#FFF', fontFamily: 'Outfit-Bold', fontSize: 32, textAlign: 'center', marginBottom: 8 }}>Focus Room</Text>
+            <View style={{ backgroundColor: 'rgba(0, 209, 255, 0.1)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(0, 209, 255, 0.2)' }}>
+              <Text style={{ color: '#00D1FF', fontFamily: 'Outfit-Bold', fontSize: 12, letterSpacing: 1 }}>PRO FEATURE</Text>
+            </View>
+          </View>
+
+          <View style={{ gap: 20, marginBottom: 48 }}>
+            {[
+              { icon: 'people', title: 'Co-Focus Live', desc: 'Study and work in real-time with other LifeOS users worldwide.' },
+              { icon: 'shield-checkmark', title: 'Monk Mode Pro', desc: 'Unlock advanced accountability and presence tools.' },
+              { icon: 'stats-chart', title: 'Live Progress', desc: 'See real-time focus stats and climb the room leaderboard.' }
+            ].map((feature, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={feature.icon as any} size={22} color="#FFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#FFF', fontFamily: 'Outfit-Bold', fontSize: 16, marginBottom: 2 }}>{feature.title}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, lineHeight: 18 }}>{feature.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity 
+            onPress={openPaywall} 
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#7C5CFF', '#00D1FF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 18, padding: 18, alignItems: 'center', shadowColor: '#7C5CFF', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}
+            >
+              <Text style={{ color: '#FFF', fontFamily: 'Outfit-Bold', fontSize: 18 }}>Upgrade to LifeOS Pro</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, alignItems: 'center' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Outfit-Medium', fontSize: 14 }}>Not now, maybe later</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
 
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

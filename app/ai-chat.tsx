@@ -2,18 +2,21 @@ import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
 import { BlurView } from '@/components/BlurView';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';
 import { analyticsService } from '@/services/analyticsService';
 import { ChatMessage, chatService } from '@/services/chatService';
 import { useStore } from '@/store/useStore';
+import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import Voice, { SpeechErrorEvent, SpeechResultsEvent } from '@react-native-voice/voice';
 import { useHeaderHeight } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -31,7 +34,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '../components/ui/icon-symbol';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 
 const { width } = Dimensions.get('window');
 
@@ -55,6 +57,8 @@ export default function AIChatScreen() {
   const isOffline = useStore(s => s.syncStatus.isOffline);
   const accentColor = useStore(s => s.accentColor);
   const colors = useThemeColors();
+  const { isPro, canUseAI, remainingAIMessages, openPaywall } = useProGate();
+  const incrementAIMessageCount = useStore(s => s.actions.incrementAIMessageCount);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,7 +83,7 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     isMounted.current = true;
-    
+
     // Voice listeners
     Voice.onSpeechStart = onSpeechStart;
     Voice.onSpeechEnd = onSpeechEnd;
@@ -87,8 +91,8 @@ export default function AIChatScreen() {
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechPartialResults = onSpeechPartialResults;
 
-    return () => { 
-      isMounted.current = false; 
+    return () => {
+      isMounted.current = false;
       Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
@@ -157,7 +161,7 @@ export default function AIChatScreen() {
   };
 
   const cancelVoice = async () => {
-    try { await Voice.cancel(); } catch {}
+    try { await Voice.cancel(); } catch { }
     stopPulse();
     setIsListening(false);
     setIsRecordingMode(false);
@@ -167,7 +171,7 @@ export default function AIChatScreen() {
 
   const sendVoice = async () => {
     const text = voiceText.trim();
-    try { await Voice.cancel(); } catch {}
+    try { await Voice.cancel(); } catch { }
     stopPulse();
     setIsListening(false);
     setIsRecordingMode(false);
@@ -243,6 +247,13 @@ export default function AIChatScreen() {
 
     const text = (textOverride || input).slice(0, 10000);
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
+
+    // Gate 11: Free users limited to 5 AI messages/day
+    if (!incrementAIMessageCount()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      openPaywall();
+      return;
+    }
 
     // Clear input immediately for better UX
     const currentAttachedImage = attachedImage;
@@ -411,238 +422,259 @@ export default function AIChatScreen() {
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingTop: Platform.OS === 'ios' ? headerHeight + 8 : 8 }
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {hasMore && (
-              <TouchableOpacity
-                onPress={loadMoreMessages}
-                disabled={isLoadingMore}
-                style={[styles.loadMoreBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-              >
-                {isLoadingMore ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <>
-                    <IconSymbol name="arrow.up.circle" size={16} color={colors.primary} />
-                    <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load older messages</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {!hasMore && messages.length >= 50 && (
-              <View style={[styles.limitIndicator, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
-                <IconSymbol name="info.circle" size={14} color={colors.primary} />
-                <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                  All messages loaded.
+          <>
+            {!isPro && (
+              <View style={[
+                styles.topLimitBadge,
+                {
+                  marginTop: Platform.OS === 'ios' ? headerHeight : 0,
+                  backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)',
+                  borderColor: colors.primary + '20'
+                }
+              ]}>
+                <Ionicons name="sparkles" size={12} color={colors.primary} />
+                <Text style={[styles.topLimitText, { color: colors.textSecondary }]}>
+                  {remainingAIMessages} {remainingAIMessages === 1 ? 'message' : 'messages'} remaining today
                 </Text>
               </View>
             )}
-            {messages.slice(messages.length > 100 ? 1 : 0).map((m) => (
-              <View key={m.id} style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
-                {m.role === 'assistant' && (
-                  <View style={styles.aiAvatar}>
-                    <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
-                      <IconSymbol name="sparkles" size={14} color="#FFF" />
-                    </LinearGradient>
-                  </View>
-                )}
-                <View style={[
-                  styles.messageBubble,
-                  m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
-                ]}>
-                  {m.imageUrl && (
-                    <Image
-                      source={{ uri: m.imageUrl }}
-                      style={styles.messageImage}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  )}
-                  {m.content ? (
-                    <Text style={[styles.messageText, m.role === 'user' ? styles.userText : [styles.aiText, { color: colors.text }]]}>
-                      {m.content}
-                    </Text>
-                  ) : m.imageUrl && (
-                    <Text style={[styles.messageText, styles.userText, { fontStyle: 'italic', fontSize: 13, opacity: 0.7 }]}>
-                      Image sent
-                    </Text>
-                  )}
-                  {m.card && (
-                    <View style={styles.cardContainer}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>{m.card.title}</Text>
-                      {m.card.type === 'poll' && m.card.options?.map((opt, idx) => (
-                        <TouchableOpacity key={idx} style={[styles.cardItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                          <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      {m.card.type === 'checklist' && m.card.options?.map((opt, idx) => (
-                        <View key={idx} style={styles.checklistRow}>
-                          <IconSymbol name="square" size={16} color={colors.textSecondary} />
-                          <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
-                        </View>
-                      ))}
-                      {m.card.type === 'progress' && (
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: accentColor || '#7C5CFF' }]} />
-                          <Text style={styles.progressText}>{m.card.value || 0}%</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-            {loading && (
-              <View style={styles.aiWrapper}>
-                <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-                  <ActivityIndicator size="small" color={colors.textSecondary} />
-                </View>
-              </View>
-            )}
-          </ScrollView>
-        )}
-
-        <BlurView
-          intensity={80}
-          tint={colors.isDark ? 'dark' : 'light'}
-          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md), backgroundColor: colors.isDark ? 'rgba(11, 11, 15, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderTopColor: colors.border }]}
-        >
-          {attachedImage && (
-            <View style={styles.previewContainer}>
-              <View style={[styles.previewWrapper, { borderColor: colors.border }]}>
-                <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} />
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.messagesContainer}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingTop: Platform.OS === 'ios' ? headerHeight + 8 : 8 }
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
+              {hasMore && (
                 <TouchableOpacity
-                  style={styles.removePreview}
-                  onPress={() => setAttachedImage(null)}
-                  accessibilityLabel="Remove attached image"
+                  onPress={loadMoreMessages}
+                  disabled={isLoadingMore}
+                  style={[styles.loadMoreBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                 >
-                  <IconSymbol name="trash.fill" size={14} color="#FFF" />
+                  {isLoadingMore ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <IconSymbol name="arrow.up.circle" size={16} color={colors.primary} />
+                      <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load older messages</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
-                {uploading && (
-                  <View style={styles.previewOverlay}>
-                    <ActivityIndicator size="small" color="#FFF" />
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
+              )}
 
-          {messages.length <= 1 && !loading && !attachedImage && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer} contentContainerStyle={styles.chipsContent}>
-              {ACTION_CHIPS.map((chip, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.chip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-                  onPress={() => handleSend(chip.label)}
-                  accessibilityLabel={chip.label}
-                  accessibilityRole="button"
-                >
-                  <IconSymbol name={chip.icon as any} size={14} color={colors.textSecondary} />
-                  <Text style={[styles.chipText, { color: colors.textSecondary }]}>{chip.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {isRecordingMode ? (
-            <View style={styles.recordingWrapper}>
-              <TouchableOpacity onPress={cancelVoice} style={[styles.recordingActionBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} accessibilityLabel="Cancel recording">
-                <IconSymbol name="xmark" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <View style={[styles.recordingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: isListening ? '#FF4B4B60' : colors.border }]}>
-                <View style={styles.recordingStatus}>
-                  <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
-                  <Text style={[styles.recordingLabel, { color: '#FF4B4B' }]}>
-                    {isListening ? 'Listening...' : 'Done — review & send'}
+              {!hasMore && messages.length >= 50 && (
+                <View style={[styles.limitIndicator, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
+                  <IconSymbol name="info.circle" size={14} color={colors.primary} />
+                  <Text style={[styles.limitTexts, { color: colors.textSecondary }]}>
+                    All messages loaded.
                   </Text>
                 </View>
-                <Text style={[styles.recordingTranscript, { color: voiceText ? colors.text : colors.textSecondary + '80' }]} numberOfLines={3}>
-                  {voiceText || 'Start speaking...'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={sendVoice}
-                disabled={!voiceText.trim()}
-                accessibilityLabel="Send voice message"
-              >
-                <LinearGradient
-                  colors={[colors.primary, colors.secondary]}
-                  style={[styles.sendBtnGradient, !voiceText.trim() && { opacity: 0.35 }]}
-                >
-                  <IconSymbol name="arrow.up" size={18} color="#FFF" />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.inputWrapper}>
-              <TouchableOpacity
-                style={styles.attachBtn}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  attachmentSheetRef.current?.present();
-                }}
-                accessibilityLabel="Attach image"
-                accessibilityRole="button"
-              >
-                <View style={[styles.attachIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
-                  <IconSymbol name="plus" size={20} color={colors.text} />
+              )}
+              {messages.slice(messages.length > 100 ? 1 : 0).map((m) => (
+                <View key={m.id} style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
+                  {m.role === 'assistant' && (
+                    <View style={styles.aiAvatar}>
+                      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
+                        <IconSymbol name="sparkles" size={14} color="#FFF" />
+                      </LinearGradient>
+                    </View>
+                  )}
+                  <View style={[
+                    styles.messageBubble,
+                    m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
+                  ]}>
+                    {m.imageUrl && (
+                      <Image
+                        source={{ uri: m.imageUrl }}
+                        style={styles.messageImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    )}
+                    {m.content ? (
+                      <Text style={[styles.messageText, m.role === 'user' ? styles.userText : [styles.aiText, { color: colors.text }]]}>
+                        {m.content}
+                      </Text>
+                    ) : m.imageUrl && (
+                      <Text style={[styles.messageText, styles.userText, { fontStyle: 'italic', fontSize: 13, opacity: 0.7 }]}>
+                        Image sent
+                      </Text>
+                    )}
+                    {m.card && (
+                      <View style={styles.cardContainer}>
+                        <Text style={[styles.cardTitle, { color: colors.text }]}>{m.card.title}</Text>
+                        {m.card.type === 'poll' && m.card.options?.map((opt, idx) => (
+                          <TouchableOpacity key={idx} style={[styles.cardItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                            <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+                          </TouchableOpacity>
+                        ))}
+                        {m.card.type === 'checklist' && m.card.options?.map((opt, idx) => (
+                          <View key={idx} style={styles.checklistRow}>
+                            <IconSymbol name="square" size={16} color={colors.textSecondary} />
+                            <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+                          </View>
+                        ))}
+                        {m.card.type === 'progress' && (
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: accentColor || '#7C5CFF' }]} />
+                            <Text style={styles.progressText}>{m.card.value || 0}%</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
                 </View>
-              </TouchableOpacity>
+              ))}
+              {loading && (
+                <View style={styles.aiWrapper}>
+                  <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                    <ActivityIndicator size="small" color={colors.textSecondary} />
+                  </View>
+                </View>
+              )}
+            </ScrollView>
 
-              <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Message LifeOS..."
-                  placeholderTextColor={colors.textSecondary + '60'}
-                  value={input}
-                  onChangeText={setInput}
-                  multiline
-                  maxLength={2000}
-                  accessibilityLabel="Message input"
-                />
-                {(input.length > 0 || attachedImage) ? (
+            <BlurView
+              intensity={80}
+              tint={colors.isDark ? 'dark' : 'light'}
+              style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.md), backgroundColor: colors.isDark ? 'rgba(11, 11, 15, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderTopColor: colors.border }]}
+            >
+              {attachedImage && (
+                <View style={styles.previewContainer}>
+                  <View style={[styles.previewWrapper, { borderColor: colors.border }]}>
+                    <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} />
+                    <TouchableOpacity
+                      style={styles.removePreview}
+                      onPress={() => setAttachedImage(null)}
+                      accessibilityLabel="Remove attached image"
+                    >
+                      <IconSymbol name="trash.fill" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                    {uploading && (
+                      <View style={styles.previewOverlay}>
+                        <ActivityIndicator size="small" color="#FFF" />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {messages.length <= 1 && !loading && !attachedImage && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer} contentContainerStyle={styles.chipsContent}>
+                  {ACTION_CHIPS.map((chip, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.chip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+                      onPress={() => handleSend(chip.label)}
+                      accessibilityLabel={chip.label}
+                      accessibilityRole="button"
+                    >
+                      <IconSymbol name={chip.icon as any} size={14} color={colors.textSecondary} />
+                      <Text style={[styles.chipText, { color: colors.textSecondary }]}>{chip.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+
+              {isRecordingMode ? (
+                <View style={styles.recordingWrapper}>
+                  <TouchableOpacity onPress={cancelVoice} style={[styles.recordingActionBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} accessibilityLabel="Cancel recording">
+                    <IconSymbol name="xmark" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <View style={[styles.recordingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: isListening ? '#FF4B4B60' : colors.border }]}>
+                    <View style={styles.recordingStatus}>
+                      <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
+                      <Text style={[styles.recordingLabel, { color: '#FF4B4B' }]}>
+                        {isListening ? 'Listening...' : 'Done — review & send'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.recordingTranscript, { color: voiceText ? colors.text : colors.textSecondary + '80' }]} numberOfLines={3}>
+                      {voiceText || 'Start speaking...'}
+                    </Text>
+                  </View>
+
                   <TouchableOpacity
-                    onPress={() => handleSend()}
-                    style={styles.sendBtn}
-                    disabled={uploading || loading || isOffline}
-                    accessibilityLabel="Send message"
-                    accessibilityRole="button"
+                    onPress={sendVoice}
+                    disabled={!voiceText.trim()}
+                    accessibilityLabel="Send voice message"
                   >
                     <LinearGradient
                       colors={[colors.primary, colors.secondary]}
-                      style={[styles.sendBtnGradient, (uploading || loading || isOffline) && { opacity: 0.5 }]}
+                      style={[styles.sendBtnGradient, !voiceText.trim() && { opacity: 0.35 }]}
                     >
-                      {(uploading || loading)
-                        ? <ActivityIndicator size="small" color="#FFF" />
-                        : <IconSymbol name="arrow.up" size={18} color="#FFF" />
-                      }
+                      <IconSymbol name="arrow.up" size={18} color="#FFF" />
                     </LinearGradient>
                   </TouchableOpacity>
-                ) : (
+                </View>
+              ) : canUseAI ? (
+                <View style={styles.inputWrapper}>
                   <TouchableOpacity
-                    onPress={startVoice}
-                    style={styles.voiceBtn}
-                    accessibilityLabel="Start voice input"
-                    accessibilityRole="button"
+                    style={styles.attachBtn}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      attachmentSheetRef.current?.present();
+                    }}
                   >
-                    <IconSymbol name="mic.fill" size={22} color={colors.textSecondary} />
+                    <View style={[styles.attachIconBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+                      <IconSymbol name="plus" size={20} color={colors.text} />
+                    </View>
                   </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-        </BlurView>
+
+                  <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.input, { color: colors.text }]}
+                      placeholder="Message LifeOS..."
+                      placeholderTextColor={colors.textSecondary + '60'}
+                      value={input}
+                      onChangeText={setInput}
+                      multiline
+                      maxLength={2000}
+                    />
+                    {(input.length > 0 || attachedImage) ? (
+                      <TouchableOpacity
+                        onPress={() => handleSend()}
+                        style={styles.sendBtn}
+                        disabled={uploading || loading || isOffline}
+                      >
+                        <LinearGradient
+                          colors={[colors.primary, colors.secondary]}
+                          style={[styles.sendBtnGradient, (uploading || loading || isOffline) && { opacity: 0.5 }]}
+                        >
+                          {(uploading || loading)
+                            ? <ActivityIndicator size="small" color="#FFF" />
+                            : <IconSymbol name="arrow.up" size={18} color="#FFF" />
+                          }
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => {
+                          startVoice();
+                        }}
+                        style={styles.voiceBtn}
+                      >
+                        <IconSymbol name="mic.fill" size={22} color={colors.textSecondary + '40'} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={openPaywall}
+                  activeOpacity={0.8}
+                  style={[styles.lockedInputWrapper, { backgroundColor: colors.isDark ? 'rgba(255,165,0,0.05)' : 'rgba(255,165,0,0.03)', borderColor: 'rgba(255,165,0,0.2)' }]}
+                >
+                  <Ionicons name="lock-closed" size={16} color="#FFA500" />
+                  <Text style={styles.lockedInputText}>Daily limit reached. <Text style={{ color: '#FFA500', fontFamily: 'Outfit-Bold' }}>Upgrade to continue chatting</Text></Text>
+                </TouchableOpacity>
+              )}
+            </BlurView>
+          </>
+        )}
       </KeyboardAvoidingView>
 
       <ChatHistorySidebar
@@ -703,7 +735,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 8,
   },
-  limitText: {
+  limitTexts: {
     fontFamily: 'Outfit-Regular',
     fontSize: 13,
   },
@@ -991,5 +1023,36 @@ const styles = StyleSheet.create({
   loadMoreText: {
     fontFamily: 'Outfit-Medium',
     fontSize: 14,
+  },
+  topLimitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    zIndex: 10,
+  },
+  topLimitText: {
+    fontFamily: 'Outfit-Medium',
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  lockedInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  lockedInputText: {
+    fontFamily: 'Outfit-Medium',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
   },
 });

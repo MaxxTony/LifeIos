@@ -1,13 +1,15 @@
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
+import { useProGate } from '@/hooks/useProFeature';
 import { MoodEmoji } from '@/components/MoodEmoji';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -22,8 +24,14 @@ export default function MoodThemesScreen() {
   const { moodTheme, actions: { setMoodTheme } } = useStore();
   const [selected, setSelected] = useState(moodTheme);
   const colors = useThemeColors();
+  const { isPro, openPaywall } = useProGate();
 
   const handleApply = () => {
+    // Gate 9: Only Classic theme is free
+    if (selected !== 'classic' && !isPro) {
+      openPaywall();
+      return;
+    }
     setMoodTheme(selected);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
@@ -51,6 +59,8 @@ export default function MoodThemesScreen() {
 
           {THEMES.map((theme, index) => {
             const isSelected = selected === theme.id;
+            const isLocked = theme.id !== 'classic' && !isPro;
+            
             return (
               <TouchableOpacity
                 key={theme.id}
@@ -63,27 +73,46 @@ export default function MoodThemesScreen() {
                   isSelected && { backgroundColor: colors.primary + '08' }
                 ]}
                 onPress={() => {
+                  if (isLocked) {
+                    openPaywall();
+                    return;
+                  }
                   setSelected(theme.id);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }}
-                activeOpacity={0.7}
+                activeOpacity={isLocked ? 0.9 : 0.7}
               >
-                <View style={styles.themeInfo}>
-                  <Text style={[styles.themeName, { color: colors.text }]}>{theme.name}</Text>
-                  <Text style={[styles.themeDesc, { color: colors.textSecondary + '60' }]}>{theme.desc}</Text>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={[styles.themeName, { color: colors.text }]}>{theme.name}</Text>
+                    <Text style={[styles.themeDesc, { color: colors.textSecondary }]}>{theme.desc}</Text>
+                  </View>
+                  {isSelected ? (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  ) : isLocked ? (
+                    <View style={styles.proBadge}>
+                      <Text style={styles.proText}>PRO</Text>
+                    </View>
+                  ) : null}
                 </View>
 
-                 <View style={styles.previewRow}>
-                   {[1, 2, 3, 4, 5].map((lvl) => (
-                      <View key={lvl} style={styles.previewEmoji}>
-                        <MoodEmoji level={lvl} themeOverride={theme.id} size={48} />
-                      </View>
-                   ))}
-                 </View>
+                <View style={styles.emojiPreview}>
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <MoodEmoji key={val} level={val as any} themeOverride={theme.id} size={36} />
+                  ))}
+                </View>
 
-                {isSelected && (
-                  <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                {isLocked && (
+                  <View style={StyleSheet.absoluteFill}>
+                    <BlurView
+                      intensity={Platform.OS === 'ios' ? 20 : 60}
+                      tint={colors.isDark ? 'dark' : 'light'}
+                      style={[StyleSheet.absoluteFill, styles.lockOverlay]}
+                    >
+                      <View style={styles.lockCircle}>
+                        <Ionicons name="lock-closed" size={20} color="#FFF" />
+                      </View>
+                    </BlurView>
                   </View>
                 )}
               </TouchableOpacity>
@@ -130,6 +159,12 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   themeInfo: { marginBottom: 16 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  emojiPreview: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  proBadge: { backgroundColor: '#FFA500', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  proText: { color: '#FFF', fontSize: 10, fontFamily: 'Outfit-Bold' },
+  lockOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  lockCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(124, 92, 255, 0.8)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   themeName: { fontSize: 18, fontFamily: 'Outfit-Bold' },
   themeDesc: { fontSize: 12, marginTop: 2 },
   previewRow: { 

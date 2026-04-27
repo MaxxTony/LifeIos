@@ -1,9 +1,11 @@
+import { BlurView } from '@/components/BlurView';
 import { CircularProgress } from '@/components/CircularProgress';
 import { FocusPulseChart } from '@/components/FocusPulseChart';
 import { HabitCalendar } from '@/components/HabitCalendar';
 import { ShareWeeklyCard } from '@/components/ShareWeeklyCard';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { useProGate } from '@/hooks/useProFeature';
 import { useProfileStats } from '@/hooks/useProfileStats';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
@@ -12,9 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Award, Brain, Flame, Info, PlusCircle, ShieldAlert, Sparkles, Target, TrendingUp, Zap } from 'lucide-react-native';
+import { Award, Brain, Flame, Info, Lock, PlusCircle, ShieldAlert, Sparkles, Target, TrendingUp, Zap } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -107,6 +109,32 @@ const PremiumCard = ({ children, style }: { children: React.ReactNode, style?: a
   );
 };
 
+const ProFeatureLock = ({ title, subtitle }: { title: string, subtitle: string }) => {
+  const colors = useThemeColors();
+  const { openPaywall } = useProGate();
+
+  return (
+    <BlurView intensity={Platform.OS === 'ios' ? 20 : 100} tint={colors.isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+      <View style={styles.lockOverlay}>
+        <View style={[styles.lockCircle, { backgroundColor: colors.primary + '20' }]}>
+          <Lock size={20} color={colors.primary} />
+        </View>
+        <Text style={[styles.lockTitle, { color: colors.text, fontSize: 16 }]}>{title}</Text>
+        <Text style={[styles.lockSub, { color: colors.textSecondary, fontSize: 12, marginBottom: 16 }]}>{subtitle}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            openPaywall();
+          }}
+          style={[styles.unlockBtn, { backgroundColor: colors.primary, paddingVertical: 8, paddingHorizontal: 20 }]}
+        >
+          <Text style={[styles.unlockBtnText, { fontSize: 13 }]}>Unlock Now</Text>
+        </TouchableOpacity>
+      </View>
+    </BlurView>
+  );
+};
+
 export default function ProgressScreen() {
   // Selectors: each field re-renders this screen only when it changes.
   // focusSession is selected whole here since the progress screen genuinely
@@ -120,6 +148,8 @@ export default function ProgressScreen() {
   const streakFreezes = useStore(s => s.streakFreezes);
   const buyStreakFreeze = useStore(s => s.actions.buyStreakFreeze);
   const lifeScoreHistory = useStore(s => s.lifeScoreHistory);
+  const avatarUrl = useStore(s => s.avatarUrl);
+  const userName = useStore(s => s.userName);
   const updateLifeScoreHistory = useStore(s => s.actions.updateLifeScoreHistory);
   // BUG-NET-2 FIX: Wait for all three data sources before rendering real numbers.
   // Without this, users see "0%" "0h" "0 tasks" immediately on open — it looks broken.
@@ -129,6 +159,7 @@ export default function ProgressScreen() {
   const tasksLoaded = useStore(s => s.syncStatus.tasksLoaded);
   const colors = useThemeColors();
   const router = useRouter();
+  const { isPro, openPaywall } = useProGate();
 
   // Show skeleton while any core data source is still resolving
   const isDataReady = habitsLoaded && moodLoaded && focusLoaded && tasksLoaded;
@@ -263,35 +294,40 @@ export default function ProgressScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.headerGreeting, { color: colors.textSecondary }]}>YOUR JOURNEY</Text>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Evolution</Text>
+          {/* Redesigned Header */}
+          <View style={[styles.header, { marginTop: Spacing.md }]}>
+            <View style={styles.headerLeft}>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Progress Report</Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {globalStreak > 0 && (
-                <TouchableOpacity style={[styles.levelBadge, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '30' }]}>
-                  <Flame size={14} color={colors.danger} fill={colors.danger} />
-                  <Text style={[styles.levelBadgeText, { color: colors.danger }]}>{globalStreak}</Text>
+
+            <View style={styles.headerRight}>
+              <View style={styles.badgeContainer}>
+                {globalStreak > 0 && (
+                  <View style={[styles.statusBadge, { backgroundColor: colors.danger + '10', borderColor: colors.danger + '20' }]}>
+                    <Flame size={14} color={colors.danger} fill={colors.danger} />
+                    <Text style={[styles.statusBadgeText, { color: colors.danger }]}>{globalStreak}</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/profile')}
+                  style={[styles.statusBadge, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '20' }]}
+                >
+                  <Award size={14} color={colors.primary} />
+                  <Text style={[styles.statusBadgeText, { color: colors.primary }]}>LVL {userLevel}</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity style={[styles.levelBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
-                <Award size={14} color={colors.primary} />
-                <Text style={[styles.levelBadgeText, { color: colors.primary }]}>LVL {userLevel}</Text>
-              </TouchableOpacity>
+              </View>
+
+
             </View>
           </View>
 
           {/* ZONE 1: DAILY PULSE */}
           <View style={styles.sectionZone}>
-            <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Daily Pulse</Text>
-
             <PremiumCard style={styles.heroCard}>
               <View style={styles.heroMain}>
                 <View style={styles.scoreInfo}>
                   <View style={styles.labelRow}>
-                    <Text style={[styles.momentumLabel, { color: colors.textSecondary }]}>LIFE MOMENTUM</Text>
+                    <Text style={[styles.momentumLabel, { color: colors.primary, fontFamily: 'Outfit-Bold', textTransform: 'uppercase', letterSpacing: 1.2 }]}>LIFE MOMENTUM</Text>
                     <TouchableOpacity onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
                       <Info size={12} color={colors.textSecondary} />
                     </TouchableOpacity>
@@ -326,36 +362,59 @@ export default function ProgressScreen() {
                 </View>
               </View>
             </PremiumCard>
-            <ShareWeeklyCard />
             <View style={styles.metricsGrid}>
               <MetricItem icon={<Brain size={18} color={colors.success} />} value={`${(focusSecondsToday / 3600).toFixed(1)}h`} label="Focus" color={colors.success} />
               <MetricItem icon={<Target size={18} color={colors.secondary} />} value={`${completedTasksCount}`} label="Tasks" color={colors.secondary} />
               <MetricItem icon={<Zap size={18} color={colors.danger} />} value={`${completedHabitsCount}`} label="Habits" color={colors.danger} />
             </View>
+            <ShareWeeklyCard />
+
 
             <TouchableOpacity
-              onPress={() => router.push('/social-leaderboard')}
+              onPress={() => isPro ? router.push('/social-leaderboard') : openPaywall()}
               style={[
                 styles.leagueBanner,
-                { backgroundColor: colors.isDark ? '#2A1F45' : '#F7F4FE', borderColor: colors.primary + '30' }
+                {
+                  backgroundColor: colors.isDark ? (isPro ? '#2A1F45' : '#1F2937') : (isPro ? '#F7F4FE' : '#F1F5F9'),
+                  borderColor: isPro ? colors.primary + '30' : colors.border
+                }
               ]}
             >
               <View style={styles.leagueBannerContent}>
-                <View style={styles.leagueIconWrapper}>
-                  <Flame size={20} color={colors.primary} />
+                <View style={[styles.leagueIconWrapper, !isPro && { backgroundColor: colors.isDark ? '#374151' : '#E2E8F0' }]}>
+                  {isPro ? (
+                    <Flame size={20} color={colors.primary} />
+                  ) : (
+                    <Lock size={18} color={colors.textSecondary} />
+                  )}
                 </View>
                 <View style={styles.leagueTextWrapper}>
-                  <Text style={[styles.leagueTitle, { color: colors.text }]}>The Weekly League</Text>
-                  <Text style={[styles.leagueSub, { color: colors.textSecondary }]}>Rank up against your friends!</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.leagueTitle, { color: isPro ? colors.text : colors.textSecondary }]}>The Weekly League</Text>
+                    {!isPro && (
+                      <View style={styles.miniProBadge}>
+                        <Text style={styles.miniProBadgeText}>PRO</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.leagueSub, { color: colors.textSecondary, opacity: isPro ? 1 : 0.6 }]}>
+                    {isPro ? 'Rank up against your friends!' : 'Join the global competition'}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.leagueAction}>
-                <Text style={[styles.leagueActionText, { color: colors.primary }]}>View</Text>
+              <View style={[styles.leagueAction, !isPro && { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
+                <Text style={[styles.leagueActionText, { color: isPro ? colors.primary : colors.textSecondary }]}>
+                  {isPro ? 'View' : 'Unlock'}
+                </Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => {
+                if (!isPro) {
+                  openPaywall();
+                  return;
+                }
                 Alert.alert(
                   'Confirm Purchase',
                   'Buy Streak Freeze for 1,000 XP?',
@@ -367,29 +426,63 @@ export default function ProgressScreen() {
               }}
               style={[
                 styles.leagueBanner,
-                { backgroundColor: colors.isDark ? '#1F2937' : '#F1F5F9', borderColor: colors.border, marginTop: Spacing.sm }
+                {
+                  backgroundColor: colors.isDark ? '#1F2937' : '#F1F5F9',
+                  borderColor: colors.border,
+                  marginTop: Spacing.sm,
+                  opacity: isPro ? 1 : 0.8
+                }
               ]}
             >
               <View style={styles.leagueBannerContent}>
                 <View style={[styles.leagueIconWrapper, { backgroundColor: colors.isDark ? '#374151' : '#E2E8F0' }]}>
-                  <ShieldAlert size={20} color="#38BDF8" />
+                  {isPro ? (
+                    <ShieldAlert size={20} color="#38BDF8" />
+                  ) : (
+                    <Lock size={18} color={colors.textSecondary} />
+                  )}
                 </View>
                 <View style={styles.leagueTextWrapper}>
-                  <Text style={[styles.leagueTitle, { color: colors.text }]}>Buy Streak Freeze (1,000 XP)</Text>
-                  <Text style={[styles.leagueSub, { color: colors.textSecondary }]}>
-                    {streakFreezes >= 3 ? 'Max Freezes Reached (3/3)' : `You have ${streakFreezes}/3 Freezes`}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.leagueTitle, { color: isPro ? colors.text : colors.textSecondary }]}>
+                      Buy Streak Freeze
+                    </Text>
+                    {!isPro && (
+                      <View style={styles.miniProBadge}>
+                        <Text style={styles.miniProBadgeText}>PRO</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.leagueSub, { color: colors.textSecondary, opacity: isPro ? 1 : 0.6 }]}>
+                    {isPro
+                      ? (streakFreezes >= 3 ? 'Max Freezes Reached (3/3)' : `You have ${streakFreezes}/3 Freezes`)
+                      : 'Never lose your streak again'
+                    }
                   </Text>
                 </View>
               </View>
-              <View style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }}>
-                <PlusCircle size={20} color={streakFreezes >= 3 ? colors.textSecondary : "#38BDF8"} />
-              </View>
+              {isPro ? (
+                <View style={{
+                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}>
+                  <PlusCircle size={20} color={streakFreezes >= 3 ? colors.textSecondary : "#38BDF8"} />
+                </View>
+              ) : (
+                <View style={[styles.leagueAction, { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
+                  <Text style={[styles.leagueActionText, { color: colors.textSecondary }]}>Unlock</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
           {/* ZONE 2: GROWTH & EVOLUTION */}
           <View style={styles.sectionZone}>
-            <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Growth & Evolution</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginVertical: Spacing.lg }]}>Growth & Evolution</Text>
 
             <PremiumCard style={styles.xpCard}>
               <View style={styles.xpHeader}>
@@ -404,22 +497,49 @@ export default function ProgressScreen() {
                 <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.xpProgressBarFill, { width: `${xpProgress * 100}%` }]} />
               </View>
 
-              <View style={styles.masteryGuide}>
-                <View style={styles.guideItem}>
-                  <Target size={12} color={colors.secondary} />
-                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Task: +15 XP</Text>
-                </View>
-                <View style={styles.guideItem}>
-                  <Zap size={12} color={colors.danger} />
-                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Habit: +10 XP</Text>
-                </View>
-                <View style={styles.guideItem}>
-                  <Brain size={12} color={colors.success} />
-                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Focus Hour: +20 XP</Text>
-                </View>
-                <View style={styles.guideItem}>
-                  <Award size={12} color={colors.primary} />
-                  <Text style={[styles.guideText, { color: colors.textSecondary }]}>Quest: +30-100 XP</Text>
+              <View style={styles.masteryGuideContainer}>
+                <Text style={[styles.guideHeader, { color: colors.textSecondary }]}>MASTERY GUIDE</Text>
+
+                <View style={styles.guideTable}>
+                  <View style={styles.guideRow}>
+                    <View style={styles.guideInfo}>
+                      <Target size={14} color={colors.secondary} />
+                      <Text style={[styles.guideActivity, { color: colors.text }]}>Task Completion</Text>
+                    </View>
+                    <View style={[styles.xpPill, { backgroundColor: colors.secondary + '15' }]}>
+                      <Text style={[styles.xpPillText, { color: colors.secondary }]}>+15 XP</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.guideRow}>
+                    <View style={styles.guideInfo}>
+                      <Zap size={14} color={colors.danger} />
+                      <Text style={[styles.guideActivity, { color: colors.text }]}>Habit Check-in</Text>
+                    </View>
+                    <View style={[styles.xpPill, { backgroundColor: colors.danger + '15' }]}>
+                      <Text style={[styles.xpPillText, { color: colors.danger }]}>+10 XP</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.guideRow}>
+                    <View style={styles.guideInfo}>
+                      <Brain size={14} color={colors.success} />
+                      <Text style={[styles.guideActivity, { color: colors.text }]}>Focus Hour</Text>
+                    </View>
+                    <View style={[styles.xpPill, { backgroundColor: colors.success + '15' }]}>
+                      <Text style={[styles.xpPillText, { color: colors.success }]}>+20 XP</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.guideRow}>
+                    <View style={styles.guideInfo}>
+                      <Award size={14} color={colors.primary} />
+                      <Text style={[styles.guideActivity, { color: colors.text }]}>Daily Quest</Text>
+                    </View>
+                    <View style={[styles.xpPill, { backgroundColor: colors.primary + '15' }]}>
+                      <Text style={[styles.xpPillText, { color: colors.primary }]}>+30-100 XP</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </PremiumCard>
@@ -429,12 +549,12 @@ export default function ProgressScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Mindset Synergy</Text>
                 <View style={[styles.pill, { backgroundColor: colors.success + '10' }]}><Text style={[styles.pillText, { color: colors.success }]}>Avg: {avgMood}</Text></View>
               </View>
-              <PremiumCard style={styles.moodCard}>
+              <PremiumCard style={[styles.moodCard, !isPro && { overflow: 'hidden' }]}>
                 <View style={styles.moodChartContainer}>
                   {moodChartData.map((item, i) => {
                     const m = item.mood;
                     const hasData = m > 0;
-                    const h = hasData ? m * 14 : 4;
+                    const h = hasData ? m * 25 : 4;
                     const isToday = item.date === getTodayLocal();
 
                     return (
@@ -451,6 +571,7 @@ export default function ProgressScreen() {
                   })}
                 </View>
                 <Text style={[styles.moodInsight, { color: colors.textSecondary }]}>{parseFloat(avgMood) >= 4 ? "Your mood is powering your momentum! 🚀" : "Consistency is key. Keep pushing forward! ✨"}</Text>
+                {!isPro && <ProFeatureLock title="Mindset Synergy" subtitle="Unlock deep mood trends and AI insights" />}
               </PremiumCard>
             </View>
 
@@ -459,10 +580,10 @@ export default function ProgressScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Life Evolution</Text>
                 <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>Weekly Score</Text>
               </View>
-              <PremiumCard style={styles.lifeHistoryCard}>
-                <View style={[styles.chartInner, { height: 120 }]}>
+              <PremiumCard style={[styles.lifeHistoryCard, !isPro && { overflow: 'hidden' }]}>
+                <View style={[styles.chartInner, { height: 180 }]}>
                   {lifeScoreChartData.map((item, i) => {
-                    const h = item.score > 0 ? (item.score / 100) * 80 : 4;
+                    const h = item.score > 0 ? (item.score / 100) * 110 : 4;
                     const isToday = item.date === todayStr;
                     return (
                       <View key={i} style={styles.barContainer}>
@@ -482,6 +603,7 @@ export default function ProgressScreen() {
                     );
                   })}
                 </View>
+                {!isPro && <ProFeatureLock title="Life Evolution" subtitle="Track your weekly progress and momentum" />}
               </PremiumCard>
             </View>
 
@@ -490,15 +612,17 @@ export default function ProgressScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Focus Intensity</Text>
                 <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>Last 7 Days</Text>
               </View>
-              <PremiumCard style={styles.chartCard}><FocusPulseChart data={focusChartData} goal={focusGoalHours || 8} /></PremiumCard>
+              <PremiumCard style={[styles.chartCard, !isPro && { overflow: 'hidden' }]}>
+                <FocusPulseChart data={focusChartData} goal={focusGoalHours || 8} />
+                {!isPro && <ProFeatureLock title="Focus Intensity" subtitle="Analyze your deep work patterns" />}
+              </PremiumCard>
             </View>
           </View>
 
           {/* ZONE 3: MASTERY */}
           <View style={styles.sectionZone}>
-            <Text style={[styles.zoneTitle, { color: colors.textSecondary }]}>Mastery</Text>
-            <PremiumCard style={styles.heatmapCard}>
-              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: Spacing.md }]}>Habit Consistency</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: Spacing.md }]}>Habit Consistency</Text>
+            <PremiumCard style={[styles.heatmapCard, !isPro && { overflow: 'hidden' }]}>
               {habits.length > 0 ? (() => {
                 const safeIndex = selectedHabitIndex < habits.length ? selectedHabitIndex : Math.max(0, habits.length - 1);
                 const habit = habits[safeIndex];
@@ -521,6 +645,7 @@ export default function ProgressScreen() {
               })() : (
                 <View style={styles.emptyState}><Ionicons name="calendar-outline" size={32} color={colors.textSecondary} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>Start a habit to track your consistency.</Text></View>
               )}
+              {!isPro && <ProFeatureLock title="Mastery Consistency" subtitle="Unlock long-term habit tracking and insights" />}
             </PremiumCard>
           </View>
 
@@ -555,12 +680,78 @@ function MetricItem({ icon, value, label, color }: { icon: any, value: string, l
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: Spacing.md, paddingTop: Spacing.sm },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  headerGreeting: { ...Typography.labelSmall, fontSize: 10, letterSpacing: 2 },
-  headerTitle: { ...Typography.h1, fontSize: 32, marginTop: -4 },
-  levelBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: BorderRadius.md, borderWidth: 1 },
-  levelBadgeText: { fontFamily: 'Inter-Bold', fontSize: 12 },
-  sectionZone: { marginBottom: Spacing.xl },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: 4,
+  },
+  headerLeft: {
+    flex: 1,
+    gap: 10
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  badgeContainer: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  headerGreeting: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 10,
+    letterSpacing: 2,
+    opacity: 0.6,
+  },
+  headerTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 25,
+    letterSpacing: -0.5,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  avatarButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    padding: 2,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 18,
+  },
+  sectionZone: { marginBottom: 0 },
   zoneTitle: { ...Typography.labelSmall, fontSize: 10, letterSpacing: 1.5, marginBottom: Spacing.sm, opacity: 0.6 },
   premiumCard: { borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
   heroCard: { marginBottom: Spacing.sm, padding: Spacing.lg },
@@ -582,20 +773,44 @@ const styles = StyleSheet.create({
   xpSub: { fontSize: 10, fontWeight: '600' },
   xpProgressBarBg: { height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
   xpProgressBarFill: { height: '100%', borderRadius: 5 },
-  masteryGuide: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 12,
+  masteryGuideContainer: { marginTop: 16 },
+  guideHeader: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 10,
+    opacity: 0.6,
   },
-  guideItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  guideTable: {
     gap: 4,
   },
-  guideText: {
-    fontSize: 10,
-    fontWeight: '700',
+  guideRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
+  guideInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  guideActivity: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+  },
+  xpPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  xpPillText: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 11,
   },
   metricsGrid: { flexDirection: 'row', gap: Spacing.sm },
   metricItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md },
@@ -606,36 +821,113 @@ const styles = StyleSheet.create({
   leagueBannerContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   leagueIconWrapper: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(124, 92, 255, 0.1)', justifyContent: 'center', alignItems: 'center' },
   leagueTextWrapper: { justifyContent: 'center', flex: 1 },
-  leagueTitle: { fontSize: 13, fontWeight: '800' },
-  leagueSub: { fontSize: 12 },
-  leagueAction: { backgroundColor: 'rgba(124, 92, 255, 0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  leagueActionText: { fontWeight: 'bold', fontSize: 12 },
-  section: { marginBottom: Spacing.lg },
+  leagueTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
+  leagueSub: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  leagueAction: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+  },
+  leagueActionText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  section: { marginBottom: Spacing.xl },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: Spacing.md, paddingHorizontal: 4 },
-  sectionTitle: { ...Typography.h3, fontSize: 18 },
+  sectionTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   sectionSub: { fontSize: 12, fontWeight: '500' },
   pill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   pillText: { fontSize: 10, fontWeight: '700' },
-  moodCard: { padding: Spacing.md },
-  moodChartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 110, paddingVertical: 10 },
+  moodCard: { padding: Spacing.lg, minHeight: 220 },
+  moodChartContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 180, paddingVertical: 10 },
   moodBarContainer: { alignItems: 'center', flex: 1 },
-  moodBarBg: { width: 14, height: 70, borderRadius: 7, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
+  moodBarBg: { width: 14, height: 140, borderRadius: 7, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
   moodBarFill: { width: '100%', borderRadius: 7 },
   moodBarLabel: { fontSize: 10, fontWeight: '700' },
   moodInsight: { textAlign: 'center', fontSize: 12, fontStyle: 'italic', marginTop: Spacing.sm },
-  lifeHistoryCard: { padding: Spacing.md },
-  chartInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: 10 },
+  lifeHistoryCard: { padding: Spacing.lg, minHeight: 220 },
+  chartInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: 10, height: 180 },
   barContainer: { alignItems: 'center', flex: 1 },
-  barBg: { width: 12, height: 80, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
+  barBg: { width: 12, height: 140, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden', justifyContent: 'flex-end', marginBottom: 8 },
   barFill: { width: '100%', borderRadius: 6 },
   barLabel: { fontSize: 10 },
-  chartCard: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  heatmapCard: { padding: Spacing.md },
+  chartCard: { padding: Spacing.lg, paddingBottom: Spacing.xxl, minHeight: 240 },
+  heatmapCard: { padding: Spacing.lg, minHeight: 260 },
   habitSelector: { marginBottom: Spacing.md },
   habitSelectorContent: { gap: Spacing.sm, paddingBottom: 4 },
   habitChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: BorderRadius.full, borderWidth: 1 },
   habitChipText: { fontSize: 12, fontWeight: '600' },
   selectedHabitTitle: { ...Typography.body, fontSize: 14, fontWeight: '700', marginBottom: Spacing.md },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
-  emptyText: { fontSize: 13, fontWeight: '500' }
+  emptyText: { fontSize: 13, fontWeight: '500' },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  lockCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lockTitle: {
+    fontFamily: 'Outfit-Bold',
+    fontSize: 20,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  lockSub: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    opacity: 0.8,
+  },
+  unlockBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  unlockBtnText: {
+    fontFamily: 'Inter-Bold',
+    color: '#FFF',
+    fontSize: 16,
+  },
+  miniProBadge: {
+    backgroundColor: '#FBBF24',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  miniProBadgeText: {
+    fontFamily: 'Inter-Bold',
+    color: '#000',
+    fontSize: 9,
+    letterSpacing: 0.5,
+  }
 });

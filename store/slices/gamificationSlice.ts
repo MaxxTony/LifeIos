@@ -251,8 +251,8 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     let finalAmount = amount;
     let isLuckyBoost = false;
 
-    // 1. Lucky XP Boost (5% chance to double XP)
-    if (Math.random() < 0.05) {
+    // 1. Lucky XP Boost (5% chance to double XP) — Gate 23: Pro only
+    if (state.isPro && Math.random() < 0.05) {
       finalAmount = amount * 2;
       isLuckyBoost = true;
     }
