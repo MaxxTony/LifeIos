@@ -14,6 +14,7 @@ import { Bell, Calendar, Check, ChevronLeft, Coffee, Flame, Info, Lock, Pencil, 
 import React from 'react';
 import { Alert, Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 const { width } = Dimensions.get('window');
 
@@ -524,13 +525,11 @@ export default function HabitDetailScreen() {
               onPress={() => {
                 if (isLocked) {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  import('react-native-toast-message').then(Toast => {
-                    Toast.default.show({
-                      type: 'info',
-                      text1: 'Habit Locked',
-                      text2: lockMessage,
-                      position: 'bottom'
-                    });
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Habit Locked',
+                    text2: lockMessage,
+                    position: 'bottom'
                   });
                   return;
                 }
@@ -588,13 +587,11 @@ export default function HabitDetailScreen() {
               onPress={() => {
                 if (isLocked) {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  import('react-native-toast-message').then(Toast => {
-                    Toast.default.show({
-                      type: 'info',
-                      text1: 'Habit Locked',
-                      text2: lockMessage,
-                      position: 'bottom'
-                    });
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Habit Locked',
+                    text2: lockMessage,
+                    position: 'bottom'
                   });
                   return;
                 }

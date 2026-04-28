@@ -41,10 +41,15 @@ export default function FocusDetailScreen() {
     
     // Fetch AI Quote
     const fetchQuote = async () => {
-      setIsLoadingQuote(true);
-      const quote = await getFocusQuote();
-      if (quote) setAiQuote(quote);
-      setIsLoadingQuote(false);
+      try {
+        setIsLoadingQuote(true);
+        const quote = await getFocusQuote();
+        if (quote) setAiQuote(quote);
+      } catch (err) {
+        console.error('Failed to fetch AI quote:', err);
+      } finally {
+        setIsLoadingQuote(false);
+      }
     };
 
     // Gate 8: AI focus quotes — Pro only, free users get static quote
@@ -72,7 +77,9 @@ export default function FocusDetailScreen() {
   const progress = Math.min(1, focusSession.totalSecondsToday / goalSeconds);
 
   const handleToggle = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {}
     toggleFocusSession();
   };
 
@@ -166,11 +173,15 @@ export default function FocusDetailScreen() {
             onPress={() => {
               // Gate 6: Pomodoro is Pro-only
               if (!isPro) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                try {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                } catch (e) {}
                 openPaywall();
                 return;
               }
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              } catch (e) {}
               togglePomodoro();
             }}
           >

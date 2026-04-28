@@ -220,7 +220,10 @@ export default function LoginScreen() {
             }
           }
 
-          if (!profileCreated) return;
+          if (!profileCreated) {
+            setLoading(null);
+            return;
+          }
 
           // Switch to setup mode to let them confirm/change their name
           setSetupUser(user);
@@ -346,7 +349,10 @@ export default function LoginScreen() {
             }
           }
 
-          if (!profileCreated) return;
+          if (!profileCreated) {
+            setLoading(null);
+            return;
+          }
         }
 
         analyticsService.logMilestone(user.uid, isSignUp ? 'signup_success' : 'login_success', { method: 'email' });

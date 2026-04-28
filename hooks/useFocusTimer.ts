@@ -92,13 +92,30 @@ export function useFocusTimer() {
         if (!s.focusSession.isActive || !s.focusSession.lastStartTime) return;
 
         // Calculate how long the app was in background
-        const backgroundElapsed = (Date.now() - s.focusSession.lastStartTime) / 1000;
+        const elapsedSec = (Date.now() - s.focusSession.lastStartTime) / 1000;
 
-        // Guard: if elapsed is unreasonably large (overnight), cap it
-        if (backgroundElapsed > 0 && backgroundElapsed < MAX_SESSION_MS / 1000) {
-          // Apply the background time as a single accumulated update
-          // updateFocusTime will read lastStartTime and add the full delta
-          updateFocusTime();
+        // Guard: if elapsed is unreasonably large (overnight), cap it to MAX_SESSION
+        const delta = Math.min(Math.max(0, elapsedSec), MAX_SESSION_MS / 1000);
+
+        if (delta > 0) {
+          // Apply the background time as a single accumulated update directly to state.
+          // This bypasses the 30s clamp in focusSlice.ts:updateFocusTime().
+          useStore.setState((state) => ({
+            focusSession: {
+              ...state.focusSession,
+              totalSecondsToday: state.focusSession.totalSecondsToday + delta,
+              pomodoroTimeLeft: state.focusSession.isPomodoro
+                ? Math.max(0, state.focusSession.pomodoroTimeLeft - delta)
+                : state.focusSession.pomodoroTimeLeft,
+              lastStartTime: Date.now(),
+            },
+          }));
+
+          // Trigger side-effects that updateFocusTime normally handles (Quests, LifeScore)
+          const { actions } = useStore.getState();
+          const newTotal = useStore.getState().focusSession.totalSecondsToday;
+          actions.checkQuestProgress('focus', newTotal);
+          actions.updateLifeScoreHistory();
         }
       }
 

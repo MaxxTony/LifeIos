@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import React from 'react';
+import Toast from 'react-native-toast-message';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // ─── Daily Habit Row ──────────────────────────────────────────────────────────
@@ -97,13 +98,11 @@ function WeeklyHabitRow({ habit, colors, onToggle }: { habit: any; colors: any; 
               <TouchableOpacity
                 onPress={() => {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  import('react-native-toast-message').then(Toast => {
-                    Toast.default.show({
-                      type: 'info',
-                      text1: 'Not Scheduled',
-                      text2: `Only scheduled for ${scheduledDays.join(', ')}`,
-                      position: 'bottom'
-                    });
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Not Scheduled',
+                    text2: `Only scheduled for ${scheduledDays.join(', ')}`,
+                    position: 'bottom'
                   });
                 }}
                 style={row.dash}
@@ -207,13 +206,11 @@ function MonthlyHabitBlock({ habit, colors, onToggle }: { habit: any; colors: an
         onPress={() => {
           if (isLocked) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            import('react-native-toast-message').then(Toast => {
-              Toast.default.show({
-                type: 'info',
-                text1: 'Habit Locked',
-                text2: lockMessage,
-                position: 'bottom'
-              });
+            Toast.show({
+              type: 'info',
+              text1: 'Habit Locked',
+              text2: lockMessage,
+              position: 'bottom'
             });
             return;
           }
@@ -379,7 +376,7 @@ export const HabitGrid = React.memo(function HabitGrid() {
   }, [toggleHabit]);
 
   const { isPro, openPaywall } = useProGate();
-  const isLimitReached = !isPro && habits.length >= 3;
+  const isLimitReached = !isPro && habits.length >= 5;
 
   return (
     <View style={[container.wrap, { borderColor: colors.border }]}>

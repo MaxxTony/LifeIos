@@ -19,8 +19,15 @@ import * as admin from 'firebase-admin';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { isWithinRateLimit } from './rateLimiter';
 
 admin.initializeApp();
+
+export { scheduledStatsAggregator } from './statsAggregator';
+export { onMessageCreate } from './onMessageCreate';
+export { weeklyRecapGenerator } from './weeklyRecapGenerator';
+export { analyzeUserTiming } from './analyzeUserTiming';
 
 // defineSecret takes the secret's NAME (an identifier), not its value.
 // The actual key lives in Google Secret Manager and is set out-of-band via
@@ -92,9 +99,10 @@ export const callAI = onCall(
       throw new HttpsError('invalid-argument', 'messages[] is required.');
     }
 
-    // F-BUG-05 FIX: Enforce strict input limits to prevent token cost attacks/bloat
-    if (messages.length > 50) {
-      throw new HttpsError('invalid-argument', 'Max 50 messages allowed in history.');
+    // TOKEN-OPT: Reduced from 50 to 20 — 50-msg summarization (onMessageCreate)
+    // ensures old context is preserved as memories, so 20 recent msgs is sufficient.
+    if (messages.length > 20) {
+      throw new HttpsError('invalid-argument', 'Max 20 messages allowed in history.');
     }
 
     if (systemInstruction && systemInstruction.length > 4000) {
@@ -448,5 +456,47 @@ export const scheduledConversationCleanup = onSchedule('0 0 * * *', async () => 
       await db.doc(convPath).delete();
       console.log(`[LifeOS Cleanup] Deleted ghost conversation: ${convPath}`);
     }
+  }
+});
+
+// --- Server-Side Rate Limiting Triggers ---
+
+/**
+ * Limit feedback to 5 per hour per user.
+ */
+export const onFeedbackCreated = onDocumentCreated('feedback/{id}', async (event) => {
+  const data = event.data?.data();
+  if (!data || !data.userId) return;
+
+  const allowed = await isWithinRateLimit(data.userId, 'feedback', 5, 60 * 60 * 1000);
+  if (!allowed) {
+    console.warn(`[RateLimit] Feedback limit exceeded for ${data.userId}. Deleting doc ${event.params.id}`);
+    await event.data?.ref.delete();
+  }
+});
+
+/**
+ * Limit friend requests to 10 per hour per user.
+ */
+export const onFriendRequestCreated = onDocumentCreated('friendRequests/{id}', async (event) => {
+  const data = event.data?.data();
+  if (!data || !data.fromUserId) return;
+
+  const allowed = await isWithinRateLimit(data.fromUserId, 'friendRequests', 10, 60 * 60 * 1000);
+  if (!allowed) {
+    console.warn(`[RateLimit] FriendRequest limit exceeded for ${data.fromUserId}. Deleting doc ${event.params.id}`);
+    await event.data?.ref.delete();
+  }
+});
+
+/**
+ * Limit memories to 10 per hour per user.
+ */
+export const onMemoryCreated = onDocumentCreated('users/{uid}/memories/{id}', async (event) => {
+  const uid = event.params.uid;
+  const allowed = await isWithinRateLimit(uid, 'memories', 10, 60 * 60 * 1000);
+  if (!allowed) {
+    console.warn(`[RateLimit] Memory limit exceeded for ${uid}. Deleting doc ${event.params.id}`);
+    await event.data?.ref.delete();
   }
 });

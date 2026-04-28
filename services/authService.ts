@@ -55,6 +55,14 @@ export const authService = {
     return token;
   },
 
+  // Email Verification
+  sendEmailVerification: async () => {
+    const user = auth.currentUser;
+    if (user) {
+      await sendEmailVerification(user);
+    }
+  },
+
   // Email/Password Signup
   signUp: async (email: string, pass: string) => {
     try {
@@ -255,6 +263,8 @@ const mapAuthErrorToMessage = (code: string): string => {
       return 'This account has been disabled. Please contact support.';
     case 'auth/requires-recent-login':
       return 'For security, please log out and log back in before deleting your account.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with the same email address but different sign-in credentials. Please log in using your original provider.';
     default:
       return 'Authentication failed. Please try again';
   }

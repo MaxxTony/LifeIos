@@ -189,18 +189,28 @@ export const aiActionHandler = {
     }
   },
 
-  handleUpdateSettings: (params: { theme?: 'light' | 'dark' | 'system'; accentColor?: string }) => {
+  handleUpdateSettings: (params: { theme?: string; accentColor?: string }) => {
     const store = useStore.getState();
     try {
       if (params.theme) {
-        store.actions.setThemePreference(params.theme);
+        const normalizedTheme = params.theme.toLowerCase();
+        if (['light', 'dark', 'system'].includes(normalizedTheme)) {
+          store.actions.setThemePreference(normalizedTheme as any);
+        }
       }
       if (params.accentColor) {
-        store.actions.setAccentColor(params.accentColor);
+        // Normalize color name: "royalblue" -> "Royal"
+        let color = params.accentColor;
+        // Basic TitleCase normalization for common colors
+        if (color && color.length > 0) {
+          color = color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
+        }
+        store.actions.setAccentColor(color);
       }
       analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateSettings' });
       return { success: true, message: 'App settings updated successfully.' };
     } catch (error: any) {
+      console.error('AI Update Settings Error:', error);
       return { success: false, message: `Failed to update settings: ${error.message}` };
     }
   },

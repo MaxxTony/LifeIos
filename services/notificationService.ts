@@ -241,6 +241,12 @@ export const notificationService = {
       if (!hasPermission) return;
       await ensureChannel();
       await notificationService.cancelStreakWarningNotification();
+      
+      // PHASE 6: Use personalized nudge time (defaults to 10 PM)
+      const { preferredNudgeTime } = useStore.getState();
+      const nudgeHour = preferredNudgeTime?.hour ?? 22;
+      const nudgeMinute = preferredNudgeTime?.minute ?? 0;
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '🔥 Save your streak!',
@@ -248,7 +254,7 @@ export const notificationService = {
           sound: true,
           data: { type: 'STREAK_WARNING' }
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 22, minute: 0 },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: nudgeHour, minute: nudgeMinute },
         identifier: 'streak-warning',
       });
     } catch (e) {}
@@ -442,9 +448,14 @@ export const notificationService = {
       else if (habits.length === 0 && tasks.filter(t => t.date === today).length === 0) body = 'Open LifeOS and plan your day. 5 minutes = better results all day.';
       else body = "You're all caught up! Add a task or log your mood to earn XP. 💡";
 
+      // PHASE 6: Personalize morning brief (defaults to 8 AM)
+      const { preferredNudgeTime } = useStore.getState();
+      // Morning brief should be earlier than the peak hour (e.g. 1 hour before)
+      const morningHour = Math.max(5, (preferredNudgeTime?.hour ?? 9) - 1);
+
       const trigger: any = Platform.OS === 'ios'
-        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: 8, minute: 0, repeats: true }
-        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 8, minute: 0 };
+        ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: morningHour, minute: 0, repeats: true }
+        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: morningHour, minute: 0 };
 
       await Notifications.scheduleNotificationAsync({
         content: { title, body, data: { type: 'MORNING_BRIEF' }, sound: true },
@@ -577,6 +588,45 @@ export const notificationService = {
         content: { title, body, data: { type: 'PROACTIVE_AI' }, sound: true },
         trigger: null,
       });
+    } catch (e) {}
+  },
+
+  scheduleFocusReminder: async (seconds: number, mode: 'work' | 'break') => {
+    if (Platform.OS === 'web') return;
+    const { notificationSettings } = useStore.getState();
+    if (!notificationSettings.masterEnabled || !notificationSettings.pomodoroAlert) return;
+
+    try {
+      const hasPermission = await notificationService.ensurePermissions();
+      if (!hasPermission) return;
+      await ensureChannel();
+      await notificationService.cancelFocusNotifications();
+
+      if (seconds <= 0) return;
+
+      const title = mode === 'work' ? '☕ Break Time!' : '🔥 Focus Time!';
+      const body = mode === 'work' ? 'Your focus session is done. Take a well-deserved break!' : 'Break over! Ready to get back into the zone?';
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: { type: 'POMODORO_END', mode },
+          sound: true,
+          interruptionLevel: 'critical', // iOS specific
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: Math.max(1, Math.floor(seconds)) },
+        identifier: 'focus-reminder',
+      });
+    } catch (e) {
+      console.warn('Failed to schedule focus reminder:', e);
+    }
+  },
+
+  cancelFocusNotifications: async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync('focus-reminder');
     } catch (e) {}
   },
 

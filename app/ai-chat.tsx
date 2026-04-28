@@ -1,7 +1,7 @@
 import { AIAttachmentSheet } from '@/components/AIAttachmentSheet';
 import { BlurView } from '@/components/BlurView';
 import { ChatHistorySidebar } from '@/components/ChatHistorySidebar';
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useProGate } from '@/hooks/useProFeature';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { getAIResponse } from '@/services/ai';
@@ -21,8 +21,10 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  ListRenderItem,
   Platform,
   Pressable,
   ScrollView,
@@ -75,7 +77,7 @@ export default function AIChatScreen() {
   const [voiceText, setVoiceText] = useState('');
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
   const attachmentSheetRef = useRef<BottomSheetModal>(null);
   const isMounted = useRef(true);
   const insets = useSafeAreaInsets();
@@ -83,8 +85,6 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     isMounted.current = true;
-
-    // Voice listeners
     Voice.onSpeechStart = onSpeechStart;
     Voice.onSpeechEnd = onSpeechEnd;
     Voice.onSpeechError = onSpeechError;
@@ -93,7 +93,11 @@ export default function AIChatScreen() {
 
     return () => {
       isMounted.current = false;
-      Voice.destroy().then(Voice.removeAllListeners);
+      try {
+        Voice.destroy().then(Voice.removeAllListeners).catch(e => console.warn('Voice destroy error:', e));
+      } catch (e) {
+        console.warn('Voice cleanup error:', e);
+      }
     };
   }, []);
 
@@ -111,116 +115,111 @@ export default function AIChatScreen() {
     pulseAnim.setValue(1);
   }, [pulseAnim]);
 
-  const onSpeechStart = () => {
-    setIsListening(true);
-    startPulse();
-  };
-
-  const onSpeechEnd = () => {
-    setIsListening(false);
-    stopPulse();
-  };
-
+  const onSpeechStart = () => { setIsListening(true); startPulse(); };
+  const onSpeechEnd = () => { setIsListening(false); stopPulse(); };
   const onSpeechError = (e: SpeechErrorEvent) => {
     const code = e.error?.code;
-    // 216 = iOS speech timeout (natural end), 7 = Android no match — both are silent ends, not real errors
     if (code === '216' || code === '7' || code === 'recognition_fail') {
-      setIsListening(false);
-      stopPulse();
-      return;
+      setIsListening(false); stopPulse(); return;
     }
-    console.error('Speech Error:', e);
-    setIsListening(false);
-    stopPulse();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setIsListening(false); stopPulse();
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (err) { }
   };
-
-  const onSpeechResults = (e: SpeechResultsEvent) => {
-    if (e.value && e.value[0]) {
-      setVoiceText(e.value[0]);
-    }
-  };
-
-  const onSpeechPartialResults = (e: SpeechResultsEvent) => {
-    if (e.value && e.value[0]) {
-      setVoiceText(e.value[0]);
-    }
-  };
+  const onSpeechResults = (e: SpeechResultsEvent) => { if (e.value && e.value[0]) setVoiceText(e.value[0]); };
+  const onSpeechPartialResults = (e: SpeechResultsEvent) => { if (e.value && e.value[0]) setVoiceText(e.value[0]); };
 
   const startVoice = async () => {
     try {
-      setVoiceText('');
-      setIsRecordingMode(true);
-      Keyboard.dismiss();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setVoiceText(''); setIsRecordingMode(true); Keyboard.dismiss();
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) { }
       await Voice.start('en-US');
-    } catch (e) {
-      console.error(e);
-      setIsRecordingMode(false);
-    }
+    } catch (e) { console.error(e); setIsRecordingMode(false); }
   };
 
   const cancelVoice = async () => {
     try { await Voice.cancel(); } catch { }
-    stopPulse();
-    setIsListening(false);
-    setIsRecordingMode(false);
-    setVoiceText('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    stopPulse(); setIsListening(false); setIsRecordingMode(false); setVoiceText('');
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) { }
   };
 
   const sendVoice = async () => {
     const text = voiceText.trim();
     try { await Voice.cancel(); } catch { }
-    stopPulse();
-    setIsListening(false);
-    setIsRecordingMode(false);
-    setVoiceText('');
+    stopPulse(); setIsListening(false); setIsRecordingMode(false); setVoiceText('');
     if (text) handleSend(text);
   };
 
   useEffect(() => {
-    if (!currentConversationId && messages.length === 0) {
-      const welcomeContent = proactivePrompt
-        ? `${proactivePrompt.message} ✨`
-        : `Hi ${userName || 'there'}! 👋 I'm your LifeOS assistant. How can I help you manage your day today?`;
+    let active = true;
 
-      setMessages([{
-        id: 'welcome',
-        role: 'assistant',
-        content: welcomeContent,
-        createdAt: Date.now()
-      }]);
+    const initChat = async () => {
+      if (currentConversationId || messages.length > 0 || !userId) return;
 
       if (proactivePrompt) {
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          content: `${proactivePrompt.message} ✨`,
+          createdAt: Date.now()
+        }]);
         dismissProactive();
+        return;
       }
-    }
-  }, [userName, currentConversationId, messages.length, proactivePrompt]);
+
+      setInitialLoading(true);
+      try {
+        const convs = await chatService.getConversations(userId);
+        if (!active) return;
+
+        if (convs && convs.length > 0) {
+          loadConversation(convs[0].id);
+        } else {
+          setMessages([{
+            id: 'welcome',
+            role: 'assistant',
+            content: `Hi ${userName || 'there'}! 👋 I'm your LifeOS assistant. How can I help you manage your day today?`,
+            createdAt: Date.now()
+          }]);
+          setInitialLoading(false);
+        }
+      } catch (err) {
+        if (!active) return;
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          content: `Hi ${userName || 'there'}! 👋 I'm your LifeOS assistant. How can I help you manage your day today?`,
+          createdAt: Date.now()
+        }]);
+        setInitialLoading(false);
+      }
+    };
+
+    initChat();
+
+    return () => { active = false; };
+  }, [userName, currentConversationId, messages.length, proactivePrompt, userId]);
 
   const loadConversation = async (id: string) => {
     if (!userId || id === currentConversationId) return;
     setInitialLoading(true);
     setCurrentConversationId(id);
     await chatService.getMessages(userId, id, undefined, (result) => {
+      // getMessages returns newest first (desc). 
+      // Inverted FlatList: messages[0] will be at the bottom (most recent). Perfect.
       setMessages(result.messages);
       setLastVisibleDoc(result.lastVisible);
       setHasMore(result.messages.length === 50);
       setInitialLoading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 100);
     });
   };
 
   const loadMoreMessages = async () => {
-    if (!userId || !currentConversationId || !lastVisibleDoc || isLoadingMore) return;
-
+    if (!userId || !currentConversationId || !lastVisibleDoc || isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     const result = await chatService.getMessages(userId, currentConversationId, lastVisibleDoc);
-
     if (result.messages.length > 0) {
-      // M-08 FIX: Cap total in-memory messages at 200 to prevent JS thread lag on long sessions.
       const MAX_MESSAGES = 200;
-      setMessages(prev => [...result.messages, ...prev].slice(-MAX_MESSAGES));
+      setMessages(prev => [...prev, ...result.messages].slice(0, MAX_MESSAGES));
       setLastVisibleDoc(result.lastVisible);
       setHasMore(result.messages.length === 50);
     } else {
@@ -241,34 +240,25 @@ export default function AIChatScreen() {
 
   const handleSend = async (textOverride?: string) => {
     if (isOffline) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) { }
       return;
     }
-
     const text = (textOverride || input).slice(0, 10000);
     if (!userId || (!text.trim() && !attachedImage) || loading) return;
-
-    // Gate 11: Free users limited to 5 AI messages/day
-    if (!incrementAIMessageCount()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      openPaywall();
-      return;
+    if (!canUseAI) {
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch (e) { }
+      openPaywall(); return;
     }
-
-    // Clear input immediately for better UX
     const currentAttachedImage = attachedImage;
     if (!textOverride) setInput('');
     setAttachedImage(null);
-
     Keyboard.dismiss();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) { }
     let convId = currentConversationId;
-
     if (!convId) {
       convId = await chatService.createConversation(userId, text || 'Sent an image');
       setCurrentConversationId(convId);
     }
-
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -276,70 +266,47 @@ export default function AIChatScreen() {
       imageUrl: currentAttachedImage?.uri,
       createdAt: Date.now()
     };
-
     analyticsService.logEvent(userId, 'ai_message_sent', {
       hasImage: !!currentAttachedImage,
       textLength: text.length
     });
-
-    const newMessages = [...messages.filter(m => m.id !== 'welcome'), userMsg];
+    const newMessages = [userMsg, ...messages];
     setMessages(newMessages);
     setLoading(true);
-
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
-
     try {
       let finalImageUrl = undefined;
       if (currentAttachedImage) {
         if (isMounted.current) setUploading(true);
-        finalImageUrl = await chatService.uploadImage(
-          userId,
-          currentAttachedImage.uri
-        );
+        finalImageUrl = await chatService.uploadImage(userId, currentAttachedImage.uri);
         if (isMounted.current) setUploading(false);
       }
-
-      // BUG-006 FIX: Save user message to Firestore BEFORE the AI call.
-      // This ensures message persistence even if the AI response fails or is slow.
       await chatService.addMessage(userId, convId, userMsg.role, userMsg.content, finalImageUrl);
-
-      // M-4 FIX: Cap history at last 20 messages to control token cost/latency.
-      // Always keep the most recent user message (last item) in the window.
       const MAX_HISTORY = 20;
-      const windowedMessages = newMessages.length > MAX_HISTORY
-        ? newMessages.slice(-MAX_HISTORY)
-        : newMessages;
-
+      const historyForAI = newMessages.filter(m => m.id !== 'welcome');
+      const windowedMessages = historyForAI.length > MAX_HISTORY
+        ? [...historyForAI].reverse().slice(-MAX_HISTORY)
+        : [...historyForAI].reverse();
       const aiInputMessages = windowedMessages.map(m => {
         if (m.id === userMsg.id && currentAttachedImage) {
           return {
             role: m.role as 'user' | 'assistant' | 'system',
             content: m.content,
-            image: {
-              base64: currentAttachedImage.base64,
-              mimeType: currentAttachedImage.mimeType
-            }
+            image: { base64: currentAttachedImage.base64, mimeType: currentAttachedImage.mimeType }
           };
         }
-        return {
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content
-        };
+        return { role: m.role as 'user' | 'assistant' | 'system', content: m.content };
       });
       const response = await getAIResponse(aiInputMessages);
-
       if (response.text === 'UNAUTHENTICATED') {
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: 'I need you to sign in again to continue our conversation. Your session may have expired.',
+          content: 'I need you to sign in again to continue our conversation.',
           createdAt: Date.now()
         };
-        setMessages(prev => [...prev.filter(m => m.id !== 'welcome'), aiMsg]);
-        setLoading(false);
-        return;
+        setMessages(prev => [aiMsg, ...prev]);
+        setLoading(false); return;
       }
-
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -347,40 +314,79 @@ export default function AIChatScreen() {
         card: response.card,
         createdAt: Date.now()
       };
-
-      const finalMessages = [...newMessages, aiMsg];
-      setMessages(finalMessages);
-
-      // 📳 Haptic Feedback Patterns
+      setMessages(prev => [aiMsg, ...prev]);
       if (response.text.includes('🔹')) {
-        // Happy Pulse for success
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else if (response.text.includes('❌') || response.text.includes('UNAUTHENTICATED')) {
-        // Alert Buzz for errors
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) { }
+      } else if (response.text.includes('❌')) {
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) { }
       }
-
-      // Save assistant message
       await chatService.addMessage(userId, convId, aiMsg.role, aiMsg.content, undefined, aiMsg.card);
-
+      incrementAIMessageCount();
     } catch (error) {
       console.error('AI Chat Error:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) { }
       const errMsg: ChatMessage = {
         id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: 'Sorry, I could not connect right now. Please check your internet connection and try again.',
+        content: 'Sorry, I could not connect right now.',
         createdAt: Date.now()
       };
-      setMessages(prev => [...prev, errMsg]);
+      setMessages(prev => [errMsg, ...prev]);
     } finally {
-      if (isMounted.current) {
-        setLoading(false);
-        setUploading(false);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
-      }
+      if (isMounted.current) { setLoading(false); setUploading(false); }
     }
   };
+
+  const renderMessage: ListRenderItem<ChatMessage> = ({ item: m }) => (
+    <View style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
+      {m.role === 'assistant' && (
+        <View style={styles.aiAvatar}>
+          <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
+            <IconSymbol name="sparkles" size={14} color="#FFF" />
+          </LinearGradient>
+        </View>
+      )}
+      <View style={[
+        styles.messageBubble,
+        m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
+      ]}>
+        {m.imageUrl && (
+          <Image source={{ uri: m.imageUrl }} style={styles.messageImage} contentFit="cover" transition={200} />
+        )}
+        {m.content ? (
+          <Text style={[styles.messageText, m.role === 'user' ? styles.userText : [styles.aiText, { color: colors.text }]]}>
+            {m.content}
+          </Text>
+        ) : m.imageUrl && (
+          <Text style={[styles.messageText, styles.userText, { fontStyle: 'italic', fontSize: 13, opacity: 0.7 }]}>
+            Image sent
+          </Text>
+        )}
+        {m.card && (
+          <View style={styles.cardContainer}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{m.card.title}</Text>
+            {m.card.type === 'poll' && m.card.options?.map((opt, idx) => (
+              <TouchableOpacity key={idx} style={[styles.cardItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+            {m.card.type === 'checklist' && m.card.options?.map((opt, idx) => (
+              <View key={idx} style={styles.checklistRow}>
+                <IconSymbol name="square" size={16} color={colors.textSecondary} />
+                <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
+              </View>
+            ))}
+            {m.card.type === 'progress' && (
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: accentColor || '#7C5CFF' }]} />
+                <Text style={styles.progressText}>{m.card.value || 0}%</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -389,18 +395,12 @@ export default function AIChatScreen() {
           headerShown: true,
           headerTitle: 'LifeOS AI',
           headerTitleAlign: 'center',
-          headerTitleStyle: {
-            fontFamily: 'Outfit-Bold',
-            fontSize: 20,
-            color: colors.text
-          },
+          headerTitleStyle: { fontFamily: 'Outfit-Bold', fontSize: 20, color: colors.text },
           headerTransparent: Platform.OS === 'ios',
-          headerStyle: Platform.OS === 'android' ? {
-            backgroundColor: colors.background,
-          } : undefined,
+          headerStyle: Platform.OS === 'android' ? { backgroundColor: colors.background } : undefined,
           headerBlurEffect: colors.isDark ? 'dark' : 'light',
-          headerBackButtonDisplayMode: 'generic',
           headerTintColor: colors.text,
+          headerBackTitle: 'Back', // Hides the '(tabs)' text next to the back button
           headerRight: () => (
             <Pressable
               onPress={() => setIsHistoryVisible(true)}
@@ -415,7 +415,7 @@ export default function AIChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 80}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
         {initialLoading ? (
           <View style={styles.centerLoading}>
@@ -424,117 +424,55 @@ export default function AIChatScreen() {
         ) : (
           <>
             {!isPro && (
-              <View style={[
-                styles.topLimitBadge,
-                {
-                  marginTop: Platform.OS === 'ios' ? headerHeight : 0,
-                  backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)',
-                  borderColor: colors.primary + '20'
-                }
-              ]}>
+              <View style={[styles.topLimitBadge, { marginTop: Platform.OS === 'ios' ? headerHeight : 0, backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '20' }]}>
                 <Ionicons name="sparkles" size={12} color={colors.primary} />
                 <Text style={[styles.topLimitText, { color: colors.textSecondary }]}>
                   {remainingAIMessages} {remainingAIMessages === 1 ? 'message' : 'messages'} remaining today
                 </Text>
               </View>
             )}
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={[
-                styles.scrollContent,
-                { paddingTop: Platform.OS === 'ios' ? headerHeight + 8 : 8 }
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              {hasMore && (
-                <TouchableOpacity
-                  onPress={loadMoreMessages}
-                  disabled={isLoadingMore}
-                  style={[styles.loadMoreBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
-                >
-                  {isLoadingMore ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <>
-                      <IconSymbol name="arrow.up.circle" size={16} color={colors.primary} />
-                      <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load older messages</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
 
-              {!hasMore && messages.length >= 50 && (
-                <View style={[styles.limitIndicator, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.1)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
-                  <IconSymbol name="info.circle" size={14} color={colors.primary} />
-                  <Text style={[styles.limitTexts, { color: colors.textSecondary }]}>
-                    All messages loaded.
-                  </Text>
-                </View>
-              )}
-              {messages.slice(messages.length > 100 ? 1 : 0).map((m) => (
-                <View key={m.id} style={[styles.messageWrapper, m.role === 'user' ? styles.userWrapper : styles.aiWrapper]}>
-                  {m.role === 'assistant' && (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMessage}
+              inverted
+              contentContainerStyle={[styles.scrollContent, { paddingTop: Platform.OS === 'ios' ? 0 : 8 }]}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.5}
+              ListHeaderComponent={() => (
+                loading ? (
+                  <View style={[styles.messageWrapper, styles.aiWrapper]}>
                     <View style={styles.aiAvatar}>
                       <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
                         <IconSymbol name="sparkles" size={14} color="#FFF" />
                       </LinearGradient>
                     </View>
-                  )}
-                  <View style={[
-                    styles.messageBubble,
-                    m.role === 'user' ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]
-                  ]}>
-                    {m.imageUrl && (
-                      <Image
-                        source={{ uri: m.imageUrl }}
-                        style={styles.messageImage}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    )}
-                    {m.content ? (
-                      <Text style={[styles.messageText, m.role === 'user' ? styles.userText : [styles.aiText, { color: colors.text }]]}>
-                        {m.content}
-                      </Text>
-                    ) : m.imageUrl && (
-                      <Text style={[styles.messageText, styles.userText, { fontStyle: 'italic', fontSize: 13, opacity: 0.7 }]}>
-                        Image sent
-                      </Text>
-                    )}
-                    {m.card && (
-                      <View style={styles.cardContainer}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>{m.card.title}</Text>
-                        {m.card.type === 'poll' && m.card.options?.map((opt, idx) => (
-                          <TouchableOpacity key={idx} style={[styles.cardItem, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                            <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
-                          </TouchableOpacity>
-                        ))}
-                        {m.card.type === 'checklist' && m.card.options?.map((opt, idx) => (
-                          <View key={idx} style={styles.checklistRow}>
-                            <IconSymbol name="square" size={16} color={colors.textSecondary} />
-                            <Text style={[styles.cardItemText, { color: colors.text }]}>{opt}</Text>
-                          </View>
-                        ))}
-                        {m.card.type === 'progress' && (
-                          <View style={styles.progressTrack}>
-                            <View style={[styles.progressFill, { width: `${m.card.value || 0}%`, backgroundColor: accentColor || '#7C5CFF' }]} />
-                            <Text style={styles.progressText}>{m.card.value || 0}%</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
+                    <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+                      <ActivityIndicator size="small" color={colors.textSecondary} />
+                    </View>
                   </View>
-                </View>
-              ))}
-              {loading && (
-                <View style={styles.aiWrapper}>
-                  <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
-                    <ActivityIndicator size="small" color={colors.textSecondary} />
-                  </View>
-                </View>
+                ) : null
               )}
-            </ScrollView>
+              ListFooterComponent={() => (
+                messages.length === 0 ? (
+                  <View style={styles.emptyStateContainer}>
+                    <View style={[styles.aiAvatar, { marginBottom: 16, width: 64, height: 64, borderRadius: 32 }]}>
+                      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.avatarGradient}>
+                        <IconSymbol name="sparkles" size={32} color="#FFF" />
+                      </LinearGradient>
+                    </View>
+                    <Text style={[styles.welcomeTitle, { color: colors.text }]}>Hello, {userName}!</Text>
+                    <Text style={[styles.welcomeSub, { color: colors.textSecondary }]}>
+                      I'm your LifeOS assistant. How can I help you level up today?
+                    </Text>
+                  </View>
+                ) : isLoadingMore ? (
+                  <ActivityIndicator style={{ marginVertical: 20 }} color={colors.primary} />
+                ) : null
+              )}
+            />
 
             <BlurView
               intensity={80}
@@ -545,17 +483,11 @@ export default function AIChatScreen() {
                 <View style={styles.previewContainer}>
                   <View style={[styles.previewWrapper, { borderColor: colors.border }]}>
                     <Image source={{ uri: attachedImage.uri }} style={styles.previewImage} />
-                    <TouchableOpacity
-                      style={styles.removePreview}
-                      onPress={() => setAttachedImage(null)}
-                      accessibilityLabel="Remove attached image"
-                    >
+                    <TouchableOpacity style={styles.removePreview} onPress={() => setAttachedImage(null)}>
                       <IconSymbol name="trash.fill" size={14} color="#FFF" />
                     </TouchableOpacity>
                     {uploading && (
-                      <View style={styles.previewOverlay}>
-                        <ActivityIndicator size="small" color="#FFF" />
-                      </View>
+                      <View style={styles.previewOverlay}><ActivityIndicator size="small" color="#FFF" /></View>
                     )}
                   </View>
                 </View>
@@ -568,8 +500,6 @@ export default function AIChatScreen() {
                       key={i}
                       style={[styles.chip, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
                       onPress={() => handleSend(chip.label)}
-                      accessibilityLabel={chip.label}
-                      accessibilityRole="button"
                     >
                       <IconSymbol name={chip.icon as any} size={14} color={colors.textSecondary} />
                       <Text style={[styles.chipText, { color: colors.textSecondary }]}>{chip.label}</Text>
@@ -580,31 +510,20 @@ export default function AIChatScreen() {
 
               {isRecordingMode ? (
                 <View style={styles.recordingWrapper}>
-                  <TouchableOpacity onPress={cancelVoice} style={[styles.recordingActionBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} accessibilityLabel="Cancel recording">
+                  <TouchableOpacity onPress={cancelVoice} style={[styles.recordingActionBtn, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
                     <IconSymbol name="xmark" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
-
                   <View style={[styles.recordingBubble, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: isListening ? '#FF4B4B60' : colors.border }]}>
                     <View style={styles.recordingStatus}>
                       <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
-                      <Text style={[styles.recordingLabel, { color: '#FF4B4B' }]}>
-                        {isListening ? 'Listening...' : 'Done — review & send'}
-                      </Text>
+                      <Text style={[styles.recordingLabel, { color: '#FF4B4B' }]}>{isListening ? 'Listening...' : 'Done'}</Text>
                     </View>
-                    <Text style={[styles.recordingTranscript, { color: voiceText ? colors.text : colors.textSecondary + '80' }]} numberOfLines={3}>
+                    <Text style={[styles.recordingTranscript, { color: voiceText ? colors.text : colors.textSecondary + '80' }]} numberOfLines={2}>
                       {voiceText || 'Start speaking...'}
                     </Text>
                   </View>
-
-                  <TouchableOpacity
-                    onPress={sendVoice}
-                    disabled={!voiceText.trim()}
-                    accessibilityLabel="Send voice message"
-                  >
-                    <LinearGradient
-                      colors={[colors.primary, colors.secondary]}
-                      style={[styles.sendBtnGradient, !voiceText.trim() && { opacity: 0.35 }]}
-                    >
+                  <TouchableOpacity onPress={sendVoice} disabled={!voiceText.trim()}>
+                    <LinearGradient colors={[colors.primary, colors.secondary]} style={[styles.sendBtnGradient, !voiceText.trim() && { opacity: 0.35 }]}>
                       <IconSymbol name="arrow.up" size={18} color="#FFF" />
                     </LinearGradient>
                   </TouchableOpacity>
@@ -615,7 +534,7 @@ export default function AIChatScreen() {
                     style={styles.attachBtn}
                     onPress={() => {
                       Keyboard.dismiss();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) { }
                       attachmentSheetRef.current?.present();
                     }}
                   >
@@ -635,41 +554,22 @@ export default function AIChatScreen() {
                       maxLength={2000}
                     />
                     {(input.length > 0 || attachedImage) ? (
-                      <TouchableOpacity
-                        onPress={() => handleSend()}
-                        style={styles.sendBtn}
-                        disabled={uploading || loading || isOffline}
-                      >
-                        <LinearGradient
-                          colors={[colors.primary, colors.secondary]}
-                          style={[styles.sendBtnGradient, (uploading || loading || isOffline) && { opacity: 0.5 }]}
-                        >
-                          {(uploading || loading)
-                            ? <ActivityIndicator size="small" color="#FFF" />
-                            : <IconSymbol name="arrow.up" size={18} color="#FFF" />
-                          }
+                      <TouchableOpacity onPress={() => handleSend()} style={styles.sendBtn} disabled={uploading || loading || isOffline}>
+                        <LinearGradient colors={[colors.primary, colors.secondary]} style={[styles.sendBtnGradient, (uploading || loading || isOffline) && { opacity: 0.5 }]}>
+                          {(uploading || loading) ? <ActivityIndicator size="small" color="#FFF" /> : <IconSymbol name="arrow.up" size={18} color="#FFF" />}
                         </LinearGradient>
                       </TouchableOpacity>
                     ) : (
-                      <TouchableOpacity
-                        onPress={() => {
-                          startVoice();
-                        }}
-                        style={styles.voiceBtn}
-                      >
+                      <TouchableOpacity onPress={startVoice} style={styles.voiceBtn}>
                         <IconSymbol name="mic.fill" size={22} color={colors.textSecondary + '40'} />
                       </TouchableOpacity>
                     )}
                   </View>
                 </View>
               ) : (
-                <TouchableOpacity
-                  onPress={openPaywall}
-                  activeOpacity={0.8}
-                  style={[styles.lockedInputWrapper, { backgroundColor: colors.isDark ? 'rgba(255,165,0,0.05)' : 'rgba(255,165,0,0.03)', borderColor: 'rgba(255,165,0,0.2)' }]}
-                >
+                <TouchableOpacity onPress={openPaywall} style={[styles.lockedInputWrapper, { backgroundColor: colors.isDark ? 'rgba(255,165,0,0.05)' : 'rgba(255,165,0,0.03)', borderColor: 'rgba(255,165,0,0.2)' }]}>
                   <Ionicons name="lock-closed" size={16} color="#FFA500" />
-                  <Text style={styles.lockedInputText}>Daily limit reached. <Text style={{ color: '#FFA500', fontFamily: 'Outfit-Bold' }}>Upgrade to continue chatting</Text></Text>
+                  <Text style={styles.lockedInputText}>Daily limit reached. <Text style={{ color: '#FFA500', fontFamily: 'Outfit-Bold' }}>Upgrade to continue</Text></Text>
                 </TouchableOpacity>
               )}
             </BlurView>
@@ -689,9 +589,7 @@ export default function AIChatScreen() {
       <AIAttachmentSheet
         ref={attachmentSheetRef}
         onSelectImage={(uri, base64, mimeType) => {
-          if (base64 && mimeType) {
-            setAttachedImage({ uri, base64, mimeType });
-          }
+          if (base64 && mimeType) setAttachedImage({ uri, base64, mimeType });
         }}
       />
     </View>
@@ -699,360 +597,64 @@ export default function AIChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  centerLoading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: Spacing.xl,
-  },
-  limitIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
-    gap: 8,
-  },
-  limitTexts: {
-    fontFamily: 'Outfit-Regular',
-    fontSize: 13,
-  },
-  messageWrapper: {
-    marginBottom: Spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  userWrapper: {
-    justifyContent: 'flex-end',
-  },
-  aiWrapper: {
-    justifyContent: 'flex-start',
-    gap: 12,
-    marginBottom: 20,
-  },
-  aiAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 2,
-  },
-  avatarGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messageBubble: {
-    maxWidth: width * 0.78,
-    padding: 14,
-    borderRadius: 18,
-  },
-  userBubble: {
-    borderBottomRightRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  aiBubble: {
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-  },
-  loadingBubble: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 18,
-  },
-  messageText: {
-    ...Typography.body,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  userText: {
-    color: '#FFFFFF',
-  },
-  aiText: {
-  },
-  cardContainer: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  cardTitle: {
-    fontFamily: 'Outfit-Bold',
-    fontSize: 15,
-    marginBottom: 10,
-  },
-  cardItem: {
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 6,
-  },
-  cardItemText: {
-    fontFamily: 'Outfit-Medium',
-    fontSize: 14,
-  },
-  checklistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  progressTrack: {
-    height: 24,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 12,
-  },
-  progressText: {
-    position: 'absolute',
-    alignSelf: 'center',
-    fontSize: 10,
-    fontFamily: 'Outfit-Bold',
-    color: '#FFF',
-  },
-  footer: {
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 20,
-  },
-  chipsContainer: {
-    marginBottom: Spacing.md,
-  },
-  chipsContent: {
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    gap: 6,
-  },
-  chipText: {
-    ...Typography.caption,
-    fontSize: 13,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-  },
-  attachBtn: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  attachIconBg: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  textInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-  },
-  input: {
-    flex: 1,
-    ...Typography.body,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-    fontSize: 16,
-    maxHeight: 120,
-  },
-  voiceBtn: {
-    padding: 6,
-    marginRight: 4,
-  },
-  recordingWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-    paddingVertical: 4,
-  },
-  recordingActionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recordingBubble: {
-    flex: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    gap: 4,
-  },
-  recordingStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FF4B4B',
-  },
-  recordingLabel: {
-    fontFamily: 'Outfit-Medium',
-    fontSize: 12,
-  },
-  recordingTranscript: {
-    fontFamily: 'Outfit-Regular',
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  sendBtn: {
-    marginBottom: 2,
-    marginLeft: 4,
-  },
-  sendBtnGradient: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  previewContainer: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-    flexDirection: 'row',
-  },
-  previewWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  removePreview: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  previewOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messageImage: {
-    width: width * 0.65,
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  loadMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
-    gap: 8,
-  },
-  loadMoreText: {
-    fontFamily: 'Outfit-Medium',
-    fontSize: 14,
-  },
-  topLimitBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    zIndex: 10,
-  },
-  topLimitText: {
-    fontFamily: 'Outfit-Medium',
-    fontSize: 12,
-    letterSpacing: 0.3,
-  },
-  lockedInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  lockedInputText: {
-    fontFamily: 'Outfit-Medium',
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-  },
+  container: { flex: 1 },
+  keyboardView: { flex: 1 },
+  centerLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  scrollContent: { padding: Spacing.md },
+  topLimitBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, borderBottomWidth: 1, marginBottom: 10, gap: 6 },
+  topLimitText: { fontFamily: 'Outfit-Medium', fontSize: 11 },
+  emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100, paddingHorizontal: 40 },
+  welcomeTitle: { fontFamily: 'Outfit-Bold', fontSize: 24, marginBottom: 8 },
+  welcomeSub: { fontFamily: 'Outfit-Regular', fontSize: 15, textAlign: 'center', opacity: 0.8 },
+  messageWrapper: { marginBottom: Spacing.lg, flexDirection: 'row', alignItems: 'flex-end' },
+  userWrapper: { justifyContent: 'flex-end' },
+  aiWrapper: { justifyContent: 'flex-start', gap: 12 },
+  aiAvatar: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden' },
+  avatarGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  messageBubble: { maxWidth: width * 0.75, borderRadius: 20, padding: 12, borderWidth: 1 },
+  userBubble: { borderBottomRightRadius: 4, borderColor: 'transparent' },
+  aiBubble: { borderBottomLeftRadius: 4 },
+  messageText: { fontFamily: 'Outfit-Regular', fontSize: 16, lineHeight: 22 },
+  userText: { color: '#FFF' },
+  aiText: {},
+  messageImage: { width: width * 0.6, height: width * 0.45, borderRadius: 12, marginBottom: 8 },
+  loadingBubble: { paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'center' },
+  cardContainer: { marginTop: 12, padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, gap: 8 },
+  cardTitle: { fontFamily: 'Outfit-Bold', fontSize: 14, marginBottom: 4 },
+  cardItem: { padding: 10, borderRadius: 8 },
+  cardItemText: { fontFamily: 'Outfit-Medium', fontSize: 14 },
+  checklistRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressTrack: { height: 24, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, overflow: 'hidden', justifyContent: 'center' },
+  progressFill: { height: '100%', position: 'absolute' },
+  progressText: { fontFamily: 'Outfit-Bold', fontSize: 10, color: '#FFF', alignSelf: 'center' },
+  footer: { padding: Spacing.md, borderTopWidth: 1 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  attachBtn: { marginBottom: 4 },
+  attachIconBg: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  textInputContainer: { flex: 1, minHeight: 44, maxHeight: 120, borderRadius: 22, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  input: { flex: 1, fontFamily: 'Outfit-Regular', fontSize: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  sendBtn: { marginRight: 4 },
+  sendBtnGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  voiceBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  previewContainer: { marginBottom: 12 },
+  previewWrapper: { width: 64, height: 64, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%' },
+  removePreview: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  previewOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+  chipsContainer: { marginBottom: 12 },
+  chipsContent: { gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, gap: 6 },
+  chipText: { fontFamily: 'Outfit-Medium', fontSize: 13 },
+  recordingWrapper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recordingActionBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  recordingBubble: { flex: 1, height: 50, borderRadius: 25, borderWidth: 1, paddingHorizontal: 16, justifyContent: 'center' },
+  recordingStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  recordingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4B4B' },
+  recordingLabel: { fontFamily: 'Outfit-Bold', fontSize: 10, textTransform: 'uppercase' },
+  recordingTranscript: { fontFamily: 'Outfit-Regular', fontSize: 13 },
+  lockedInputWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, borderWidth: 1, gap: 10 },
+  lockedInputText: { fontFamily: 'Outfit-Medium', fontSize: 13, color: '#FFA500' },
+  limitIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 10, borderRadius: 12, borderWidth: 1, marginVertical: 20, gap: 8 },
+  limitTexts: { fontFamily: 'Outfit-Regular', fontSize: 13 },
 });

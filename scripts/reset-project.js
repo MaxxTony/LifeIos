@@ -99,14 +99,25 @@ const moveDirectories = async (userInput) => {
 };
 
 rl.question(
-  "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+  "\n⚠️  WARNING: This will DELETE or MOVE your entire /app and /components directories.\nAre you ABSOLUTELY sure you want to proceed? (type 'YES' to continue): ",
   (answer) => {
-    const userInput = answer.trim().toLowerCase() || "y";
-    if (userInput === "y" || userInput === "n") {
-      moveDirectories(userInput).finally(() => rl.close());
-    } else {
-      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+    if (answer !== "YES") {
+      console.log("❌ Reset cancelled. No files were changed.");
       rl.close();
+      return;
     }
+
+    rl.question(
+      "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+      (answer) => {
+        const userInput = answer.trim().toLowerCase() || "y";
+        if (userInput === "y" || userInput === "n") {
+          moveDirectories(userInput).finally(() => rl.close());
+        } else {
+          console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+          rl.close();
+        }
+      }
+    );
   }
 );

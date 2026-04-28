@@ -94,7 +94,10 @@ export const chatService = {
       const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
       const messages = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ChatMessage[];
       
-      const sortedMessages = messages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      // C-MSG-SORT: For inverted FlatList, data[0] must be the NEWEST message.
+      // Firestore returns [Newest, ..., Oldest] with orderBy('createdAt', 'desc').
+      // We keep that order.
+      const sortedMessages = messages; 
       
       if (!lastVisibleEntry) {
         await AsyncStorage.setItem(cacheKey, JSON.stringify(sortedMessages));

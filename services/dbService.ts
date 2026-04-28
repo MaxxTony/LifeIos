@@ -91,7 +91,7 @@ export const dbService = {
     // C-DB-2 FIX: Lower limit to 1000 and Deduplicate entries using Set to prevent 1MB document limit breach
     let prunedCompletions = Array.from(new Set(habit.completedDays || []));
     if (prunedCompletions.length > 1000) {
-      prunedCompletions = prunedCompletions.sort().slice(-1000);
+      prunedCompletions = prunedCompletions.sort((a, b) => a.localeCompare(b)).slice(-1000);
     }
 
     const habitData = sanitizeData({
@@ -371,12 +371,36 @@ export const dbService = {
     }
   },
 
-  updateGlobalStats: async (userId: string, statsData: Record<string, any>) => {
-    const data = sanitizeData({
-      ...statsData,
-      lastUpdatedAt: serverTimestamp(),
-    });
-    // Set with merge ensures the document is created if it doesn't exist
-    await setDoc(doc(db, 'users', userId, 'stats', 'global'), data, { merge: true });
+  // BUFFERED XP SYSTEM: To reduce Firestore write costs and prevent 'hot doc' 
+  // contention, we no longer write XP directly to users/{uid}/stats/global 
+  // on every small gain. Instead, we write to a global 'xpBuffer' collection
+  // which a Cloud Function aggregates every 5 minutes.
+  updateGlobalStats: async (userId: string, statsData: Record<string, any>, deltaXP: number = 0) => {
+    try {
+      const now = Date.now();
+      // 1. Direct update to stats/global doc only every 5 minutes
+      const shouldUpdateCloudStats = now - (dbService as any)._lastStatsUpdate > 300000; 
+
+      if (shouldUpdateCloudStats) {
+        (dbService as any)._lastStatsUpdate = now;
+        await setDoc(doc(db, 'users', userId, 'stats', 'global'), sanitizeData({
+          ...statsData,
+          lastUpdatedAt: serverTimestamp(),
+        }), { merge: true });
+      }
+
+      // 2. Buffer the XP gain via transaction collection
+      if (deltaXP > 0) {
+        const txId = `tx_${userId}_${now}_${Math.random().toString(36).substring(7)}`;
+        await setDoc(doc(db, 'xpBuffer', txId), {
+          userId,
+          amount: deltaXP,
+          timestamp: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.warn('[LifeOS] updateGlobalStats failed:', err);
+    }
   },
+  _lastStatsUpdate: 0,
 };

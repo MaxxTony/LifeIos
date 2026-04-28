@@ -67,7 +67,9 @@ export const FocusWidget = React.memo(function FocusWidget() {
   };
 
   const cycleGoal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {}
     const goals = [4, 6, 8, 10, 12];
     const currentIndex = goals.indexOf(focusGoalHours);
     // If current goal isn't in the preset array (custom value), snap to the first preset
@@ -76,7 +78,9 @@ export const FocusWidget = React.memo(function FocusWidget() {
   };
 
   const handleToggle = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {}
     toggleFocusSession();
   };
 
@@ -101,7 +105,14 @@ export const FocusWidget = React.memo(function FocusWidget() {
                 onPress={() => router.push('/focus-room')}
                 accessibilityLabel="Enter live Monk Mode room"
                 accessibilityRole="button"
-                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.primaryTransparent }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 12, // INCREASED from 8
+                  paddingVertical: 10,  // INCREASED from 4 to meet HIG 44px
+                  borderRadius: 14,
+                  backgroundColor: colors.primaryTransparent
+                }}
               >
                 <Ionicons name="flame" size={14} color={colors.primary} />
                 <Text style={{ color: colors.primary, fontFamily: 'Outfit-Medium', fontSize: 12, marginLeft: 4 }}>Monk Mode</Text>

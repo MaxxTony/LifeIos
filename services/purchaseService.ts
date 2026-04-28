@@ -1,6 +1,7 @@
 import Purchases, { LOG_LEVEL, CustomerInfo } from 'react-native-purchases';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { Platform } from 'react-native';
+import { useStore } from '@/store/useStore';
 
 const ENTITLEMENT_ID = 'pro';
 
@@ -40,10 +41,12 @@ export const purchaseService = {
         return;
       }
 
-      Purchases.configure({ apiKey });
+      // Pass appUserID directly to configure to avoid creating unnecessary anonymous users
+      Purchases.configure({ 
+        apiKey,
+        appUserID: userId 
+      });
 
-      // Identify user with Firebase UID so subscriptions persist across devices
-      await Purchases.logIn(userId);
       this._initialized = true;
       console.log('[PurchaseService] Initialized for user:', userId);
     } catch (error) {
@@ -65,8 +68,13 @@ export const purchaseService = {
       };
     } catch (error) {
       console.error('[PurchaseService] Failed to check pro status:', error);
-      // Fail open — don't lock users out if RC is unreachable
-      return { isPro: false, expiryDate: null };
+      // Fail open — don't lock users out if RC is unreachable. 
+      // Use cached values from the store as a fallback.
+      const state = useStore.getState();
+      return { 
+        isPro: state.isPro, 
+        expiryDate: state.subscriptionExpiryDate 
+      };
     }
   },
 

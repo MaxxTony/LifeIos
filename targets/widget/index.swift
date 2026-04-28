@@ -59,18 +59,21 @@ struct WidgetStats: Decodable {
 
 struct WidgetMood: Decodable {
     let today: Int
-    let last5Days: [Int]
+    let last5Days: [Int]?
 }
 
 struct WidgetData: Decodable {
     let isLoggedIn: Bool
+    let isPro: Bool
     let accentColor: String
+    let moodTheme: String
     let tasks: [WidgetTask]
     let habits: [WidgetHabit]
     let habitProgress: WidgetHabitProgress
     let focus: WidgetFocus
     let stats: WidgetStats
     let mood: WidgetMood
+    let theme: String
     let lastUpdated: Double
 }
 
@@ -93,9 +96,9 @@ struct LifeOSProvider: TimelineProvider {
         let entry = LifeOSEntry(date: Date(), data: data)
         // WID-001: Shorten refresh to 60s when data was written in the last 90s
         // (JS debounces widget sync to 500ms, so fresh data appears within ~1 min).
-        // Fall back to 15 min otherwise — half the original 30 min.
+        // Fall back to 5 min otherwise — improved from 15 min.
         let dataAge = Date().timeIntervalSince1970 - data.lastUpdated
-        let nextInterval: Int = dataAge < 90 ? 1 : 15
+        let nextInterval: Int = dataAge < 90 ? 1 : 5
         let next = Calendar.current.date(byAdding: .minute, value: nextInterval, to: Date()) ?? Date()
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
@@ -112,12 +115,14 @@ struct LifeOSProvider: TimelineProvider {
 
     private func fallbackData() -> WidgetData {
         WidgetData(
-            isLoggedIn: false, accentColor: "#7C5CFF",
+            isLoggedIn: false, isPro: false, accentColor: "#7C5CFF",
+            moodTheme: "classic",
             tasks: [], habits: [],
             habitProgress: WidgetHabitProgress(completed: 0, total: 0),
             focus: WidgetFocus(isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: nil),
             stats: WidgetStats(level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: "Spark"),
             mood: WidgetMood(today: 0, last5Days: [0,0,0,0,0]),
+            theme: "dark",
             lastUpdated: Date().timeIntervalSince1970
         )
     }
@@ -126,10 +131,13 @@ struct LifeOSProvider: TimelineProvider {
 // MARK: - Shared Components
 
 struct WidgetBackground: View {
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorScheme) var systemColorScheme
+    var theme: String = "system"
+
     var body: some View {
-        // WID-004: Respect system dark/light mode instead of forcing dark.
-        if colorScheme == .dark {
+        let isDark = theme == "dark" || (theme == "system" && systemColorScheme == .dark)
+        
+        if isDark {
             LinearGradient(
                 colors: [Color(hex: "#0D0D1A"), Color(hex: "#141428")],
                 startPoint: .top, endPoint: .bottom
@@ -232,6 +240,14 @@ func moodBarColor(_ mood: Int) -> Color {
     }
 }
 
+func getDayLabel(_ offset: Int, relativeTo: Double = Date().timeIntervalSince1970) -> String {
+    let baseDate = Date(timeIntervalSince1970: relativeTo)
+    let date = Calendar.current.date(byAdding: .day, value: offset, to: baseDate) ?? baseDate
+    let formatter = DateFormatter()
+    formatter.dateFormat = "E"
+    return String(formatter.string(from: date).prefix(1))
+}
+
 // MARK: - Focus Timer Widget
 
 struct FocusTimerSmallView: View {
@@ -244,7 +260,7 @@ struct FocusTimerSmallView: View {
         let percent = Int(min(100, progress * 100))
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("🔥 FOCUS").font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#8888AA"))
+                Text("🔥 FOCUS").font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#AAAACF"))
                 Spacer()
                 if d.focus.isActive {
                     Text("LIVE").font(.system(size: 9, weight: .bold))
@@ -262,7 +278,7 @@ struct FocusTimerSmallView: View {
             Spacer()
             ProgressBar(progress: progress, color: accent)
             Text("\(percent)% of goal")
-                .font(.system(size: 10)).foregroundColor(Color(hex: "#8888AA")).padding(.top, 4)
+                .font(.system(size: 10)).foregroundColor(Color(hex: "#AAAACF")).padding(.top, 4)
         }
         .padding(14)
     }
@@ -371,14 +387,15 @@ struct FocusTimerLargeView: View {
                 .font(.system(size: 10, weight: .black)).foregroundColor(Color(hex: "#8888AA")).padding(.bottom, 12)
             
             HStack(alignment: .bottom, spacing: 12) {
-                ForEach(d.mood.last5Days.indices, id: \.self) { i in
-                    let m = d.mood.last5Days[i]
+                let days = d.mood.last5Days ?? [0,0,0,0,0]
+                ForEach(days.indices, id: \.self) { i in
+                    let m = days[i]
                     let h: CGFloat = m > 0 ? max(8, CGFloat(m) / 5 * 60) : 8
                     VStack {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(moodBarColor(m))
                             .frame(height: h)
-                        Text(["M", "T", "W", "T", "F"][i])
+                        Text(getDayLabel(i - 4, relativeTo: d.lastUpdated))
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(Color(hex: "#8888AA"))
                     }
@@ -749,8 +766,9 @@ struct MoodSmallView: View {
             Spacer()
             // 5-day mini bar chart
             HStack(alignment: .bottom, spacing: 3) {
-                ForEach(d.mood.last5Days.indices, id: \.self) { i in
-                    let m = d.mood.last5Days[i]
+                let days = d.mood.last5Days ?? [0,0,0,0,0]
+                ForEach(days.indices, id: \.self) { i in
+                    let m = days[i]
                     let h: CGFloat = m > 0 ? max(4, CGFloat(m) / 5 * 22) : 4
                     RoundedRectangle(cornerRadius: 2)
                         .fill(moodBarColor(m))
@@ -772,7 +790,7 @@ struct GuardedWidgetView<Content: View>: View {
 
     var body: some View {
         ZStack {
-            WidgetBackground()
+            WidgetBackground(theme: entry.data.theme)
             if entry.data.isLoggedIn {
                 content()
             } else {
@@ -780,7 +798,7 @@ struct GuardedWidgetView<Content: View>: View {
             }
         }
         .widgetURL(URL(string: deepLink))
-        .containerBackground(for: .widget) { WidgetBackground() }
+        .containerBackground(for: .widget) { WidgetBackground(theme: entry.data.theme) }
     }
 }
 

@@ -66,7 +66,7 @@ export async function runAICoachTask() {
 
     let parsed: { insight?: string; actionableAdvice?: string } | null = null;
     try {
-      const cleaned = response
+      const cleaned = (response.text || '')
         .replace(/^\s*```(?:json)?\s*/i, '')
         .replace(/\s*```\s*$/i, '')
         .trim();

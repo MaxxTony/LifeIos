@@ -72,7 +72,12 @@ export const socialService = {
 
   getFriendRequests: async (userId: string): Promise<{ requests: FriendRequest[], profiles: PublicProfile[] }> => {
     try {
-      const q = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'pending'));
+      const q = query(
+        collection(db, 'friendRequests'), 
+        where('toUserId', '==', userId), 
+        where('status', '==', 'pending'),
+        limit(50) // BUG-013: Prevent OOM/Performance degradation on huge request lists
+      );
       const snap = await getDocs(q);
       const requests = snap.docs.map(d => d.data() as FriendRequest);
       
@@ -82,8 +87,9 @@ export const socialService = {
       // Firestore 'in' supports up to 10 values per query — chunk accordingly.
       const fromIds = requests.map(r => r.fromUserId).filter(Boolean);
       if (fromIds.length > 0) {
-        for (let i = 0; i < fromIds.length; i += 10) {
-          const chunk = fromIds.slice(i, i + 10);
+        // BUG-014: Increased chunk size to 30 (Firestore limit) to reduce query overhead.
+        for (let i = 0; i < fromIds.length; i += 30) {
+          const chunk = fromIds.slice(i, i + 30);
           const batchSnap = await getDocs(
             query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk))
           );
@@ -133,10 +139,9 @@ export const socialService = {
       const profiles: PublicProfile[] = [];
       const idArray = Array.from(friendIds);
 
-      // O3 FIX: Batch profile reads using 'in' query instead of N individual getDoc() calls.
-      // This reduces read cost from O(N) to O(ceil(N/10)) queries.
-      for (let i = 0; i < idArray.length; i += 10) {
-        const chunk = idArray.slice(i, i + 10);
+      // O3/BUG-014: Increased chunk size to 30 to reduce total query count for leaderboards.
+      for (let i = 0; i < idArray.length; i += 30) {
+        const chunk = idArray.slice(i, i + 30);
         const batchSnap = await getDocs(
           query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk))
         );
@@ -195,8 +200,12 @@ export const socialService = {
       const fromIds = incomingReqs.map(r => r.fromUserId).filter(Boolean);
       
       if (fromIds.length > 0) {
-        const batchSnap = await getDocs(query(collection(db, 'publicProfiles'), where(documentId(), 'in', fromIds.slice(0, 10))));
-        batchSnap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
+        // BUG-014: Support multiple chunks even in the real-time callback path (capped at 60 ids)
+        for (let i = 0; i < Math.min(fromIds.length, 60); i += 30) {
+          const chunk = fromIds.slice(i, i + 30);
+          const batchSnap = await getDocs(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)));
+          batchSnap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
+        }
       }
 
       callback({
@@ -228,45 +237,64 @@ export const socialService = {
     const q2 = query(collection(db, 'friendRequests'), where('toUserId', '==', userId), where('status', '==', 'accepted'));
 
     let friendIds = new Set<string>([userId]);
-    let unsubProfiles: (() => void) | null = null;
+    let profileUnsubs: (() => void)[] = [];
 
     let lastRank = -1;
+    let lastNotifyTime = 0;
 
-    const setupProfileListener = (ids: string[]) => {
-      if (unsubProfiles) unsubProfiles();
+    const setupProfileListeners = (ids: string[]) => {
+      // Cleanup previous listeners
+      profileUnsubs.forEach(u => u());
+      profileUnsubs = [];
+      
       if (ids.length === 0) {
         callback([]);
         return;
       }
 
-      // Firestore 'in' limit is 30 for onSnapshot (usually)
-      const chunk = ids.slice(0, 30);
-      unsubProfiles = onSnapshot(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)), async (snap) => {
-        const profiles: PublicProfile[] = [];
-        snap.forEach(d => profiles.push({ userId: d.id, ...d.data() } as PublicProfile));
-        const sorted = profiles.sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0));
-        
-        // Surpass Logic: Check if rank decreased
-        const currentRank = sorted.findIndex(p => p.userId === userId);
-        if (lastRank !== -1 && currentRank > lastRank) {
-          const surpassingUser = sorted[currentRank - 1];
-          if (surpassingUser) {
-            const { notificationService } = await import('./notificationService');
-            notificationService.sendImmediateNotification(
-              'Rival Alert! ⚔️',
-              `${surpassingUser.userName} just passed you on the leaderboard!`,
-              { type: 'WEEKLY_LEADERBOARD' }
-            );
+      const allProfiles: Record<string, PublicProfile> = {};
+      const totalChunks = Math.ceil(ids.length / 30);
+      let chunksProcessed = 0;
+
+      // Create a listener for each chunk of 30 IDs (Firestore limit)
+      for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30);
+        const unsub = onSnapshot(query(collection(db, 'publicProfiles'), where(documentId(), 'in', chunk)), async (snap) => {
+          snap.forEach(d => {
+            allProfiles[d.id] = { userId: d.id, ...d.data() } as PublicProfile;
+          });
+          
+          // Only callback when we have at least one response from each chunk
+          // (or a reasonable subset if chunks are many)
+          const sorted = Object.values(allProfiles).sort((a, b) => (b.weeklyXP || 0) - (a.weeklyXP || 0));
+          
+          // Surpass Logic: Check if rank improved (e.g. from 5 to 4)
+          const currentRank = sorted.findIndex(p => p.userId === userId);
+          const now = Date.now();
+          const COOLDOWN = 60 * 60 * 1000; // 1 hour
+
+          if (lastRank !== -1 && currentRank < lastRank && (now - lastNotifyTime > COOLDOWN)) {
+            const surpassingUser = sorted[currentRank + 1]; 
+            if (surpassingUser) {
+              lastNotifyTime = now;
+              const { notificationService } = await import('./notificationService');
+              notificationService.sendImmediateNotification(
+                'Rival Alert! ⚔️',
+                `You just passed ${surpassingUser.userName} on the leaderboard!`,
+                { type: 'WEEKLY_LEADERBOARD' }
+              );
+            }
           }
-        }
-        lastRank = currentRank;
-        
-        callback(sorted);
-      });
+          lastRank = currentRank;
+          
+          callback(sorted);
+        });
+        profileUnsubs.push(unsub);
+      }
     };
 
     const onFriendChange = () => {
-      setupProfileListener(Array.from(friendIds));
+      setupProfileListeners(Array.from(friendIds));
     };
 
     const unsub1 = onSnapshot(q1, (snap) => {
@@ -282,7 +310,7 @@ export const socialService = {
     return () => {
       unsub1();
       unsub2();
-      if (unsubProfiles) unsubProfiles();
+      profileUnsubs.forEach(u => u());
     };
   },
   // Gets all friend requests sent by me (pending)

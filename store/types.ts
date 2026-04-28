@@ -35,6 +35,7 @@ export interface Habit {
   pausedUntil: string | null; // ISO date string
   /** Tracks which dates XP was already awarded to prevent duplicate XP on re-toggle. Max 90 entries. */
   xpAwardedDays?: string[];
+  archived?: boolean;
 }
 
 export interface FocusSession {
@@ -68,6 +69,16 @@ export interface Quest {
   currentCount: number;
   completed: boolean;
   date: string; // ISO date (YYYY-MM-DD)
+}
+
+export interface WeeklyRecap {
+  weekId: string; // e.g. "2024-W15"
+  xpGained: number;
+  tasksCompleted: number;
+  habitCompletions: number;
+  focusHours: number;
+  generatedAt: number;
+  hasSeen: boolean;
 }
 
 export interface SyncStatus {
@@ -155,6 +166,7 @@ export interface UserState {
   lastLoginBonusDate: string | null;
   streakFreezes: number;
   globalConfetti: boolean;
+  hasSeenDailyHighlight: string | null; // Date string "YYYY-MM-DD"
   dailyQuests: Quest[];
   completedQuests: string[];
   proactivePrompt: { message: string; trigger: string; timestamp: number } | null;
@@ -164,7 +176,10 @@ export interface UserState {
   _syncUnsubscribes: (() => void)[];
   _subscriptionGen: number;
   sessionToken: string | null;
+  lastComebackScheduledDate: string | null;
   aiInsight: string | null;
+  weeklyRecaps: Record<string, WeeklyRecap>;
+  preferredNudgeTime: { hour: number; minute: number } | null;
 
   // Subscription (Pro)
   isPro: boolean;
@@ -246,7 +261,9 @@ export interface UserActions {
   dismissMoodLog: () => void;
   dismissProactive: () => void;
   dismissStreakBroken: () => void;
+  dismissDailyHighlight: () => void;
   setLastActive: () => void;
+  markRecapAsSeen: (weekId: string) => void;
 
   // Subscription
   checkEntitlements: () => Promise<void>;

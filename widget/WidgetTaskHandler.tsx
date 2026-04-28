@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { renderWidgetByName } from './WidgetRenderer';
+import { WidgetRenderer } from './WidgetRenderer';
 
 
 async function readState(): Promise<Record<string, any> | null> {
@@ -27,6 +27,6 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
   if (!RENDER_ACTIONS.has(widgetAction)) return;
 
   const state = await readState();
-  props.renderWidget(renderWidgetByName(widgetName, state, widgetInfo));
+  props.renderWidget(<WidgetRenderer widgetName={widgetName} state={state ?? {}} widgetInfo={widgetInfo} />);
 }
 

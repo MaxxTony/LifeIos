@@ -62,8 +62,8 @@ function XPBar({ weeklyXP, maxXP, color }: { weeklyXP: number; maxXP: number; co
   );
 }
 
-// ─── Podium Card ─────────────────────────────────────────────────────────────
-function PodiumCard({ profile, rank, maxXP, colors, isMe }: { profile: PublicProfile; rank: number; maxXP: number; colors: any; isMe: boolean }) {
+// BUG-020: Memoize PodiumCard to prevent re-animation on every XP update
+const PodiumCard = React.memo(({ profile, rank, maxXP, colors, isMe }: { profile: PublicProfile; rank: number; maxXP: number; colors: any; isMe: boolean }) => {
   const medal = MEDAL[rank];
   const pulse = useSharedValue(1);
   const float = useSharedValue(0);
@@ -123,16 +123,16 @@ function PodiumCard({ profile, rank, maxXP, colors, isMe }: { profile: PublicPro
       </Animated.View>
     </Animated.View>
   );
-}
+});
 
 // ─── User Row (for both Discover and League rest) ─────────────────────────────
-function UserRow({
+const UserRow = React.memo(({
   profile, isMe, pos, maxXP, colors, actionLabel, actionColor, onAction, actionDisabled
 }: {
   profile: PublicProfile; isMe?: boolean; pos?: number; maxXP?: number;
   colors: any; actionLabel?: string; actionColor?: string;
   onAction?: () => void; actionDisabled?: boolean;
-}) {
+}) => {
   return (
     <Animated.View entering={FadeInDown.delay((pos || 0) * 40).duration(300)}>
       <View style={[
@@ -190,13 +190,13 @@ function UserRow({
       </View>
     </Animated.View>
   );
-}
+});
 
 // ─── TAB 1: League ───────────────────────────────────────────────────────────
 function LeagueTab({ leaderboard, loading, currentUserId, colors, onRefresh, refreshing }: any) {
-  const maxXP = leaderboard[0]?.weeklyXP || 1;
-  const top3 = leaderboard.slice(0, 3);
-  const rest = leaderboard.slice(3);
+  const maxXP = useMemo(() => leaderboard[0]?.weeklyXP || 1, [leaderboard]);
+  const top3 = useMemo(() => leaderboard.slice(0, 3), [leaderboard]);
+  const rest = useMemo(() => leaderboard.slice(3), [leaderboard]);
 
   if (loading) return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 60 }} />;
 
@@ -369,11 +369,17 @@ function DiscoverTab({
             ) : null
           }
           ListEmptyComponent={
-            !loading && !isSearching && query.trim() ? (
+            !loading && !isSearching ? (
               <View style={styles.emptyState}>
-                <Text style={{ fontSize: 52 }}>🔍</Text>
-                <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Outfit-Bold' }]}>No Results</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>We couldn't find any players named "{query}"</Text>
+                <Text style={{ fontSize: 52 }}>{query.trim() ? '🔍' : '👥'}</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Outfit-Bold' }]}>
+                  {query.trim() ? 'No Results' : 'Lonely Council'}
+                </Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                  {query.trim() 
+                    ? `We couldn't find any players named "${query}"`
+                    : "No recent activity found. Challenge your friends to start the race!"}
+                </Text>
               </View>
             ) : null
           }

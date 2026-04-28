@@ -18,6 +18,9 @@ import {
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { HABIT_TEMPLATES, HabitTemplate } from '@/constants/habitTemplates';
+import { Habit } from '@/store/types';
 
 const { width } = Dimensions.get('window');
 
@@ -136,13 +139,11 @@ function WeeklyRow({ habit, colors, onToggle }: { habit: any; colors: any; onTog
               <TouchableOpacity
                 onPress={() => {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  import('react-native-toast-message').then(Toast => {
-                    Toast.default.show({
-                      type: 'info',
-                      text1: 'Not Scheduled',
-                      text2: `Only scheduled for ${scheduledDays.join(', ')}`,
-                      position: 'bottom'
-                    });
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Not Scheduled',
+                    text2: `Only scheduled for ${scheduledDays.join(', ')}`,
+                    position: 'bottom'
                   });
                 }}
                 style={[row.dot, { opacity: 0.12, backgroundColor: colors.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}
@@ -204,13 +205,11 @@ function MonthlyBlock({ habit, colors, onToggle }: { habit: any; colors: any; on
         onPress={() => {
           if (isLocked) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            import('react-native-toast-message').then(Toast => {
-              Toast.default.show({
-                type: 'info',
-                text1: 'Habit Locked',
-                text2: lockMessage,
-                position: 'bottom'
-              });
+            Toast.show({
+              type: 'info',
+              text1: 'Habit Locked',
+              text2: lockMessage,
+              position: 'bottom'
             });
             return;
           }
@@ -324,6 +323,57 @@ function SectionHeader({ title, count, colors }: { title: string; count: number;
   );
 }
 
+function HabitTemplatesSection({ colors, onAdd }: { colors: any; onAdd: (tpl: HabitTemplate) => void }) {
+  return (
+    <View style={templateStyles.container}>
+      <Text style={[templateStyles.title, { color: colors.text }]}>Start with a Template</Text>
+      <FlatList
+        horizontal
+        data={HABIT_TEMPLATES}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={templateStyles.list}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onAdd(item)}
+            style={[templateStyles.card, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colors.border }]}
+          >
+            <View style={[templateStyles.iconBox, { backgroundColor: item.color + '20' }]}>
+              <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+            </View>
+            <Text style={[templateStyles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
+            <Text style={[templateStyles.cardCat, { color: colors.textSecondary }]}>{item.category}</Text>
+          </TouchableOpacity>
+        )}
+      />
+    </View>
+  );
+}
+
+const templateStyles = StyleSheet.create({
+  container: { marginBottom: 20, marginTop: 10 },
+  title: { fontSize: 13, fontFamily: 'Outfit-Bold', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
+  list: { paddingRight: 20 },
+  card: {
+    width: 130,
+    padding: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 12,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  cardTitle: { fontSize: 13, fontFamily: 'Outfit-Bold' },
+  cardCat: { fontSize: 10, fontFamily: 'Outfit-Medium', marginTop: 2 },
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AllHabitsScreen() {
   const router = useRouter();
@@ -358,6 +408,43 @@ export default function AllHabitsScreen() {
       { text: 'Delete', style: 'destructive', onPress: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); removeHabit(id); } }
     ]);
   }, [removeHabit]);
+
+  const handleTemplateAdd = useCallback((tpl: HabitTemplate) => {
+    if (habits.some(h => h.title.trim().toLowerCase() === tpl.title.trim().toLowerCase())) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Toast.show({
+        type: 'info',
+        text1: 'Already Tracking',
+        text2: `You are already tracking "${tpl.title}"`
+      });
+      return;
+    }
+
+    if (!isPro && habits.length >= 5) {
+      openPaywall();
+      return;
+    }
+
+    const { addHabit } = useStore.getState().actions;
+    const newHabit: any = {
+      title: tpl.title,
+      icon: tpl.icon,
+      category: tpl.category,
+      color: tpl.color,
+      frequency: tpl.frequency,
+      targetDays: [0, 1, 2, 3, 4, 5, 6],
+      goalDays: 30,
+      reminderTime: '08:00 AM',
+    };
+
+    addHabit(newHabit);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Toast.show({
+      type: 'success',
+      text1: 'Habit Added! 🌱',
+      text2: `You are now tracking "${tpl.title}"`
+    });
+  }, [habits.length, isPro, openPaywall]);
 
   // Build flat FlatList data with section headers interspersed
   const listData = useMemo(() => {
@@ -473,6 +560,7 @@ export default function AllHabitsScreen() {
               data={listData}
               keyExtractor={(item, i) => item.type === 'header' ? `header-${i}` : item.habit.id}
               renderItem={renderItem}
+              ListHeaderComponent={<HabitTemplatesSection colors={colors} onAdd={handleTemplateAdd} />}
               ListEmptyComponent={<EmptyState />}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
@@ -502,6 +590,7 @@ export default function AllHabitsScreen() {
           <Plus size={24} color="#FFF" strokeWidth={2.5} />
         </LinearGradient>
       </TouchableOpacity>
+      <Toast />
     </View>
   );
 }
@@ -585,7 +674,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: 'Outfit-Bold', fontSize: 17, fontWeight: '700' },
   liquidBtn: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
 
-  listContent: { padding: Spacing.md, paddingBottom: 100 },
+  listContent: { padding: Spacing.md, paddingBottom: 140 }, // FIX UI-001: Avoid tab bar overlap
 
   // Card (same as HabitGrid)
   card: {

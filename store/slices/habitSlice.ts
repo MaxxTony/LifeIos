@@ -241,12 +241,10 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         if (detectedMilestone) {
           const milestone = detectedMilestone;
           setTimeout(() => {
-            import('react-native-toast-message').then(Toast => {
-              Toast.default.show({
-                type: 'success',
-                text1: 'Milestone Reached! 🔥',
-                text2: `You hit a ${milestone.streak}-day streak for ${h.title}!`
-              });
+            Toast.show({
+              type: 'success',
+              text1: 'Milestone Reached! 🔥',
+              text2: `You hit a ${milestone.streak}-day streak for ${h.title}!`
             });
             // Request App Store review at meaningful streak milestones (7 & 30 days)
             if (milestone.streak === 7 || milestone.streak === 30) {

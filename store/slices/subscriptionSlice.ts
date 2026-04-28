@@ -62,8 +62,8 @@ export const createSubscriptionSlice: StateCreator<
       return true;
     }
 
-    // Check limit (5 messages/day for free users)
-    if (state.dailyAIMessageCount >= 5) {
+    // Check limit (20 messages/day for free users)
+    if (state.dailyAIMessageCount >= 20) {
       return false;
     }
 

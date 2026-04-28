@@ -360,11 +360,6 @@ export default function OnboardingScreen() {
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (currentSlide < TOTAL_SLIDES - 1) {
-      // PHASE 2 FIX: Mark onboarding as "started/handled" as soon as they move past slide 1
-      // to prevent getting trapped in a loop if the app crashes during the struggle picker.
-      if (currentSlide === 0) {
-        completeOnboarding();
-      }
       goToSlide(currentSlide + 1);
     } else {
       analyticsService.logMilestone(null, 'onboarding_complete', { strugglesCount: selectedStruggles.length });

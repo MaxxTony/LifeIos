@@ -105,7 +105,9 @@ export const MoodTrend = React.memo(function MoodTrend() {
             <TouchableOpacity
               style={[styles.headerBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted, borderWidth: 1 }]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                } catch (e) {}
                 router.push('/mood-history');
               }}
             >
@@ -115,7 +117,9 @@ export const MoodTrend = React.memo(function MoodTrend() {
             <TouchableOpacity
               style={[styles.headerBtn, { backgroundColor: colors.primaryTransparent, borderColor: colors.primaryMuted, borderWidth: 1 }]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                } catch (e) {}
                 router.push({ pathname: '/mood-log', params: { date: selectedDate } });
               }}
             >
@@ -147,7 +151,9 @@ export const MoodTrend = React.memo(function MoodTrend() {
             <TouchableOpacity
               style={styles.ctaCard}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                } catch (e) {}
                 router.push({ pathname: '/mood-log', params: { date: selectedDate } });
               }}
               activeOpacity={0.7}
@@ -177,7 +183,9 @@ export const MoodTrend = React.memo(function MoodTrend() {
                 style={styles.trendDay}
                 onPress={() => {
                   if (!isFuture) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    } catch (e) {}
                     setSelectedDate(day.date);
                   }
                 }}

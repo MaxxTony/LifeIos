@@ -5,6 +5,7 @@ import { ActivityIndicator, View, Text, TouchableOpacity, Alert } from 'react-na
 import React, { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 export default function Index() {
   const _hasHydrated = useStore(s => s._hasHydrated);
   const _authStateResolved = useStore(s => s._authStateResolved);
@@ -96,7 +97,7 @@ export default function Index() {
   // Because RootLayout now waits for hydration, the theme and local data are already
   // correctly applied, so there is no flickering.
   if (isAuthenticated) {
-    console.log('[LifeOS Index] Authenticated in cache. Instant-On to Dashboard.');
+    console.log('[LifeOS Index] Authenticated. Instant-On to Dashboard.');
     return <Redirect href="/(tabs)" />;
   }
 

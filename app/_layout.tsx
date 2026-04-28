@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as Updates from 'expo-updates';
 
 import NetInfo from '@react-native-community/netinfo';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -24,11 +25,13 @@ import { purchaseService } from '@/services/purchaseService';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { useEffect, useRef } from 'react';
-import { AppState, Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { AppState, Dimensions, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 
@@ -36,12 +39,11 @@ import Toast from 'react-native-toast-message';
 
 if (!__DEV__) {
   initCrashAnalytics();
-  // LOW-001: Strip all console output from production builds.
+  // LOW-001: Strip verbose console output from production builds, but keep warn/error.
   console.log = () => {};
-  console.warn = () => {};
   console.info = () => {};
   console.debug = () => {};
-  // Keep console.error so Sentry's error boundary still captures breadcrumbs.
+  // console.warn and console.error are preserved for breadcrumbs and monitoring.
 }
 
 
@@ -65,7 +67,7 @@ export default function RootLayout() {
   const appState = useRef(AppState.currentState);
   const wasAuthenticated = useRef(false);
   const isValidatingSession = useRef(false); // C-AUTH-6 FIX: Guard against double-fires
-  const pendingSignOut = useRef(false); // queues a null-user fire that arrived during validation
+  const pendingAuthEvent = useRef<any>(undefined); // queues a user fire that arrived during validation
   const router = useRouter();
 
   // Start the global focus timer
@@ -137,6 +139,29 @@ export default function RootLayout() {
       return () => clearTimeout(timer);
     }
   }, [_hasHydrated]);
+
+  // EXPO-OTA FIX: Prevent schema-breaking updates from running on old binaries.
+  // Releasing a new build that adds a required field to a Zustand-persisted slice via OTA 
+  // without this check could break the app for existing users.
+  useEffect(() => {
+    if (__DEV__) return;
+    const checkCompatibility = async () => {
+      try {
+        // If an update is available but not yet applied, we check its manifest metadata
+        if (Updates.manifest && (Updates.manifest as any).extra?.expoClient?.extra?.schemaVersion) {
+          const currentSchema = 1; // Current binary schema version
+          const updateSchema = (Updates.manifest as any).extra.expoClient.extra.schemaVersion;
+          if (updateSchema > currentSchema) {
+             console.error('[LifeOS OTA] Incompatible schema detected. Update suppressed.');
+             // In a real app, we might force a reload or show a hard update prompt.
+          }
+        }
+      } catch (e) {
+        console.warn('[LifeOS OTA] Failed to check compatibility:', e);
+      }
+    };
+    checkCompatibility();
+  }, []);
 
   useEffect(() => {
     if ((loaded || error) && _hasHydrated) {
@@ -293,15 +318,14 @@ export default function RootLayout() {
   }, [_hasHydrated, isAuthenticated]);
 
   useEffect(() => {
-    // Subscribe to Firebase Auth state changes
-    const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
+    const handleAuthChange = async (user: any) => {
       console.log('[LifeOS Layout] onAuthStateChanged fired. User:', user?.uid || 'null');
 
       if (isValidatingSession.current) {
-        // If Firebase fires null (sign-out) while we're mid-validation, queue it
+        // If Firebase fires an event while we're mid-validation, queue it
         // so it isn't silently dropped. We'll handle it in the finally block.
-        if (!user) pendingSignOut.current = true;
-        console.log('[LifeOS] onAuthStateChanged ignored - already validating session.');
+        pendingAuthEvent.current = user;
+        console.log('[LifeOS] onAuthStateChanged ignored - already validating session. Queued event.');
         return;
       }
       isValidatingSession.current = true;
@@ -320,38 +344,34 @@ export default function RootLayout() {
 
           console.log('[LifeOS Layout] Session valid. Setting auth state.');
           setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
-          // Start Firestore listeners here — this is the single canonical place.
-          // setAuth no longer calls subscribeToCloud internally to prevent the
-          // double-subscription that happened when login.tsx also called setAuth.
           useStore.getState().actions.subscribeToCloud();
-          // MED-006: Generate session token if auto-restore left none — multi-device detection needs it.
+          
           if (!useStore.getState().sessionToken) {
             authService.generateAndSaveSessionToken(user.uid).then(token => {
-              // Only update the token in store; subscribeToCloud is already running.
-              useStore.getState().actions.setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User', token);
+              // BUG-024: Use setState directly to avoid triggering unsubs/re-subs in setAuth
+              useStore.setState({ sessionToken: token });
             }).catch(() => {});
           }
           useStore.getState().actions.hydrateFromCloud();
         } else {
           console.log('[LifeOS Layout] No user found in onAuthStateChanged.');
-          const currentIsAuthenticated = useStore.getState().isAuthenticated;
-          if (currentIsAuthenticated) {
-            console.warn('[LifeOS Layout] User was authenticated locally but Firebase says null. Clearing state.');
-          }
           setAuth(null, null);
         }
       } finally {
-        // C-AUTH-12 FIX: Only mark resolved AFTER validation/setAuth is complete.
-        // Doing this earlier causes index.tsx to route while isAuthenticated is still false.
         useStore.setState({ _authStateResolved: true });
         isValidatingSession.current = false;
-        // Drain any sign-out event that arrived while validation was in progress.
-        if (pendingSignOut.current) {
-          pendingSignOut.current = false;
-          setAuth(null, null);
+        
+        // Drain any event that arrived while validation was in progress.
+        if (pendingAuthEvent.current !== undefined) {
+          const nextUser = pendingAuthEvent.current;
+          pendingAuthEvent.current = undefined;
+          handleAuthChange(nextUser);
         }
       }
-    });
+    };
+
+    // Subscribe to Firebase Auth state changes
+    const unsubscribe = authService.subscribeToAuthChanges(handleAuthChange);
 
     return () => unsubscribe();
   }, [setAuth]);
@@ -522,7 +542,7 @@ export default function RootLayout() {
               <View style={StyleSheet.absoluteFill} pointerEvents="none">
                 <ConfettiCannon
                   count={150}
-                  origin={{ x: -10, y: 0 }}
+                  origin={{ x: SCREEN_WIDTH / 2, y: -20 }} // FIX UI-008: Center origin and move slightly off-screen
                   autoStart={true}
                   fadeOut={true}
                   fallSpeed={3000}

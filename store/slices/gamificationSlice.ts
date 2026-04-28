@@ -8,11 +8,22 @@ import { QUEST_TEMPLATES, computeLevel, shuffleArray } from '../helpers';
 import { fireSync } from '../syncHelper';
 import { GamificationActions, UserState } from '../types';
 import { analyticsService } from '@/services/analyticsService';
+import Toast from 'react-native-toast-message';
 
 // C-03 FIX: Module-level re-entrancy guard prevents simultaneous double resets.
 let isResetting = false;
 // MED-004: Rate-limit publicProfiles writes — only on level-up or at most once per 5 min.
 let lastPublicProfileWriteTime = 0;
+
+const isDayActionDone = (state: UserState) => {
+  const today = getTodayLocal();
+  const tasksDone = state.tasks.filter(t => t.date === today && t.completed).length;
+  const habitsDone = state.habits.filter(h => h.completedDays.includes(today)).length;
+  const focusSeconds = state.focusSession?.totalSecondsToday || 0;
+  const moodLogged = state.moodHistory[today] !== undefined;
+  
+  return tasksDone >= 1 || habitsDone >= 1 || focusSeconds >= 600 || moodLogged;
+};
 
 export const createGamificationSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], GamificationActions> = (set, get) => ({
   performDailyReset: () => {
@@ -71,19 +82,22 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
           let newGlobalStreak = state.globalStreak || 0;
           let newStreakFreezes = state.streakFreezes || 0;
           
+          // PHASE 6: Strict Streak Logic
+          // A day is only "active" if a meaningful action was performed.
+          const wasActionDoneYesterday = state.lastActiveDate === yesterdayStr;
+          
           if (state.lastActiveDate && state.lastActiveDate < yesterdayStr) {
+            // User skipped yesterday entirely OR didn't do enough actions yesterday
             if (newStreakFreezes > 0) {
               // Consume freeze to protect streak
               newStreakFreezes -= 1;
               console.log(`[LifeOS] Global streak protected using a Freeze. Remaining: ${newStreakFreezes}`);
               setTimeout(() => {
-                import('react-native-toast-message').then(Toast => {
-                  Toast.default.show({
-                    type: 'success',
-                    text1: '🧊 Streak Saved!',
-                    text2: `A Freeze was used to keep your ${newGlobalStreak}-day streak alive.`
-                  });
-                });
+              Toast.show({
+                type: 'success',
+                text1: '🧊 Streak Saved!',
+                text2: `A Freeze was used to keep your ${newGlobalStreak}-day streak alive.`
+              });
               }, 2000);
               
               if (state.userId) {
@@ -120,6 +134,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
             focusSession: { ...state.focusSession, ...focusReset },
             focusHistory: newFocusHistory,
             dailyQuests: [],
+            hasSeenDailyHighlight: null,
           };
         } catch (error) {
           console.error('[LifeOS] Daily reset failed:', error);
@@ -233,13 +248,11 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     }
 
     setTimeout(() => {
-      import('react-native-toast-message').then(Toast => {
-        Toast.default.show({
+        Toast.show({
           type: 'success',
           text1: 'Quest Completed! 🏆',
           text2: `${quest.title} (+${quest.rewardXP} XP)`
         });
-      });
     }, 500);
   },
 
@@ -261,12 +274,19 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     const newLevel = computeLevel(newTotalXP);
 
     // Reset comeback notifications on any activity (XP gain)
-    import('@/services/notificationService').then(({ notificationService }) => {
-      notificationService.scheduleComebackNotifications();
-    });
+    // BUG-023: Only re-schedule if it's the first XP of the day to avoid API spam.
+    const lastScheduledDate = get().lastComebackScheduledDate;
+    if (lastScheduledDate !== todayStr) {
+      import('@/services/notificationService').then(({ notificationService }) => {
+        notificationService.scheduleComebackNotifications();
+      });
+      set({ lastComebackScheduledDate: todayStr });
+    }
 
     // 2. Check Global Streak
-    if (state.lastActiveDate !== todayStr) {
+    const actionDoneToday = isDayActionDone(state);
+    
+    if (state.lastActiveDate !== todayStr && actionDoneToday) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = formatLocalDate(yesterday);
@@ -278,6 +298,18 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       }
       newLastActiveDate = todayStr;
       
+      // 2b. Streak Bonus for Free Users (Every 3 days)
+      if (!state.isPro && newGlobalStreak > 0 && newGlobalStreak % 3 === 0) {
+        finalAmount += 25; // Add 25 XP bonus
+        setTimeout(() => {
+          Toast.show({
+            type: 'success',
+            text1: '🎁 Streak Bonus!',
+            text2: `+25 XP for reaching a ${newGlobalStreak}-day streak!`
+          });
+        }, 3000);
+      }
+      
       // Streak saved for today, cancel any streak warnings!
       import('@/services/notificationService').then(({ notificationService }) => {
         notificationService.cancelStreakWarningNotification();
@@ -286,15 +318,13 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       // Toast notification for streak if > 1
       if (newGlobalStreak > 1) {
         setTimeout(() => {
-          import('react-native-toast-message').then(Toast => {
-            Toast.default.show({
-              type: 'success',
-              text1: isLuckyBoost ? '🍀 LUCKY BOOST!' : 'Streak Saved! 🔥',
-              text2: isLuckyBoost 
-                ? `You earned DOUBLE XP (+${finalAmount}) and your ${newGlobalStreak}-day streak is alive!`
-                : `You're on a ${newGlobalStreak}-day streak!`
-            });
-          });
+        Toast.show({
+          type: 'success',
+          text1: isLuckyBoost ? '🍀 LUCKY BOOST!' : 'Streak Saved! 🔥',
+          text2: isLuckyBoost 
+            ? `You earned DOUBLE XP (+${finalAmount}) and your ${newGlobalStreak}-day streak is alive!`
+            : `You're on a ${newGlobalStreak}-day streak!`
+        });
         }, 1500);
       }
     }
@@ -318,13 +348,11 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       // PHASE 8: 100-Day Master Content Unlock
       if (newGlobalStreak === 100 && !state.masterUnlocked) {
         setTimeout(() => {
-          import('react-native-toast-message').then(Toast => {
-            Toast.default.show({
-              type: 'success',
-              text1: '🏆 LEGENDARY UNLOCKED!',
-              text2: 'You have reached a 100-day streak! The Legendary Gold theme is now yours.',
-              visibilityTime: 6000,
-            });
+          Toast.show({
+            type: 'success',
+            text1: '🏆 LEGENDARY UNLOCKED!',
+            text2: 'You have reached a 100-day streak! The Legendary Gold theme is now yours.',
+            visibilityTime: 6000,
           });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }, 3000);
@@ -336,7 +364,8 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       ? { masterUnlocked: true, unlockedThemes: [...state.unlockedThemes, 'Legendary Gold'] }
       : {};
 
-    const adjustedTotalXP = newTotalXP + milestoneBonus;
+    const newTotalWithMilestone = newTotalXP + milestoneBonus;
+    const adjustedTotalXP = Math.min(newTotalWithMilestone, 1000000); // BUG-025: XP Overflow Guard
     const adjustedLevel = computeLevel(adjustedTotalXP);
 
     // 4. Check Weekly XP (Resets every Monday)
@@ -372,7 +401,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     };
 
     if (state.userId) {
-      fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', newStatData), 'xpUpdate', state.userId);
+      fireSync(() => dbService.updateGlobalStats(state.userId!, newStatData, finalAmount + milestoneBonus), 'xpUpdate', state.userId);
       const levelChanged = adjustedLevel !== state.level;
       const now = Date.now();
       if (levelChanged || now - lastPublicProfileWriteTime > 5 * 60 * 1000) {
@@ -430,12 +459,10 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
 
           // Trigger UI rewards (outside set, but logic is atomic)
           setTimeout(() => {
-            import('react-native-toast-message').then(Toast => {
-              Toast.default.show({
-                type: 'success',
-                text1: 'Quest Completed! 🏆',
-                text2: `${q.title} (+${q.rewardXP} XP)`
-              });
+            Toast.show({
+              type: 'success',
+              text1: 'Quest Completed! 🏆',
+              text2: `${q.title} (+${q.rewardXP} XP)`
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }, 500);
@@ -458,11 +485,18 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
       const newState: Partial<UserState> = { dailyQuests: newQuests };
       if (totalXPToAdd > 0) {
         // Reset comeback notifications on activity
-        import('@/services/notificationService').then(({ notificationService }) => {
-          notificationService.scheduleComebackNotifications();
-        });
+        // BUG-023: Only re-schedule if it's the first activity of the day.
+        const today = getTodayLocal();
+        const lastScheduledDate = get().lastComebackScheduledDate;
+        if (lastScheduledDate !== today) {
+          import('@/services/notificationService').then(({ notificationService }) => {
+            notificationService.scheduleComebackNotifications();
+          });
+          set({ lastComebackScheduledDate: today });
+        }
 
-        const newTotalXP = state.totalXP + totalXPToAdd;
+        const rawTotalXP = state.totalXP + totalXPToAdd;
+        const newTotalXP = Math.min(rawTotalXP, 1000000); // BUG-025: XP Overflow Guard
         const newLevel = computeLevel(newTotalXP);
 
         // XP-01 FIX: Compute weeklyXP here so the leaderboard stays accurate
@@ -492,12 +526,12 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
         if (state.userId) {
           // XP-01 FIX: Include weeklyXP in the Firestore sync so the leaderboard
           // reflects quest XP immediately without waiting for the next addXP() call.
-          fireSync(() => dbService.saveCollectionDoc(state.userId!, 'stats', 'global', {
+          fireSync(() => dbService.updateGlobalStats(state.userId!, {
             totalXP: newTotalXP,
             level: newLevel,
             weeklyXP: newWeeklyXP,
             lastWeekResetDate: newLastWeekResetDate,
-          }), 'xpUpdateQuests', state.userId);
+          }, totalXPToAdd), 'xpUpdateQuests', state.userId);
         }
       }
 
@@ -525,6 +559,7 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
   dismissMoodLog: () => set({ lastMoodLog: null }),
   dismissProactive: () => set({ proactivePrompt: null }),
   dismissStreakBroken: () => set({ showStreakBroken: false }),
+  dismissDailyHighlight: () => set({ hasSeenDailyHighlight: getTodayLocal() }),
   setLastActive: () => set((state) => {
     const today = getTodayLocal();
     const updates: Record<string, unknown> = { lastActiveTimestamp: Date.now() };
@@ -539,4 +574,17 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
     }
     return updates;
   }),
+  markRecapAsSeen: (weekId: string) => {
+    const { userId } = get();
+    set((state) => {
+      const recaps = { ...state.weeklyRecaps };
+      if (recaps[weekId]) {
+        recaps[weekId] = { ...recaps[weekId], hasSeen: true };
+      }
+      return { weeklyRecaps: recaps };
+    });
+    if (userId) {
+      fireSync(() => dbService.saveCollectionDoc(userId, 'weeklyRecaps', weekId, { hasSeen: true }), 'markRecapSeen', userId);
+    }
+  },
 });

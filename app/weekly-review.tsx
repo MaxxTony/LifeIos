@@ -1,19 +1,18 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, Share } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { useStore } from '@/store/useStore';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { formatLocalDate, getTodayLocal } from '@/utils/dateUtils';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { Trophy, Target, Zap, Brain, TrendingUp, ChevronLeft, Sparkles, Calendar, Camera } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import ViewShot from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 import { ShareCard } from '@/components/ShareCard';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence } from 'react-native-reanimated';
+import { Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { useStore } from '@/store/useStore';
+import { formatLocalDate } from '@/utils/dateUtils';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import { Brain, Camera, ChevronLeft, Sparkles, Target, TrendingUp, Trophy, Zap } from 'lucide-react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Dimensions, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import ViewShot from 'react-native-view-shot';
 
 const { width } = Dimensions.get('window');
 
@@ -41,7 +40,7 @@ export default function WeeklyReviewScreen() {
 
   const shareCardRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
-  
+
   const flashOpacity = useSharedValue(0);
 
   const triggerShutter = () => {
@@ -58,16 +57,16 @@ export default function WeeklyReviewScreen() {
   const handleShare = async () => {
     try {
       setIsSharing(true);
-      
+
       // Visual Shutter Effect
       triggerShutter();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       // Delay for snapshot to feel like a camera capture
       await new Promise(resolve => setTimeout(resolve, 200));
 
       const uri = await shareCardRef.current?.capture?.();
-      
+
       if (uri) {
         try {
           await Sharing.shareAsync(uri, {
@@ -84,7 +83,7 @@ export default function WeeklyReviewScreen() {
             `✨ Avg Mood: ${stats.avgMood}\n` +
             `📈 Consistency: ${stats.habitRate}%\n\n` +
             `Check out LifeOS to track your growth!`;
-            
+
           await Share.share({
             message,
             title: 'Weekly Progress Report',
@@ -140,23 +139,33 @@ export default function WeeklyReviewScreen() {
     return { completedTasks, totalTasks, taskRate, completedHabits, habitRate, focusHours, avgMood, last7Days };
   }, [tasks, habits, focusHistory, moodHistory]);
 
+  const isHydrated = useStore(s => s._hasHydrated);
+
+  if (!isHydrated) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient 
-        colors={[colors.primary + '10', 'transparent']} 
-        style={StyleSheet.absoluteFill} 
+      <LinearGradient
+        colors={[colors.primary + '10', 'transparent']}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* SHUTTER FLASH OVERLAY */}
-      <Animated.View 
+      <Animated.View
         style={[
-          StyleSheet.absoluteFill, 
-          { backgroundColor: '#FFF', zIndex: 9999 }, 
+          StyleSheet.absoluteFill,
+          { backgroundColor: '#FFF', zIndex: 9999 },
           animatedFlashStyle
-        ]} 
+        ]}
         pointerEvents="none"
       />
-      
+
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -177,33 +186,33 @@ export default function WeeklyReviewScreen() {
 
           <PremiumCard style={styles.mainStatsCard}>
             <View style={styles.statsRow}>
-              <StatItem 
-                icon={<Target size={20} color={colors.secondary} />} 
-                label="Tasks" 
-                value={`${stats.completedTasks}/${stats.totalTasks}`} 
+              <StatItem
+                icon={<Target size={20} color={colors.secondary} />}
+                label="Tasks"
+                value={`${stats.completedTasks}/${stats.totalTasks}`}
                 subtext={`${stats.taskRate}% completion`}
               />
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <StatItem 
-                icon={<Zap size={20} color={colors.danger} />} 
-                label="Habits" 
-                value={`${stats.completedHabits}`} 
+              <StatItem
+                icon={<Zap size={20} color={colors.danger} />}
+                label="Habits"
+                value={`${stats.completedHabits}`}
                 subtext={`${stats.habitRate}% consistency`}
               />
             </View>
             <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statsRow}>
-              <StatItem 
-                icon={<Brain size={20} color={colors.success} />} 
-                label="Focus" 
-                value={`${stats.focusHours}h`} 
+              <StatItem
+                icon={<Brain size={20} color={colors.success} />}
+                label="Focus"
+                value={`${stats.focusHours}h`}
                 subtext="Deep work hours"
               />
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <StatItem 
-                icon={<Sparkles size={20} color={colors.warning} />} 
-                label="Mood" 
-                value={`${stats.avgMood}`} 
+              <StatItem
+                icon={<Sparkles size={20} color={colors.warning} />}
+                label="Mood"
+                value={`${stats.avgMood}`}
                 subtext="Average feel"
               />
             </View>
@@ -224,9 +233,9 @@ export default function WeeklyReviewScreen() {
                   return (
                     <View key={i} style={styles.chartCol}>
                       <View style={[styles.chartBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                        <LinearGradient 
-                          colors={[colors.primary, colors.secondary]} 
-                          style={[styles.chartBar, { height: `${perc * 100}%` }]} 
+                        <LinearGradient
+                          colors={[colors.primary, colors.secondary]}
+                          style={[styles.chartBar, { height: `${perc * 100}%` }]}
                         />
                       </View>
                       <Text style={[styles.chartLabel, { color: colors.textSecondary }]}>
@@ -241,21 +250,21 @@ export default function WeeklyReviewScreen() {
 
           {/* Off-screen high-quality share card */}
           <View style={styles.hiddenCardContainer} pointerEvents="none">
-             <ViewShot ref={shareCardRef} options={{ format: 'png', quality: 1.0 }}>
-                <ShareCard stats={stats} userName={userName} />
-             </ViewShot>
+            <ViewShot ref={shareCardRef} options={{ format: 'png', quality: 1.0 }}>
+              <ShareCard stats={stats} userName={userName} />
+            </ViewShot>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.shareBtn, { backgroundColor: colors.primary }]}
             onPress={handleShare}
             disabled={isSharing}
           >
             <View style={styles.shareBtnContent}>
-               {!isSharing && <Camera size={20} color="#FFF" style={{ marginRight: 10 }} />}
-               <Text style={styles.shareBtnText}>
-                 {isSharing ? 'Capturing Snapshot...' : 'Snap & Share Progress'}
-               </Text>
+              {!isSharing && <Camera size={20} color="#FFF" style={{ marginRight: 10 }} />}
+              <Text style={styles.shareBtnText}>
+                {isSharing ? 'Capturing Snapshot...' : 'Snap & Share Progress'}
+              </Text>
             </View>
           </TouchableOpacity>
         </ScrollView>

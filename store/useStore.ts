@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware';
 import { Appearance } from 'react-native';
 import { UserState } from './types';
 import { createShardedStorage } from './shardedStorage';
@@ -17,137 +17,141 @@ import { getTodayLocal } from '@/utils/dateUtils';
 import { getLevelProgress, LEVEL_NAMES } from './helpers';
 
 export const useStore = create<UserState>()(
-  persist(
-    (set, get, api) => {
-      // Initialize slices
-      const auth = createAuthSlice(set, get, api);
-      const tasks = createTaskSlice(set, get, api);
-      const habits = createHabitSlice(set, get, api);
-      const focus = createFocusSlice(set, get, api);
-      const mood = createMoodSlice(set, get, api);
-      const gamification = createGamificationSlice(set, get, api);
-      const subscription = createSubscriptionSlice(set, get, api);
+  subscribeWithSelector(
+    persist(
+      (set, get, api) => {
+        // Initialize slices
+        const auth = createAuthSlice(set, get, api);
+        const tasks = createTaskSlice(set, get, api);
+        const habits = createHabitSlice(set, get, api);
+        const focus = createFocusSlice(set, get, api);
+        const mood = createMoodSlice(set, get, api);
+        const gamification = createGamificationSlice(set, get, api);
+        const subscription = createSubscriptionSlice(set, get, api);
 
-      return {
-        // Initial State
-        _hasHydrated: false,
-        _authStateResolved: false,
-        hasCompletedOnboarding: false,
-        isAuthenticated: false,
-        userId: null,
-        userName: null,
-        email: null,
-        createdAt: null,
-        onboardingData: { struggles: [] },
-        tasks: [],
-        habits: [],
-        focusSession: {
-          totalSecondsToday: 0,
-          isActive: false,
-          lastStartTime: null,
-          isPomodoro: false,
-          pomodoroMode: 'work',
-          pomodoroWorkDuration: 25 * 60,
-          pomodoroBreakDuration: 5 * 60,
-          pomodoroTimeLeft: 25 * 60,
-          sessionStartSeconds: 0,
-          pomodoroOverflow: 0,
-        },
-        focusGoalHours: 2,
-        focusHistory: {},
-        moodHistory: {},
-        mood: null,
-        moodTheme: null,
-        lastResetDate: null,
-        bio: null,
-        location: null,
-        occupation: null,
-        avatarUrl: null,
-        phoneNumber: null,
-        birthday: null,
-        pronouns: null,
-        skills: null,
-        socialLinks: {},
-        themePreference: 'system',
-        accentColor: null,
-        homeTimezone: null,
-        notificationSettings: {
-          masterEnabled: true,
-          habitReminders: true,
-          taskReminders: true,
-          missedTaskAlert: true,
-          morningBrief: true,
-          streakWarning: true,
-          questCompleted: true,
-          weeklyLeaderboard: true,
-          dailyMoodCheckin: true,
-          aiCoachNudge: true,
-          pomodoroAlert: true,
-          comeback48h: true,
-          comeback7d: true,
-        },
-        recentXP: null,
-        streakMilestones: [],
-        lastMoodLog: null,
-        lifeScoreHistory: {},
-        lastActiveTimestamp: Date.now(),
-        totalXP: 0,
-        level: 1,
-        weeklyXP: 0,
-        globalStreak: 0,
-        unlockedThemes: [],
-        masterUnlocked: false,
-        lastActiveDate: null,
-        lastWeekResetDate: null,
-        lastLoginBonusDate: null,
-        streakFreezes: 0,
-        globalConfetti: false,
-        dailyQuests: [],
-        aiInsight: null,
-        showStreakBroken: false,
-        completedQuests: [],
-        proactivePrompt: null,
-        syncError: null,
-        _lastRetryAt: Date.now(),
-        hasSeenWalkthrough: false,
-        _syncUnsubscribes: [],
-        _subscriptionGen: 0,
-        sessionToken: null,
+        return {
+          // Initial State
+          _hasHydrated: false,
+          _authStateResolved: false,
+          hasCompletedOnboarding: false,
+          isAuthenticated: false,
+          userId: null,
+          userName: null,
+          email: null,
+          createdAt: null,
+          onboardingData: { struggles: [] },
+          tasks: [],
+          habits: [],
+          focusSession: {
+            totalSecondsToday: 0,
+            isActive: false,
+            lastStartTime: null,
+            isPomodoro: false,
+            pomodoroMode: 'work',
+            pomodoroWorkDuration: 25 * 60,
+            pomodoroBreakDuration: 5 * 60,
+            pomodoroTimeLeft: 25 * 60,
+            sessionStartSeconds: 0,
+            pomodoroOverflow: 0,
+          },
+          focusGoalHours: 2,
+          focusHistory: {},
+          moodHistory: {},
+          mood: null,
+          moodTheme: null,
+          lastResetDate: null,
+          bio: null,
+          location: null,
+          occupation: null,
+          avatarUrl: null,
+          phoneNumber: null,
+          birthday: null,
+          pronouns: null,
+          skills: null,
+          socialLinks: {},
+          themePreference: 'system',
+          accentColor: null,
+          homeTimezone: null,
+          notificationSettings: {
+            masterEnabled: true,
+            habitReminders: true,
+            taskReminders: true,
+            missedTaskAlert: true,
+            morningBrief: true,
+            streakWarning: true,
+            questCompleted: true,
+            weeklyLeaderboard: true,
+            dailyMoodCheckin: true,
+            aiCoachNudge: true,
+            pomodoroAlert: true,
+            focusReminders: true,
+            comeback48h: true,
+            comeback7d: true,
+          },
+          recentXP: null,
+          streakMilestones: [],
+          lastMoodLog: null,
+          lifeScoreHistory: {},
+          lastActiveTimestamp: Date.now(),
+          totalXP: 0,
+          level: 1,
+          weeklyXP: 0,
+          globalStreak: 0,
+          unlockedThemes: [],
+          masterUnlocked: false,
+          lastActiveDate: null,
+          lastWeekResetDate: null,
+          lastLoginBonusDate: null,
+          streakFreezes: 0,
+          globalConfetti: false,
+          dailyQuests: [],
+          aiInsight: null,
+          showStreakBroken: false,
+          completedQuests: [],
+          proactivePrompt: null,
+          syncError: null,
+          _lastRetryAt: Date.now(),
+          hasSeenWalkthrough: false,
+          _syncUnsubscribes: [],
+          _subscriptionGen: 0,
+          sessionToken: null,
+          lastComebackScheduledDate: null,
 
-        // Subscription (Pro)
-        isPro: false,
-        subscriptionExpiryDate: null,
-        dailyAIMessageCount: 0,
-        lastAIMessageCountReset: null,
+          // Subscription (Pro)
+          isPro: false,
+          subscriptionExpiryDate: null,
+          dailyAIMessageCount: 0,
+          lastAIMessageCountReset: null,
 
-        syncStatus: {
-          tasksLoaded: false,
-          habitsLoaded: false,
-          moodLoaded: false,
-          focusLoaded: false,
-          questsLoaded: false,
-          profileLoaded: false,
-          isOffline: false,
-          lastCloudSync: null,
-        },
-        pendingActions: [],
+          syncStatus: {
+            tasksLoaded: false,
+            habitsLoaded: false,
+            moodLoaded: false,
+            focusLoaded: false,
+            questsLoaded: false,
+            profileLoaded: false,
+            isOffline: false,
+            lastCloudSync: null,
+          },
+          pendingActions: [],
 
-        // Actions
-        actions: {
-          ...auth,
-          ...tasks,
-          ...habits,
-          ...focus,
-          ...mood,
-          ...gamification,
-          ...subscription,
-        },
-      };
-    },
+          // Actions
+          actions: {
+            ...auth,
+            ...tasks,
+            ...habits,
+            ...focus,
+            ...mood,
+            ...gamification,
+            ...subscription,
+          },
+        };
+      },
     {
       name: 'lifeos-storage',
       version: 2,
       migrate: (persistedState: any, version: number) => {
+        if (!persistedState) return persistedState;
         if (version === 0) {
           if (!Array.isArray(persistedState.pendingActions)) {
             persistedState.pendingActions = [];
@@ -167,6 +171,7 @@ export const useStore = create<UserState>()(
             dailyMoodCheckin: true,
             aiCoachNudge: true,
             pomodoroAlert: true,
+            focusReminders: true,
             comeback48h: true,
             comeback7d: true,
           };
@@ -189,6 +194,7 @@ export const useStore = create<UserState>()(
           // C-STORE-1 Fix: NEVER persist PII or sensitive session credentials to AsyncStorage in plaintext.
           sessionToken,
           email,
+          userName,
           phoneNumber,
           birthday,
           ...rest
@@ -229,6 +235,7 @@ export const useStore = create<UserState>()(
       },
     }
   )
+)
 );
 
 // Wire up the sync error publisher to the store
@@ -245,104 +252,120 @@ wireStore(useStore);
 let lastSyncDataSerialized = '';
 let widgetSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-useStore.subscribe((state) => {
-  if (!state._hasHydrated) return;
+useStore.subscribe(
+  (state) => ({
+    userId: state.userId,
+    isPro: state.isPro,
+    accentColor: state.accentColor,
+    moodTheme: state.moodTheme,
+    tasks: state.tasks,
+    habits: state.habits,
+    focusSession: state.focusSession,
+    focusGoalHours: state.focusGoalHours,
+    totalXP: state.totalXP,
+    level: state.level,
+    globalStreak: state.globalStreak,
+    moodHistory: state.moodHistory,
+    themePreference: state.themePreference,
+    _hasHydrated: state._hasHydrated,
+  }),
+  (state) => {
+    if (!state._hasHydrated) return;
 
-  // When user logs out, push an explicit not-logged-in payload so the iOS
-  // widget shows the lock screen instead of stale data from the previous session.
-  if (!state.userId) {
-    widgetSyncService.syncWholeStoreToWidget({
-      isLoggedIn: false, isPro: false, accentColor: '#7C5CFF',
-      tasks: [], habits: [], habitProgress: { completed: 0, total: 0 },
-      focus: { isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: null },
-      stats: { level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: 'Spark' },
-      mood: { today: 0, last5Days: [0, 0, 0, 0, 0] },
-      theme: 'dark',
-      lastUpdated: Date.now(),
-    });
-    return;
-  }
-
-  // Debounce: clear any pending timer and re-set it
-  if (widgetSyncDebounceTimer) clearTimeout(widgetSyncDebounceTimer);
-
-  widgetSyncDebounceTimer = setTimeout(() => {
-    const today = getTodayLocal();
-    const dayOfWeek = new Date().getDay();
-
-    const todayTasks = state.tasks.filter(t => t.date === today);
-    const todayHabits = state.habits.filter(h => {
-      if (h.pausedUntil && h.pausedUntil >= today) return false;
-      if (h.frequency === 'daily' || h.frequency === 'weekly') {
-        return (h.targetDays ?? []).includes(dayOfWeek);
-      }
-      return false;
-    });
-    const completedHabitsToday = todayHabits.filter(h => (h.completedDays ?? []).includes(today)).length;
-
-    const { progress: xpProgress } = getLevelProgress(state.totalXP ?? 0);
-
-    // Last 5 days of mood (index 0 = 4 days ago, index 4 = today)
-    const last5Moods: number[] = Array.from({ length: 5 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (4 - i));
-      const dateStr = formatLocalDate(d);
-      return state.moodHistory?.[dateStr]?.mood ?? 0;
-    });
-
-    const widgetData = {
-      isLoggedIn: true,
-      isPro: state.isPro,
-      accentColor: state.accentColor ?? '#7C5CFF',
-      moodTheme: state.moodTheme ?? 'classic',
-      tasks: todayTasks
-        .filter(t => !t.completed && t.status !== 'missed')
-        .sort((a, b) => {
-          const pMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
-          return (pMap[a.priority] ?? 1) - (pMap[b.priority] ?? 1);
-        })
-        .slice(0, 4)
-        .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
-      habits: todayHabits.slice(0, 4).map(h => ({
-        id: h.id,
-        title: h.title,
-        icon: h.icon ?? '●',
-        isDoneToday: (h.completedDays ?? []).includes(today),
-      })),
-      habitProgress: {
-        completed: completedHabitsToday,
-        total: todayHabits.length,
-      },
-      focus: {
-        isActive: state.focusSession.isActive,
-        totalSecondsToday: state.focusSession.totalSecondsToday,
-        goalSeconds: (state.focusGoalHours || 8) * 3600,
-        lastStartTime: state.focusSession.lastStartTime,
-      },
-      stats: {
-        level: state.level ?? 1,
-        totalXP: state.totalXP ?? 0,
-        streak: state.globalStreak ?? 0,
-        xpProgress: Math.min(1, Math.max(0, xpProgress)),
-        levelName: LEVEL_NAMES[state.level ?? 1] ?? 'Spark',
-      },
-      mood: {
-        today: state.moodHistory?.[today]?.mood ?? 0,
-        last5Days: last5Moods,
-      },
-      theme: state.themePreference === 'system'
-        ? (Appearance.getColorScheme() ?? 'dark')
-        : state.themePreference,
-      lastUpdated: Date.now(),
-    };
-
-    const serialized = JSON.stringify(widgetData);
-    if (serialized !== lastSyncDataSerialized) {
-      lastSyncDataSerialized = serialized;
-      widgetSyncService.syncWholeStoreToWidget(widgetData);
+    if (!state.userId) {
+      widgetSyncService.syncWholeStoreToWidget({
+        isLoggedIn: false, isPro: false, accentColor: '#7C5CFF',
+        moodTheme: 'classic',
+        tasks: [], habits: [], habitProgress: { completed: 0, total: 0 },
+        focus: { isActive: false, totalSecondsToday: 0, goalSeconds: 28800, lastStartTime: null },
+        stats: { level: 1, totalXP: 0, streak: 0, xpProgress: 0, levelName: 'Spark' },
+        mood: { today: 0, last5Days: [0, 0, 0, 0, 0] },
+        theme: 'dark',
+        lastUpdated: Date.now(),
+      });
+      return;
     }
-  }, 500); // 500ms debounce — groups rapid changes from timer ticks
-});
+
+    if (widgetSyncDebounceTimer) clearTimeout(widgetSyncDebounceTimer);
+
+    widgetSyncDebounceTimer = setTimeout(() => {
+      const today = getTodayLocal();
+      const dayOfWeek = new Date().getDay();
+
+      const todayTasks = state.tasks.filter(t => t.date === today);
+      const todayHabits = state.habits.filter(h => {
+        if (h.pausedUntil && h.pausedUntil >= today) return false;
+        if (h.frequency === 'daily' || h.frequency === 'weekly') {
+          return (h.targetDays ?? []).includes(dayOfWeek);
+        }
+        return false;
+      });
+      const completedHabitsToday = todayHabits.filter(h => (h.completedDays ?? []).includes(today)).length;
+
+      const { progress: xpProgress } = getLevelProgress(state.totalXP ?? 0);
+
+      const last5Moods: number[] = Array.from({ length: 5 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (4 - i));
+        const dateStr = formatLocalDate(d);
+        return state.moodHistory?.[dateStr]?.mood ?? 0;
+      });
+
+      const widgetData = {
+        isLoggedIn: true,
+        isPro: state.isPro,
+        accentColor: state.accentColor ?? '#7C5CFF',
+        moodTheme: state.moodTheme ?? 'classic',
+        tasks: todayTasks
+          .filter(t => !t.completed && t.status !== 'missed')
+          .sort((a, b) => {
+            const pMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
+            return (pMap[a.priority] ?? 1) - (pMap[b.priority] ?? 1);
+          })
+          .slice(0, 4)
+          .map(t => ({ id: t.id, text: t.text, completed: t.completed, priority: t.priority })),
+        habits: todayHabits.slice(0, 4).map(h => ({
+          id: h.id,
+          title: h.title,
+          icon: h.icon ?? '●',
+          isDoneToday: (h.completedDays ?? []).includes(today),
+        })),
+        habitProgress: {
+          completed: completedHabitsToday,
+          total: todayHabits.length,
+        },
+        focus: {
+          isActive: state.focusSession.isActive,
+          totalSecondsToday: state.focusSession.totalSecondsToday,
+          goalSeconds: (state.focusGoalHours || 8) * 3600,
+          lastStartTime: state.focusSession.lastStartTime,
+        },
+        stats: {
+          level: state.level ?? 1,
+          totalXP: state.totalXP ?? 0,
+          streak: state.globalStreak ?? 0,
+          xpProgress: Math.min(1, Math.max(0, xpProgress)),
+          levelName: LEVEL_NAMES[state.level ?? 1] ?? 'Spark',
+        },
+        mood: {
+          today: state.moodHistory?.[today]?.mood ?? 0,
+          last5Days: last5Moods,
+        },
+        theme: state.themePreference === 'system'
+          ? (Appearance.getColorScheme() ?? 'dark')
+          : state.themePreference,
+        lastUpdated: Date.now(),
+      };
+
+      const serialized = JSON.stringify(widgetData);
+      if (serialized !== lastSyncDataSerialized) {
+        lastSyncDataSerialized = serialized;
+        widgetSyncService.syncWholeStoreToWidget(widgetData);
+      }
+    }, 500);
+  },
+  { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) }
+);
 
 // Re-schedule morning brief when tasks or habits change so tomorrow's
 // notification shows fresh counts instead of stale data.

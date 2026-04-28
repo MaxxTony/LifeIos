@@ -22,7 +22,8 @@
         "NSMicrophoneUsageDescription": "LifeOS needs access to your microphone for voice commands.",
         "NSSpeechRecognitionUsageDescription": "LifeOS needs speech recognition to convert your voice to actions.",
         "UIBackgroundModes": [
-          "fetch"
+          "fetch",
+          "processing"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -36,7 +37,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "allowBackup": false,
+      "allowBackup": true,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",

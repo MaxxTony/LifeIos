@@ -17,11 +17,11 @@ export function useProGate() {
     /** Whether the user has an active Pro subscription */
     isPro,
 
-    /** Whether the user can send an AI message (Pro = always, Free = under 5/day) */
-    canUseAI: isPro || dailyAIMessageCount < 5,
+    /** Whether the user can send an AI message (Pro = always, Free = under 20/day) */
+    canUseAI: isPro || dailyAIMessageCount < 20,
 
     /** Number of AI messages remaining today (Infinity for Pro) */
-    remainingAIMessages: isPro ? Infinity : Math.max(0, 5 - dailyAIMessageCount),
+    remainingAIMessages: isPro ? Infinity : Math.max(0, 20 - dailyAIMessageCount),
 
     /** Current AI message count today */
     dailyAIMessageCount,

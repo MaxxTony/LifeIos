@@ -68,6 +68,7 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   lastResetDate: null,
   hasSeenWalkthrough: false,
   hasCompletedOnboarding: false,
+  onboardingData: { struggles: [] },
   aiInsight: null,
 };
 
@@ -158,7 +159,8 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       const totalSeconds = Math.max(0, state.focusSession.totalSecondsToday + lastTickDelta);
       
       // Use fireSync so it finishes even if state is cleared
-      fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'logoutFocusSave', state.userId);
+      // BUG-021: Await the save so auth isn't wiped before the write completes
+      await fireSync(() => dbService.saveFocusEntry(state.userId!, getTodayLocal(), totalSeconds), 'logoutFocusSave', state.userId);
     }
 
     // 2. Clean up presence
@@ -294,6 +296,29 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           if (data.streakFreezes !== undefined) updates.streakFreezes = data.streakFreezes;
           if (data.lastLoginBonusDate !== undefined) updates.lastLoginBonusDate = data.lastLoginBonusDate;
 
+          // SYNC FIX: Handle remote focus session changes (cross-device)
+          if (data.activeFocusSession !== undefined) {
+            const current = get().focusSession;
+            if (data.activeFocusSession === null) {
+              if (current.isActive) {
+                updates.focusSession = { ...current, isActive: false, lastStartTime: null };
+              }
+            } else {
+              const remote = data.activeFocusSession;
+              // Only sync if the remote session is "newer" or we aren't active locally
+              if (!current.isActive || remote.lastStartTime > (current.lastStartTime || 0)) {
+                updates.focusSession = {
+                  ...current,
+                  isActive: true,
+                  isPomodoro: remote.isPomodoro,
+                  pomodoroMode: remote.pomodoroMode,
+                  pomodoroTimeLeft: remote.pomodoroTimeLeft,
+                  lastStartTime: remote.lastStartTime
+                };
+              }
+            }
+          }
+
           // C-AUTH-10 FIX: Aggressive self-healing for stale onboarding flags in cloud.
           // O17 FIX: STICKY TRUE. Once these are true, never let a cloud snapshot downgrade them to false/undefined.
           const currentCompleted = get().hasCompletedOnboarding;
@@ -384,8 +409,11 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         'habits',
         (docs, metadata) => {
           if (isStale()) return;
+          // FIREBASE FIX: Filter archived habits locally to avoid requiring a composite index
+          // for where('archived') + orderBy('createdAt').
+          const activeHabits = (docs as Habit[]).filter(h => h.archived !== true);
           set((state) => ({
-            habits: docs as Habit[],
+            habits: activeHabits,
             syncStatus: {
               ...state.syncStatus,
               habitsLoaded: true,
@@ -498,6 +526,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           // Always take max so an in-flight local XP gain is never overwritten
           if (serverXP > currentState.totalXP) {
             updates.totalXP = serverXP;
+            const { computeLevel } = require('../helpers');
             updates.level = computeLevel(serverXP);
           }
           if (statsDoc.weeklyXP !== undefined) updates.weeklyXP = Math.max(statsDoc.weeklyXP, currentState.weeklyXP);
@@ -508,6 +537,21 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         }
       );
       collected.push(unsubStats);
+
+      // Weekly Recaps Subscription
+      const unsubRecaps = dbService.subscribeToCollection(
+        userId,
+        'weeklyRecaps',
+        (docs) => {
+          if (isStale()) return;
+          const recaps: Record<string, import('../types').WeeklyRecap> = {};
+          docs.forEach(d => {
+            recaps[d.id] = { ...d } as any;
+          });
+          set({ weeklyRecaps: recaps });
+        }
+      );
+      collected.push(unsubRecaps);
     } catch (err) {
       console.error('[LifeOS] Sync subscription set failed:', err);
     } finally {
@@ -600,7 +644,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           const newWeeklyXP = stateAfterStats.weeklyXP + 5;
           const newLevel = computeLevel(newXP);
           set({ totalXP: newXP, weeklyXP: newWeeklyXP, level: newLevel, lastLoginBonusDate: todayStr });
-          fireSync(() => dbService.updateGlobalStats(userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }), 'dailyLoginBonus_stats', userId);
+          fireSync(() => dbService.updateGlobalStats(userId!, { totalXP: newXP, weeklyXP: newWeeklyXP }, 5), 'dailyLoginBonus_stats', userId);
           fireSync(() => dbService.saveUserProfile(userId!, { lastLoginBonusDate: todayStr } as any), 'dailyLoginBonus_profile', userId);
           setTimeout(() => {
             get().actions.triggerGlobalConfetti();

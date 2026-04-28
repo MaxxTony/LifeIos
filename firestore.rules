@@ -86,6 +86,14 @@ service cloud.firestore {
       }
 
       match /memories/{memoryId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.content is string
+          && request.resource.data.content.size() < 2000
+          && request.resource.data.keys().hasOnly(['id', 'content', 'timestamp', 'type', 'tags', 'lastUpdatedAt', 'serverUpdatedAt']);
+      }
+
+      match /weeklyRecaps/{recapId} {
         allow read, write: if isOwner(userId);
       }
     } // end of match /users/{userId}
@@ -101,17 +109,34 @@ service cloud.firestore {
     match /friendRequests/{requestId} {
       allow create: if isSignedIn() 
         && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.toUserId != request.auth.uid 
+        && request.resource.data.status == 'pending'
         && request.resource.data.keys().hasOnly(['id', 'fromUserId', 'toUserId', 'status', 'createdAt']);
       
-      allow read, update, delete: if isSignedIn()
+      allow read, delete: if isSignedIn()
         && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+
+      allow update: if isSignedIn()
+        && (resource.data.toUserId == request.auth.uid || resource.data.fromUserId == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['accepted', 'declined', 'pending'];
+    }
+
+    match /xpBuffer/{txId} {
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.keys().hasOnly(['userId', 'amount', 'timestamp']);
     }
 
     match /feedback/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly(['text', 'rating', 'userId', 'createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['text', 'rating', 'userId', 'createdAt', 'serverCreatedAt'])
         && request.resource.data.text is string
-        && request.resource.data.text.size() < 2000;
+        && request.resource.data.text.size() < 2000
+        && (request.resource.data.createdAt == request.time || request.resource.data.createdAt is string);
     }
 
     // ---- Default deny --------------------------------------------------

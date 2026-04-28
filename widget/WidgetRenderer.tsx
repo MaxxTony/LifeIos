@@ -5,12 +5,10 @@ import { MoodWidget } from './widgets/MoodWidget';
 import { NotLoggedInWidget } from './widgets/NotLoggedInWidget';
 import { TasksWidget } from './widgets/TasksWidget';
 import { XPLevelWidget } from './widgets/XPLevelWidget';
-import { useColorScheme } from 'react-native';
 import { FlexWidget } from 'react-native-android-widget';
 import { resolveAccent, getLevelInfo, getToday, getDateOffset, ThemeMode } from './widgets/utils';
 
 export function WidgetRenderer({ widgetName, state, widgetInfo }: { widgetName: string, state: any, widgetInfo?: any }) {
-  const systemTheme = useColorScheme() as ThemeMode;
   // Handle both raw state and mapped WidgetData
   const isLoggedIn = state?.userId || state?.isLoggedIn;
   if (!isLoggedIn) {
@@ -18,12 +16,14 @@ export function WidgetRenderer({ widgetName, state, widgetInfo }: { widgetName: 
   }
 
   const themePref = state.theme || 'dark';
-  const theme: ThemeMode = themePref === 'system' ? (systemTheme || 'dark') : themePref;
+  // Avoid using useColorScheme hook in background tasks as it may be unreliable or cause crashes.
+  // Default to 'dark' if 'system' is requested but environment is ambiguous.
+  const theme: ThemeMode = themePref === 'system' ? 'dark' : themePref as ThemeMode;
   const accent = resolveAccent(state.accentColor);
   const today = getToday();
 
   // Normalize data access
-  const stats = state.stats || state;
+  const stats = state.stats || state || {};
   const totalXP = stats.totalXP ?? 0;
   const globalStreak = stats.streak ?? stats.globalStreak ?? 0;
   const level = stats.level ?? 1;

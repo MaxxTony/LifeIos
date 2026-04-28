@@ -80,6 +80,7 @@ export const analyticsService = {
       Sentry.addBreadcrumb({
         category: 'navigation',
         message: screenName,
+        data: { userId: userId || 'anonymous' },
         level: 'info',
       });
     } catch (err) {}

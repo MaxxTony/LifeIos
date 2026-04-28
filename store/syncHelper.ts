@@ -1,3 +1,4 @@
+import Toast from 'react-native-toast-message';
 import { isTransientError, SYNC_RETRY_DELAYS_MS } from './helpers';
 
 // Module-level variables to handle error publishing and re-entrancy locking
@@ -84,17 +85,13 @@ export const fireSync = (
       console.error(`[LifeOS Sync] ${label} failed (final):`, msg);
       publishSyncError?.({ label, message: msg });
       
-      import('react-native-toast-message')
-        .then((Toast) => {
-          Toast.default.show({
-            type: 'error',
-            text1: 'Sync pending',
-            text2: 'Changes saved locally and will sync when online.',
-            visibilityTime: 4000,
-          });
-        })
-        .catch(() => {});
+      Toast.show({
+        type: 'error',
+        text1: 'Sync pending',
+        text2: 'Changes saved locally and will sync when online.',
+        visibilityTime: 4000,
+      });
     }
   };
-  attempt(0);
+  return attempt(0);
 };

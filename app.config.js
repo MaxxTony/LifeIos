@@ -6,8 +6,9 @@ module.exports = ({ config }) => {
     ...config,
     extra: {
       ...config.extra,
-      sentryDsn: process.env.SENTRY_DSN || null,
       eas: config.extra?.eas,
+      sentryDsn: process.env.SENTRY_DSN || null,
+      sentryAuthToken: process.env.SENTRY_AUTH_TOKEN || null,
     },
   };
 };

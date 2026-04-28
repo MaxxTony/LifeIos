@@ -12,8 +12,6 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
     const now = Date.now();
 
     if (state.focusSession.isActive) {
-      // DELTA FIX: totalSecondsToday is already accurate (updated each tick).
-      // Just add the small gap between the last tick and the stop press (~0-1s).
       const lastTickDelta = state.focusSession.lastStartTime
         ? Math.min((now - state.focusSession.lastStartTime) / 1000, 30)
         : 0;
@@ -26,13 +24,22 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
         });
         analyticsService.logEvent(state.userId, 'focus_session_stop', { duration: totalSeconds });
 
-        // XP awarded based on minutes of focus (1 XP per 3 minutes)
         const previousXP = Math.floor((state.focusSession.sessionStartSeconds || 0) / 180);
         const newXP = Math.floor(totalSeconds / 180);
         const earnedDelta = newXP - previousXP;
         if (earnedDelta > 0) {
           get().actions.addXP(earnedDelta);
         }
+      }
+
+      // BACKGROUND FIX: Cancel focus notifications when stopping
+      import('@/services/notificationService').then(({ notificationService }) => {
+        notificationService.cancelFocusNotifications();
+      });
+
+      // SYNC FIX: Clear active focus session from cloud
+      if (state.userId) {
+        dbService.saveUserProfile(state.userId, { activeFocusSession: null } as any).catch(() => {});
       }
 
       return {
@@ -50,7 +57,27 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
           presenceService.joinFocusRoom(state.userId!, state.userName!);
         });
         analyticsService.logEvent(state.userId, 'focus_session_start', { isPomodoro: state.focusSession.isPomodoro });
+        
+        // SYNC FIX: Persist active focus session to cloud so other devices can pick it up
+        dbService.saveUserProfile(state.userId!, {
+          activeFocusSession: {
+            isActive: true,
+            lastStartTime: now,
+            isPomodoro: state.focusSession.isPomodoro,
+            pomodoroMode: state.focusSession.pomodoroMode,
+            pomodoroTimeLeft: state.focusSession.pomodoroTimeLeft,
+          }
+        } as any).catch(() => {});
       }
+
+      // BACKGROUND FIX: Schedule background notification
+      import('@/services/notificationService').then(({ notificationService }) => {
+        if (state.focusSession.isPomodoro) {
+          notificationService.scheduleFocusReminder(state.focusSession.pomodoroTimeLeft, state.focusSession.pomodoroMode);
+        } else {
+          notificationService.scheduleFocusReminder(3600, 'work');
+        }
+      });
 
       return {
         focusSession: {
@@ -69,14 +96,8 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
     const now = Date.now();
     const { lastStartTime, totalSecondsToday } = state.focusSession;
 
-    // DELTA-BASED FIX: Calculate only the time since the last tick (not since session start).
-    // This prevents the timer from counting up and fixes minute-jumping.
-    // lastStartTime is updated to 'now' at the end of each tick.
     const rawDelta = lastStartTime ? (now - lastStartTime) / 1000 : 1;
-    // Cap delta to 30s to handle app backgrounding / JS thread freezes.
-    // Anything > 30s means the app was suspended; the AppState handler reconciles those.
     const delta = Math.min(Math.max(0, rawDelta), 30);
-
     const newTotalSeconds = totalSecondsToday + delta;
 
     let newMode = state.focusSession.pomodoroMode;
@@ -84,36 +105,36 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
     let pomodoroPhaseChanged = false;
 
     if (state.focusSession.isPomodoro) {
-      // COUNTDOWN FIX: decrement pomodoroTimeLeft by delta (not recalculate from scratch)
       newTimeLeft = Math.max(0, state.focusSession.pomodoroTimeLeft - delta);
 
       if (newTimeLeft <= 0 && !pomodoroPhaseChanged) {
         pomodoroPhaseChanged = true;
-        // Fire haptic + notification asynchronously
         import('expo-haptics').then(Haptics =>
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
         );
+        
         import('@/services/notificationService').then(({ notificationService }) => {
           const title = newMode === 'work' ? '☕ Break Time!' : '🔥 Focus Time!';
           const body  = newMode === 'work' ? 'Work session complete! Take a break.' : 'Break over! Time to focus.';
           notificationService.sendProactiveAI(title, body, 'pomodoro');
+          
+          // BACKGROUND FIX: Reschedule for next phase
+          const nextDuration = newMode === 'work' ? state.focusSession.pomodoroBreakDuration : state.focusSession.pomodoroWorkDuration;
+          const nextMode = newMode === 'work' ? 'break' : 'work';
+          notificationService.scheduleFocusReminder(nextDuration, nextMode);
         });
 
         if (newMode === 'work') {
           newMode = 'break';
           newTimeLeft = state.focusSession.pomodoroBreakDuration;
-          // O8 FIX: Changed from 'error_occurred' (which polluted Sentry) to a descriptive event name.
-          analyticsService.logEvent(state.userId, 'pomodoro_phase_complete', { phase: 'work', newMode: 'break' });
         } else {
           newMode = 'work';
           newTimeLeft = state.focusSession.pomodoroWorkDuration;
-          analyticsService.logEvent(state.userId, 'pomodoro_phase_complete', { phase: 'break', newMode: 'work' });
         }
-        analyticsService.logEvent(state.userId, 'pomodoro_cycle_step', { type: 'pomodoro_phase' });
+        analyticsService.logEvent(state.userId, 'pomodoro_phase_complete', { phase: newMode === 'break' ? 'work' : 'break', newMode });
       }
     }
 
-    // Quest progress + life score (async, outside set)
     setTimeout(() => {
       const { actions } = get();
       actions.checkQuestProgress('focus', newTotalSeconds);
@@ -124,10 +145,10 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       focusSession: {
         ...state.focusSession,
         totalSecondsToday: newTotalSeconds,
-        lastStartTime: now,          // ← Advance lastStartTime so next tick delta is ~1s
+        lastStartTime: now,
         pomodoroMode: newMode,
         pomodoroTimeLeft: newTimeLeft,
-        pomodoroOverflow: 0,          // No longer needed but keep field for compat
+        pomodoroOverflow: 0,
       }
     };
   }),
@@ -137,10 +158,7 @@ export const createFocusSlice: StateCreator<UserState, [["zustand/persist", unkn
       ...state.focusSession,
       isPomodoro: !state.focusSession.isPomodoro,
       pomodoroMode: 'work',
-      // FIX: Always reset to full work duration when toggling Pomodoro on.
-      // Never use stale pomodoroTimeLeft — it may be 0 from a finished previous cycle.
       pomodoroTimeLeft: state.focusSession.pomodoroWorkDuration,
-      // Reset lastStartTime so the next tick calculates a fresh 1s delta
       lastStartTime: state.focusSession.isActive ? Date.now() : state.focusSession.lastStartTime,
     }
   })),

@@ -1,15 +1,18 @@
-import { AIInsightCard } from '@/components/AIInsightCard';
+import { DailyHighlightModal } from '@/components/DailyHighlightModal';
 import { DailyTasksWidget } from '@/components/DailyTasksWidget';
-import { DashboardAIButton } from '@/components/DashboardAIButton';
+import { EmailVerificationBanner } from '@/components/EmailVerificationBanner';
 import { FocusWidget } from '@/components/FocusWidget';
 import { HabitGrid } from '@/components/HabitGrid';
 import { MoodFeedbackOverlay } from '@/components/MoodFeedbackOverlay';
 import { MoodTrend } from '@/components/MoodTrend';
 import { OnboardingWalkthrough } from '@/components/Onboarding/OnboardingWalkthrough';
 import { QuestDashboard } from '@/components/QuestDashboard';
-import { StreakCelebration } from '@/components/StreakCelebration';
-import { XPPopUp } from '@/components/XPPopUp';
+import { SmartAIFAB } from '@/components/SmartAIFAB';
 import { StreakBrokenOverlay } from '@/components/StreakBrokenOverlay';
+import { StreakCelebration } from '@/components/StreakCelebration';
+import { StreakProtectionBanner } from '@/components/StreakProtectionBanner';
+import { WeeklyRecapModal } from '@/components/WeeklyRecapModal';
+import { XPPopUp } from '@/components/XPPopUp';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStore } from '@/store/useStore';
@@ -19,9 +22,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
 
 const getGreeting = (): { text: string; icon: 'sunny' | 'partly-sunny' | 'cloudy-night' | 'moon' } => {
   const hour = new Date().getHours();
@@ -83,7 +88,7 @@ function HomeSkeleton() {
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-             <SkeletonBlock width={140} height={44} borderRadius={20} />
+            <SkeletonBlock width={140} height={44} borderRadius={20} />
           </View>
         </View>
       </View>
@@ -157,16 +162,22 @@ export default function HomeScreen() {
   // instead of useProfileStats() to avoid re-renderingทุก second on timer ticks.
   const level = useStore(s => s.level);
   const totalXP = useStore(s => s.totalXP);
+  const isPro = useStore(s => s.isPro);
   const { progress: xpProgress, xpInLevel, xpRequiredForNext } = getLevelProgress(totalXP);
   // UI-001/007: Detect new user so we can show CTAs instead of empty/0% widgets.
   const tasks = useStore(s => s.tasks);
   const habits = useStore(s => s.habits);
   const taskCount = tasks.length;
-  const habitCount = habits.length;
+  const isLimitReached = !isPro && habits.length >= 5;
   const { tasksLoaded, habitsLoaded } = useStore(s => s.syncStatus);
+  const streakFreezes = useStore(s => s.streakFreezes);
+  const globalStreak = useStore(s => s.globalStreak);
+  const dailyQuests = useStore(s => s.dailyQuests);
+  const hasSeenDailyHighlight = useStore(s => s.hasSeenDailyHighlight);
+
   // PHASE 2 FIX: Only show the "Welcome" banner if sync is finished AND no data was found.
   // This prevents returning users from seeing the banner while their cloud data is loading.
-  const isNewUser = (tasksLoaded && habitsLoaded) && taskCount === 0 && habitCount === 0;
+  const isNewUser = (tasksLoaded && habitsLoaded) && taskCount === 0 && habits.length === 0;
 
   const router = useRouter();
   const generateDailyQuests = useStore(s => s.actions.generateDailyQuests);
@@ -186,7 +197,6 @@ export default function HomeScreen() {
         if (today !== lastCheckDate) {
           // Date changed! Refresh stats and tasks
           setLastCheckDate(today);
-          useStore.getState().actions.checkMissedTasks();
           generateDailyQuests();
         }
       }
@@ -254,60 +264,82 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           scrollEventThrottle={16}
         >
-          {/* Header Content (previously ListHeaderComponent) */}
-          <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <View style={styles.greetingRow}>
-                <Ionicons
-                  name={greeting.icon}
-                  size={14}
-                  color={colors.textSecondary}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-                  {greeting.text},
-                </Text>
+          <StreakProtectionBanner />
+          <EmailVerificationBanner />
+
+          {/* Freeze Promo Card */}
+          {globalStreak >= 5 && streakFreezes === 0 && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push('/progress')}
+              style={[styles.freezePromo, { backgroundColor: colors.isDark ? 'rgba(0,180,255,0.1)' : 'rgba(0,180,255,0.05)', borderColor: '#00B4FF40' }]}
+            >
+              <View style={[styles.freezeIcon, { backgroundColor: '#00B4FF' }]}>
+                <Ionicons name="snow" size={18} color="#FFF" />
               </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.freezeTitle, { color: colors.text }]}>Insure your progress! ❄️</Text>
+                <Text style={[styles.freezeSub, { color: colors.textSecondary }]}>Get a Streak Freeze to protect your {globalStreak}-day streak.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
 
-              <View style={styles.headerRight}>
-                {useStore.getState().streakFreezes > 0 && (
-                  <View style={[styles.freezeBadge, { backgroundColor: colors.isDark ? 'rgba(0,180,255,0.15)' : 'rgba(0,180,255,0.1)', borderColor: '#00B4FF40' }]}>
-                    <Ionicons name="snow" size={14} color="#00B4FF" />
-                    <Text style={[styles.freezeCount, { color: '#00B4FF' }]}>{useStore.getState().streakFreezes}</Text>
-                  </View>
-                )}
+          <View style={styles.topSection}>
+            <View style={styles.header}>
+              <View style={styles.headerTopRow}>
+                <View style={styles.greetingRow}>
+                  <Ionicons
+                    name={greeting.icon}
+                    size={14}
+                    color={colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                    {greeting.text},
+                  </Text>
+                </View>
 
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/(tabs)/profile')}
-                  style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
-                  accessibilityLabel={`Level ${level}, ${Math.round(xpProgress * 100)}% to next level. Tap to view profile.`}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.xpInfo}>
-                    <View style={styles.levelBadge}>
-                       <Text style={[styles.levelLabel, { color: '#FFF' }]}>{level}</Text>
+                <View style={styles.headerRight}>
+                  {streakFreezes > 0 && (
+                    <View style={[styles.freezeBadge, { backgroundColor: colors.isDark ? 'rgba(0,180,255,0.15)' : 'rgba(0,180,255,0.1)', borderColor: '#00B4FF40' }]}>
+                      <Ionicons name="snow" size={14} color="#00B4FF" />
+                      <Text style={[styles.freezeCount, { color: '#00B4FF' }]}>{streakFreezes}</Text>
                     </View>
-                    <View style={styles.xpBarWrapper}>
-                      <View style={styles.xpTextRow}>
-                         <Text style={[styles.xpValueText, { color: colors.text }]}>
-                           {Math.round(xpInLevel)} <Text style={{ color: colors.textSecondary, fontSize: 8 }}>/ {xpRequiredForNext} XP</Text>
-                         </Text>
+                  )}
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.push('/(tabs)/profile')}
+                    style={[styles.xpHeaderContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}
+                    accessibilityLabel={`Level ${level}, ${Math.round(xpProgress * 100)}% to next level. Tap to view profile.`}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.xpInfo}>
+                      <View style={styles.levelBadge}>
+                        <Text style={[styles.levelLabel, { color: '#FFF' }]}>{level}</Text>
                       </View>
-                      <View style={styles.xpBarContainer}>
-                        <View style={[styles.xpBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
-                          <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
+                      <View style={styles.xpBarWrapper}>
+                        <View style={styles.xpTextRow}>
+                          <Text style={[styles.xpValueText, { color: colors.text }]}>
+                            {Math.round(xpInLevel)} <Text style={{ color: colors.textSecondary, fontSize: 8 }}>/ {xpRequiredForNext} XP</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.xpBarContainer}>
+                          <View style={[styles.xpBarBg, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+                            <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
+                          </View>
                         </View>
                       </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-              {userName ? `${userName}!` : 'there!'}
-            </Text>
+              <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {userName ? `${userName}!` : 'there!'}
+              </Text>
+            </View>
           </View>
 
           {/* Dashboard Widgets */}
@@ -353,10 +385,10 @@ export default function HomeScreen() {
               </View>
             </Animated.View>
           )}
-          <AIInsightCard />
+          <SmartAIFAB />
           <View style={{ marginBottom: Spacing.lg }}>
             {tasks.filter(t => t.date === getTodayLocal()).length === 0 ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.emptyCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
                 onPress={() => router.push('/tasks/create' as any)}
               >
@@ -381,7 +413,7 @@ export default function HomeScreen() {
 
           <View style={{ marginBottom: Spacing.lg }}>
             {habits.length === 0 ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.emptyCard, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: colors.border }]}
                 onPress={() => router.push('/all-habits' as any)}
               >
@@ -398,9 +430,7 @@ export default function HomeScreen() {
           <View style={{ marginBottom: Spacing.lg }}>
             <MoodTrend />
           </View>
-          <View style={[styles.aiSection, { marginBottom: Spacing.lg }]}>
-            <DashboardAIButton />
-          </View>
+          {/* AI entry point consolidated into SmartAIFAB above */}
 
           {/* Footer Spacer */}
           <View style={{ height: 40 }} />
@@ -411,8 +441,17 @@ export default function HomeScreen() {
           <OnboardingWalkthrough />
           <StreakCelebration />
           <XPPopUp />
+          <DailyHighlightModal
+            isVisible={
+              dailyQuests.length > 0 &&
+              dailyQuests.every(q => q.completed) &&
+              hasSeenDailyHighlight !== getTodayLocal()
+            }
+            onClose={useStore.getState().actions.dismissDailyHighlight}
+          />
           <MoodFeedbackOverlay />
           <StreakBrokenOverlay />
+          <WeeklyRecapModal />
         </View>
       </SafeAreaView>
     </View>
@@ -426,7 +465,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
-    paddingBottom: 100,
+    paddingBottom: 140, // FIX UI-001: Increase to avoid overlap with floating tab bar
   },
   glowBackground: {
     position: 'absolute',
@@ -434,6 +473,9 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: 150,
     opacity: 0.35,
+  },
+  topSection: {
+    marginBottom: Spacing.sm,
   },
   header: {
     marginBottom: Spacing.xl,
@@ -547,6 +589,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     minWidth: 140,
+    maxWidth: width * 0.45, // FIX UI-004: Prevent overflow on small devices
   },
   xpInfo: {
     flexDirection: 'row',
@@ -623,5 +666,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Outfit-Regular',
     textAlign: 'center',
+  },
+  freezePromo: {
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  freezeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  freezeTitle: {
+    fontSize: 15,
+    fontFamily: 'Outfit-Bold',
+  },
+  freezeSub: {
+    fontSize: 11,
+    fontFamily: 'Outfit-Medium',
+    marginTop: 2,
   },
 });

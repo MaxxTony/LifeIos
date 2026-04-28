@@ -1,4 +1,5 @@
 /** Shared color utilities and theme helpers for all Android widgets. */
+import { LEVEL_THRESHOLDS, LEVEL_NAMES } from './../../constants/gamification';
 
 export const COLOR_MAP: Record<string, string> = {
   Royal: '#7C5CFF',
@@ -87,17 +88,7 @@ export function getDateOffset(daysAgo: number): string {
   return `${y}-${m}-${day}`;
 }
 
-export const LEVEL_THRESHOLDS = [
-  0, 250, 600, 1200, 2200, 3700, 5700, 8200, 11500, 15500,
-  20500, 26500, 33500, 42000, 52000, 64000, 78000, 95000, 115000, 140000,
-];
-
-export const LEVEL_NAMES: Record<number, string> = {
-  1: 'Spark', 2: 'Seeker', 3: 'Challenger', 4: 'Pathfinder', 5: 'Striker',
-  6: 'Warrior', 7: 'Guardian', 8: 'Architect', 9: 'Enforcer', 10: 'Legend',
-  11: 'Phantom', 12: 'Titan', 13: 'Sovereign', 14: 'Ascendant', 15: 'Immortal',
-  16: 'Eclipse', 17: 'Ethereal', 18: 'Mythic', 19: 'Transcendent', 20: 'Apex',
-};
+// LEVEL_THRESHOLDS and LEVEL_NAMES are imported from shared constants.
 
 export function getLevelInfo(totalXP: number) {
   let level = 1;

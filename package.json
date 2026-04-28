@@ -79,8 +79,5 @@
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
   },
-  "private": true,
-  "resolutions": {
-    "expo-task-manager": "13.0.0"
-  }
+  "private": true
 }

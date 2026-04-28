@@ -44,7 +44,6 @@ export const db = (() => {
   try {
     return initializeFirestore(app, {
       localCache: memoryLocalCache(),
-      experimentalForceLongPolling: true, // Fix for WebChannel connection drops
     });
   } catch {
     return getFirestore(app);

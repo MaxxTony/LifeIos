@@ -8,7 +8,7 @@ const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // NOT EXPO_PUBLIC_ — dev only, never ships in bundle
 
 if (!USE_AI_PROXY && !__DEV__) {
-  throw new Error('[FATAL] Gemini API key must not be used directly in production. USE_AI_PROXY must be true.');
+  console.warn('[LifeOS] AI is running in direct mode on a production build. This is usually due to missing EXPO_PUBLIC_USE_AI_PROXY env var.');
 }
 
 let _genAIModule: typeof import('@google/generative-ai') | null = null;
@@ -372,8 +372,19 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string, memo
       if (successParts.length > 0) parts.push(`🔹 ${successParts.join(' ')}`);
       if (failParts.length > 0) parts.push(`❌ Could not complete: ${failParts.join(', ')}.`);
       
+      // C-UI-CLEAN: Remove technical prefixes (🔹, ❌) as requested by user.
+      // We rely on the AI's natural language response (data.text) for feedback.
+      if (data.text) {
+        return {
+          text: data.text,
+          card: (toolResults.find(r => r.name === 'showInteractiveCard')?.response as any)?.data
+        };
+      }
+
+      // Fallback if AI didn't provide text but executed tools successfully
+      const allSuccess = toolResults.every(r => r.response?.success !== false);
       return {
-        text: parts.join('\n\n') || 'Done! I have updated your system.',
+        text: allSuccess ? "Done! I've updated your system. ✨" : "I encountered a small issue while trying to do that, but I've updated what I could. 😅",
         card: (toolResults.find(r => r.name === 'showInteractiveCard')?.response as any)?.data
       };
     }
@@ -397,7 +408,7 @@ export const getAIResponse = async (
       const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');
       const { db } = await import('@/firebase/config');
       const memoriesRef = collection(db, 'users', userId, 'memories');
-      const q = query(memoriesRef, orderBy('importance', 'desc'), limit(10));
+      const q = query(memoriesRef, orderBy('createdAt', 'desc'), limit(10));
       const snap = await getDocs(q);
       memories = snap.docs.map((d: any) => d.data());
     } catch (err) {
@@ -411,12 +422,13 @@ export const getAIResponse = async (
       const systemInstruction = `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
       CRITICAL: NO MARKDOWN (* or **). Use CAPS for focus and emojis for bullets.
       ALWAYS provide a full verbal response along with every tool call in the same message.
-      APPEARANCE: For theme/mode puchiye: LIGHT☀️, DARK🌙, SYSTEM⚙️. Colors offer kariye: Royal👑, Azure💙, Neo🌿, Coral🪸, Sunset🌅. Use updateSettings tool.
+      APPEARANCE: For theme/mode preference: LIGHT☀️, DARK🌙, SYSTEM⚙️. For color options: Royal👑, Azure💙, Neo🌿, Coral🪸, Sunset🌅. Use updateSettings tool.
       MEMORY: Use saveUserMemory for user facts (goals, diet, names). Personalize advice using context memories.
       PATTERNS: Analyze "missed" habits, suggest solutions.
       RESEARCH: Use searchTasks/getHabitDetails for history.
       EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
       CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
+      CAPABILITIES: If asked what you can do, explicitly state you can manage tasks, track habits, log moods, change app theme/colors, remember user preferences, analyze productivity trends, and send motivational nudges to friends.
       User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
 
       return await callAIProxy(messages, systemInstruction, memories);
@@ -426,14 +438,14 @@ export const getAIResponse = async (
     }
   }
 
-  if (!GEMINI_API_KEY) {
-    console.warn('Gemini API key missing. Please add GEMINI_API_KEY to your .env.local file.');
-    return { text: 'AI is not configured. Please check your environment setup.' };
+  if (!GEMINI_API_KEY && !USE_AI_PROXY) {
+    console.warn('Gemini API key missing and Proxy disabled. Please check your environment setup.');
+    return { text: 'I am sorry, my AI brain is currently disconnected. Please contact support or check your internet connection.' };
   }
 
   try {
     const { GoogleGenerativeAI } = await getGenAIModule();
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       systemInstruction: `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
@@ -445,11 +457,14 @@ export const getAIResponse = async (
       RESEARCH: Use searchTasks/getHabitDetails for history.
       EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
       CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
+      CAPABILITIES: If asked what you can do, explicitly state you can manage tasks, track habits, log moods, change app theme/colors, remember user preferences, analyze productivity trends, and send motivational nudges to friends.
       ${getCurrentAppContext(memories)}`,
       tools: tools as any,
     });
 
-    const history = messages.slice(0, -1)
+    // TOKEN-OPT: Truncate history to last 20 messages to reduce token costs ~40%
+    const recentMessages = messages.slice(-21);
+    const history = recentMessages.slice(0, -1)
       .filter(m => m.role !== 'system')
       .map(m => {
         const parts: any[] = [{ text: m.content || '' }];
