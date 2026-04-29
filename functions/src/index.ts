@@ -105,8 +105,8 @@ export const callAI = onCall(
       throw new HttpsError('invalid-argument', 'Max 20 messages allowed in history.');
     }
 
-    if (systemInstruction && systemInstruction.length > 4000) {
-      throw new HttpsError('invalid-argument', 'System instruction too long (max 4000 chars).');
+    if (systemInstruction && systemInstruction.length > 8000) {
+      throw new HttpsError('invalid-argument', 'System instruction too long (max 8000 chars).');
     }
 
     for (const msg of messages) {
@@ -178,14 +178,14 @@ export const callAI = onCall(
           },
           {
             name: 'removeTask',
-            description: 'Delete a task from the list.',
+            description: 'Delete a task. Only call this AFTER the user has explicitly confirmed deletion in this turn (e.g. "yes", "delete it", "confirm"). Never call preemptively.',
             parameters: {
               type: 'OBJECT',
               properties: {
                 id: { type: 'STRING', description: 'The task ID from context' },
-                text: { type: 'STRING', description: 'Optional confirmation' },
+                userConfirmed: { type: 'BOOLEAN', description: 'Must be true — only set after user explicitly confirmed deletion in this message' },
               },
-              required: ['id'],
+              required: ['id', 'userConfirmed'],
             },
           },
           {
@@ -203,13 +203,14 @@ export const callAI = onCall(
           },
           {
             name: 'removeHabit',
-            description: 'Permanently remove a habit.',
+            description: 'Permanently remove a habit. Only call this AFTER the user has explicitly confirmed deletion in this turn (e.g. "yes", "delete it", "confirm"). Never call preemptively.',
             parameters: {
               type: 'OBJECT',
               properties: {
                 id: { type: 'STRING', description: 'The habit ID from context' },
+                userConfirmed: { type: 'BOOLEAN', description: 'Must be true — only set after user explicitly confirmed deletion in this message' },
               },
-              required: ['id'],
+              required: ['id', 'userConfirmed'],
             },
           },
           {
@@ -229,12 +230,12 @@ export const callAI = onCall(
           },
           {
             name: 'updateSettings',
-            description: 'Change app settings like theme or accent color.',
+            description: 'Change theme mode and/or accent color. Theme is free for everyone. Accent has FREE colors (Royal/Azure/Neo) and PRO colors (Coral/Sunset/Candy/Cyber/Emerald/Violet/Crimson/Amber/Rose). Always pass HEX for accentColor, never the name.',
             parameters: {
               type: 'OBJECT',
               properties: {
-                theme: { type: 'STRING', enum: ['light', 'dark', 'system'] },
-                accentColor: { type: 'STRING', description: 'Hex color code or color name' },
+                theme: { type: 'STRING', enum: ['light', 'dark', 'system'], description: 'Theme mode (free for all)' },
+                accentColor: { type: 'STRING', description: 'Hex code. FREE: #7C5CFF Royal, #5B8CFF Azure, #00D68F Neo. PRO: #FF4B4B Coral, #FFB347 Sunset, #FF69B4 Candy, #00CED1 Cyber, #10B981 Emerald, #8B5CF6 Violet, #DC2626 Crimson, #D97706 Amber, #E11D48 Rose.' },
               },
             },
           },
@@ -320,16 +321,31 @@ export const callAI = onCall(
       model: 'gemini-2.5-flash',
       systemInstruction: systemInstruction || 'You are LifeOS, a premium personal assistant.',
       tools: tools as any,
+      generationConfig: {
+        temperature: 0.85,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
     });
 
-    const history = messages.slice(0, -1)
+    // Gemini hard-requires history to start with role 'user'. Drop any leading
+    // assistant/system entries (e.g. persisted welcome messages) until the
+    // first user turn — otherwise the SDK throws
+    // "First content should be with role 'user', got model".
+    const firstUserIdx = messages.findIndex((m) => m.role === 'user');
+    const safeMessages = firstUserIdx > 0 ? messages.slice(firstUserIdx) : messages;
+
+    const history = safeMessages.slice(0, -1)
       .filter((m) => m.role !== 'system')
       .map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content || '' }],
       }));
 
-    const last = messages[messages.length - 1];
+    const last = safeMessages[safeMessages.length - 1];
+    if (!last || last.role !== 'user') {
+      throw new HttpsError('invalid-argument', 'Last message must be from the user.');
+    }
     const lastParts: any[] = [{ text: last.content || '' }];
     if (last.image) {
       lastParts.push({ inlineData: { data: last.image.base64, mimeType: last.image.mimeType } });

@@ -1,7 +1,43 @@
 import { useStore } from '@/store/useStore';
 import { getTodayLocal } from '@/utils/dateUtils';
 import { analyticsService } from './analyticsService';
+import { purchaseService } from './purchaseService';
 import { socialService } from './socialService';
+
+const FREE_ACCENTS: Record<string, string> = {
+  '#7C5CFF': 'Royal',
+  '#5B8CFF': 'Azure',
+  '#00D68F': 'Neo',
+};
+const PRO_ACCENTS: Record<string, string> = {
+  '#FF4B4B': 'Coral',
+  '#FFB347': 'Sunset',
+  '#FF69B4': 'Candy',
+  '#00CED1': 'Cyber',
+  '#10B981': 'Emerald',
+  '#8B5CF6': 'Violet',
+  '#DC2626': 'Crimson',
+  '#D97706': 'Amber',
+  '#E11D48': 'Rose',
+};
+const NAME_TO_HEX: Record<string, string> = {
+  royal: '#7C5CFF', azure: '#5B8CFF', neo: '#00D68F',
+  coral: '#FF4B4B', sunset: '#FFB347', candy: '#FF69B4',
+  cyber: '#00CED1', emerald: '#10B981', violet: '#8B5CF6',
+  crimson: '#DC2626', amber: '#D97706', rose: '#E11D48',
+};
+
+function resolveAccent(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (trimmed.startsWith('#')) {
+    const upper = trimmed.toUpperCase();
+    if (FREE_ACCENTS[upper] || PRO_ACCENTS[upper]) return upper;
+    return null;
+  }
+  const hex = NAME_TO_HEX[trimmed.toLowerCase()];
+  return hex || null;
+}
 
 /**
  * C-AI-3 FIX: Strict validation guards for AI-triggered actions.
@@ -192,23 +228,50 @@ export const aiActionHandler = {
   handleUpdateSettings: (params: { theme?: string; accentColor?: string }) => {
     const store = useStore.getState();
     try {
+      const messages: string[] = [];
+
       if (params.theme) {
         const normalizedTheme = params.theme.toLowerCase();
         if (['light', 'dark', 'system'].includes(normalizedTheme)) {
           store.actions.setThemePreference(normalizedTheme as any);
+          messages.push(`Switched to ${normalizedTheme} mode.`);
+        } else {
+          return { success: false, message: `Theme "${params.theme}" isn't valid. Use light, dark, or system.` };
         }
       }
+
       if (params.accentColor) {
-        // Normalize color name: "royalblue" -> "Royal"
-        let color = params.accentColor;
-        // Basic TitleCase normalization for common colors
-        if (color && color.length > 0) {
-          color = color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
+        const hex = resolveAccent(params.accentColor);
+        if (!hex) {
+          return {
+            success: false,
+            message: `"${params.accentColor}" isn't one of the LifeOS accents. Pick Royal, Azure, Neo, Coral, Sunset, Candy, Cyber, Emerald, Violet, Crimson, Amber, or Rose.`
+          };
         }
-        store.actions.setAccentColor(color);
+
+        const isPro = store.isPro;
+        const isProAccent = !!PRO_ACCENTS[hex];
+        const accentName = FREE_ACCENTS[hex] || PRO_ACCENTS[hex];
+
+        if (isProAccent && !isPro) {
+          // Surface the paywall and tell the AI so it can respond honestly.
+          purchaseService.presentPaywall().catch(() => { /* best effort */ });
+          analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateSettings', blocked: 'pro_accent', accentName });
+          return {
+            success: false,
+            message: `${accentName} is a Pro accent. Opening the upgrade screen — they can switch to it the second they go Pro. Free accents available right now: Royal, Azure, Neo.`
+          };
+        }
+
+        store.actions.setAccentColor(hex);
+        messages.push(`Accent set to ${accentName}.`);
       }
+
       analyticsService.logEvent(store.userId, 'ai_tool_call', { toolName: 'updateSettings' });
-      return { success: true, message: 'App settings updated successfully.' };
+      return {
+        success: true,
+        message: messages.length ? messages.join(' ') : 'Nothing to change — already set.'
+      };
     } catch (error: any) {
       console.error('AI Update Settings Error:', error);
       return { success: false, message: `Failed to update settings: ${error.message}` };

@@ -1,7 +1,6 @@
 import Purchases, { LOG_LEVEL, CustomerInfo } from 'react-native-purchases';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { Platform } from 'react-native';
-import { useStore } from '@/store/useStore';
 
 const ENTITLEMENT_ID = 'pro';
 
@@ -24,9 +23,22 @@ export const purchaseService = {
    * Links the RC anonymous user to the Firebase UID for cross-platform sync.
    */
   async initialize(userId: string): Promise<void> {
-    if (this._initialized) return;
-
     try {
+      // Check if already configured to avoid the "Purchases instance already set" warning
+      const isConfigured = await Purchases.isConfigured();
+      
+      if (isConfigured) {
+        const currentUserId = await Purchases.getAppUserID();
+        if (currentUserId !== userId) {
+          console.log('[PurchaseService] User mismatch. Switching to:', userId);
+          await Purchases.logIn(userId);
+        }
+        this._initialized = true;
+        return;
+      }
+
+      if (this._initialized) return;
+
       if (__DEV__) {
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
       }
@@ -59,23 +71,12 @@ export const purchaseService = {
    * Returns both the status and expiry date for display purposes.
    */
   async checkProStatus(): Promise<{ isPro: boolean; expiryDate: string | null }> {
-    try {
-      const customerInfo = await Purchases.getCustomerInfo();
-      const entitlement = customerInfo.entitlements.active[ENTITLEMENT_ID];
-      return {
-        isPro: !!entitlement,
-        expiryDate: entitlement?.expirationDate || null,
-      };
-    } catch (error) {
-      console.error('[PurchaseService] Failed to check pro status:', error);
-      // Fail open — don't lock users out if RC is unreachable. 
-      // Use cached values from the store as a fallback.
-      const state = useStore.getState();
-      return { 
-        isPro: state.isPro, 
-        expiryDate: state.subscriptionExpiryDate 
-      };
-    }
+    const customerInfo = await Purchases.getCustomerInfo();
+    const entitlement = customerInfo.entitlements.active[ENTITLEMENT_ID];
+    return {
+      isPro: !!entitlement,
+      expiryDate: entitlement?.expirationDate || null,
+    };
   },
 
   /**

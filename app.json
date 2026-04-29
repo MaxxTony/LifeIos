@@ -25,6 +25,11 @@
           "fetch",
           "processing"
         ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "ai-coach",
+          "sync-fetch",
+          "daily-reset"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },

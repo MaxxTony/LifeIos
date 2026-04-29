@@ -79,6 +79,7 @@ export default function AIChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const attachmentSheetRef = useRef<BottomSheetModal>(null);
+  const inputRef = useRef<TextInput>(null);
   const isMounted = useRef(true);
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -250,9 +251,15 @@ export default function AIChatScreen() {
       openPaywall(); return;
     }
     const currentAttachedImage = attachedImage;
-    if (!textOverride) setInput('');
-    setAttachedImage(null);
+    // Dismiss keyboard FIRST so iOS finalizes any pending autocorrect / marked
+    // text state before we clear — otherwise a late onChangeText("K") fires
+    // after setInput('') and the input reverts to the last typed character.
     Keyboard.dismiss();
+    if (!textOverride) {
+      inputRef.current?.clear();
+      setInput('');
+    }
+    setAttachedImage(null);
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) { }
     let convId = currentConversationId;
     if (!convId) {
@@ -545,6 +552,7 @@ export default function AIChatScreen() {
 
                   <View style={[styles.textInputContainer, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
                     <TextInput
+                      ref={inputRef}
                       style={[styles.input, { color: colors.text }]}
                       placeholder="Message LifeOS..."
                       placeholderTextColor={colors.textSecondary + '60'}

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeOS Prime | Redefining Your Daily Reality</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0B0B0F;
+            --bg-accent: #15151E;
+            --primary: #8B5CF6;
+            --primary-glow: rgba(139, 92, 246, 0.4);
+            --secondary: #3B82F6;
+            --accent: #00F2FE;
+            --text: #FFFFFF;
+            --text-dim: #94A3B8;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --gradient: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
+        h1, h2, h3, .logo { font-family: 'Outfit', sans-serif; font-weight: 800; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+        
+        /* Smooth Scroll */
+        html { scroll-behavior: smooth; }
+
+        /* Navigation */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            background: rgba(11, 11, 15, 0.8);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .logo-container { display: flex; align-items: center; gap: 12px; }
+        .logo-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--gradient); display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-size: 22px; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .nav-links { display: flex; gap: 32px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-dim); font-size: 14px; font-weight: 500; transition: 0.3s; }
+        .nav-links a:hover { color: var(--text); }
+        .btn-nav { padding: 10px 20px; background: var(--gradient); border-radius: 8px; color: white !important; }
+
+        /* Hero Section */
+        .hero {
+            padding: 180px 0 100px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            align-items: center;
+            gap: 60px;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            z-index: -1;
+            filter: blur(60px);
+        }
+
+        .hero-tag {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 100px;
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .hero h1 { font-size: 72px; line-height: 1.1; margin-bottom: 24px; letter-spacing: -2px; }
+        .hero h1 span { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 20px; color: var(--text-dim); margin-bottom: 48px; max-width: 540px; }
+
+        .hero-image { position: relative; display: flex; justify-content: center; }
+        .hero-image img { width: 85%; filter: drop-shadow(0 20px 50px rgba(0,0,0,0.5)); animation: float 6s ease-in-out infinite; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(1deg); }
+        }
+
+        /* Features Section */
+        .features { padding: 120px 0; }
+        .section-title { text-align: center; margin-bottom: 80px; }
+        .section-title h2 { font-size: 48px; margin-bottom: 16px; }
+        .section-title p { color: var(--text-dim); font-size: 18px; max-width: 600px; margin: 0 auto; }
+
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 32px; }
+        .feature-card {
+            background: var(--bg-accent);
+            border: 1px solid var(--card-border);
+            padding: 48px;
+            border-radius: 32px;
+            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover { transform: translateY(-12px); border-color: var(--primary); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .feature-icon { width: 64px; height: 64px; background: rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 32px; font-size: 28px; color: var(--primary); }
+        .feature-card h3 { font-size: 24px; margin-bottom: 16px; }
+        .feature-card p { color: var(--text-dim); font-size: 16px; }
+
+        /* Screenshot Slider */
+        .showcase { padding: 120px 0; background: var(--bg-accent); }
+        .screenshot-container { 
+            display: flex; 
+            gap: 24px; 
+            overflow-x: auto; 
+            padding: 40px 0;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .screenshot-container::-webkit-scrollbar { display: none; }
+        .screenshot-item { min-width: 280px; height: 580px; border-radius: 40px; border: 8px solid #222; overflow: hidden; background: #000; flex-shrink: 0; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+        .screenshot-item img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Pricing Table */
+        .pricing { padding: 120px 0; }
+        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 900px; margin: 0 auto; }
+        .pricing-card {
+            background: var(--bg-accent);
+            border: 1px solid var(--card-border);
+            padding: 56px;
+            border-radius: 40px;
+            position: relative;
+        }
+        .pricing-card.pro { border: 2px solid var(--primary); background: rgba(139, 92, 246, 0.03); }
+        .pricing-card.pro::after {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: var(--primary);
+            font-size: 10px;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-weight: 800;
+        }
+
+        .price { font-size: 48px; font-weight: 800; margin: 24px 0; }
+        .price span { font-size: 16px; color: var(--text-dim); }
+
+        .feature-list { list-style: none; margin-bottom: 40px; }
+        .feature-list li { margin-bottom: 16px; color: var(--text-dim); display: flex; align-items: center; gap: 12px; }
+        .feature-list li i { color: var(--accent); font-size: 14px; }
+
+        .btn-full { width: 100%; display: block; text-align: center; padding: 16px; border-radius: 12px; text-decoration: none; font-weight: 700; transition: 0.3s; }
+        .btn-outline { border: 1px solid var(--card-border); color: white; }
+        .btn-outline:hover { background: rgba(255,255,255,0.05); }
+
+        /* Help Section */
+        .help { padding: 120px 0; background: radial-gradient(circle at bottom, rgba(139, 92, 246, 0.1), transparent 70%); }
+        .help-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; align-items: center; }
+        .form-card { background: var(--bg-accent); border: 1px solid var(--card-border); padding: 48px; border-radius: 32px; }
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--card-border);
+            padding: 16px;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+        .input-group input:focus { outline: none; border-color: var(--primary); background: rgba(255,255,255,0.08); }
+
+        /* Footer */
+        footer { padding: 100px 0 40px; border-top: 1px solid var(--card-border); }
+        .footer-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 60px; }
+        .footer-brand p { color: var(--text-dim); margin-top: 20px; font-size: 14px; }
+        .footer-col h4 { font-size: 16px; margin-bottom: 24px; }
+        .footer-col ul { list-style: none; }
+        .footer-col ul li { margin-bottom: 12px; }
+        .footer-col ul li a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: 0.3s; }
+        .footer-col ul li a:hover { color: var(--primary); }
+
+        body, html { overflow-x: hidden; width: 100%; position: relative; }
+
+        @media (max-width: 1024px) {
+            .hero { grid-template-columns: 1fr; text-align: center; padding-top: 140px; }
+            .hero h1 { font-size: 56px; }
+            .hero p { margin: 0 auto 48px; }
+            .hero-image { order: -1; margin-bottom: 40px; }
+            .hero-image img { width: 80%; max-width: 400px; }
+            .pricing-grid { grid-template-columns: 1fr; max-width: 500px; margin: 0 auto; }
+            .help-grid { grid-template-columns: 1fr; gap: 40px; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 0 32px !important; width: 100% !important; max-width: 100vw !important; overflow: hidden; }
+            .feature-grid { grid-template-columns: 1fr; gap: 24px; }
+            .section-title { margin-bottom: 60px; }
+            .hero h1 { font-size: 34px; }
+            .screenshot-container { width: 100vw; margin-left: -32px; padding-left: 32px; padding-right: 32px; }
+            .nav-links { 
+                position: fixed; 
+                top: 0; 
+                right: -100%; 
+                height: 100vh; 
+                width: 80%; 
+                background: var(--bg-accent); 
+                flex-direction: column; 
+                justify-content: center; 
+                transition: 0.4s; 
+                z-index: 1001; 
+                box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+            }
+            .nav-links.active { right: 0; }
+            .hamburger { display: block !important; cursor: pointer; z-index: 1002; margin-right: 10px; }
+            .hero-content .cta-btns { flex-direction: column; width: 100%; gap: 12px; }
+            .hero-content .btn-full { width: 100% !important; text-align: center; }
+
+            /* Comparison Table Mobile */
+            .pricing-header, .compare-row { grid-template-columns: 1.5fr 1fr 1fr !important; padding: 15px 20px !important; }
+            .feature-name { font-size: 13px !important; }
+            .status { font-size: 14px !important; }
+        }
+
+        .hamburger { display: none; font-size: 24px; color: white; }
+
+        /* Comparison Table Global Styles */
+        .compare-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 20px 40px; border-bottom: 1px solid rgba(255,255,255,0.03); align-items: center; transition: 0.3s; }
+        .compare-row:hover { background: rgba(255,255,255,0.01); }
+        .compare-row .feature-name { font-weight: 500; font-size: 15px; }
+        .compare-row .status { text-align: center; font-size: 18px; }
+        .status.yes { color: var(--primary); filter: drop-shadow(0 0 10px var(--primary-glow)); }
+        .status.no { color: #ff4d4d; opacity: 0.3; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div class="logo-container">
+                <div class="logo-icon"><i class="fa-solid fa-brain" style="color: white;"></i></div>
+                <div class="logo-text">LifeOS Prime</div>
+            </div>
+            <div class="nav-links" id="navLinks">
+                <a href="#features" onclick="toggleMenu()">Features</a>
+                <a href="#how-it-works" onclick="toggleMenu()">How it Works</a>
+                <a href="#pricing" onclick="toggleMenu()">Pricing</a>
+                <a href="#help" class="btn-nav" onclick="toggleMenu()">Get Started</a>
+            </div>
+            <div class="hamburger" onclick="toggleMenu()">
+                <i class="fa-solid fa-bars"></i>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        function toggleMenu() {
+            const nav = document.getElementById('navLinks');
+            nav.classList.toggle('active');
+        }
+    </script>
+
+    <section class="hero container">
+        <div class="hero-content">
+            <div class="hero-tag">Optimizing Human Potential</div>
+            <h1>The Operating System for <span>Your Life.</span></h1>
+            <p>LifeOS Prime combines AI-driven coaching, habit mastery, and gamified progress to help you redefine what's possible.</p>
+            <div class="cta-btns" style="display: flex; gap: 16px; justify-content: center; align-items: center; width: 100%; margin-top: 32px;">
+                <a href="#help" class="btn-full btn-primary" style="padding: 16px 32px; display: inline-block; width: auto; text-align: center; background: var(--gradient); color: white; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 20px var(--primary-glow);">Download Now</a>
+                <a href="#features" class="btn-full btn-outline" style="padding: 16px 32px; display: inline-block; width: auto; text-align: center; border: 1px solid var(--card-border); color: white; border-radius: 12px; font-weight: 700;">Explore Features</a>
+            </div>
+        </div>
+        <div class="hero-image">
+            <img src="assets/IMG_5820.PNG" alt="LifeOS Prime App Onboarding">
+        </div>
+    </section>
+
+    <section class="unfair-advantage" style="padding: 100px 0; background: linear-gradient(180deg, var(--bg) 0%, var(--bg-accent) 100%);">
+        <div class="container">
+            <div class="section-title">
+                <div class="hero-tag" style="background: rgba(0, 242, 254, 0.1); color: var(--accent); border-color: rgba(0, 242, 254, 0.2);">The Unfair Advantage</div>
+                <h2>Why LifeOS Prime is Different</h2>
+                <p>Most productivity apps are just digital notebooks. We built an active intelligence that works for you, not against you.</p>
+            </div>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                <div class="feature-card" style="border-top: 4px solid var(--accent);">
+                    <div class="feature-icon" style="color: var(--accent);"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3>Active Intervention</h3>
+                    <p>Unlike standard chatbots, our AI doesn't wait for you. It proactively monitors your progress and intervenes with real-time schedule adjustments when it detects you're losing momentum.</p>
+                </div>
+                <div class="feature-card" style="border-top: 4px solid var(--primary);">
+                    <div class="feature-icon" style="color: var(--primary);"><i class="fa-solid fa-dna"></i></div>
+                    <h3>Productivity DNA</h3>
+                    <p>The app learns your specific peak-energy hours. It automatically moves your most difficult tasks to when you're most alert, ensuring you work smarter, not harder.</p>
+                </div>
+                <div class="feature-card" style="border-top: 4px solid var(--secondary);">
+                    <div class="feature-icon" style="color: var(--secondary);"><i class="fa-solid fa-heart-pulse"></i></div>
+                    <h3>Mindset Synergy</h3>
+                    <p>The only platform that correlates your emotional well-being with your output. We provide insights into how your mood affects your focus, helping you manage your energy, not just your time.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features container">
+        <div class="section-title">
+            <h2>Experience Human Evolution</h2>
+            <p>Why settle for average when you can optimize every aspect of your daily reality?</p>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fa-solid fa-robot"></i></div>
+                <h3>Personal AI Coach</h3>
+                <p>An intelligence that adapts to your goals, mood, and schedule in real-time. It doesn't just track; it guides.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fa-solid fa-gamepad"></i></div>
+                <h3>Gamified Progress</h3>
+                <p>Earn XP, level up, and complete daily quests. Turn your productivity into an addictive game you actually want to win.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
+                <h3>Focus Dynamics</h3>
+                <p>Advanced focus timers and habit loops designed by behavioral scientists to ensure you stay in the 'flow' state.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fa-solid fa-brain"></i></div>
+                <h3>Mindset Synergy</h3>
+                <p>Unlock deep insights into your mental state with AI-powered mood analysis and productivity correlations.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="how-it-works" style="padding: 120px 0; background: rgba(255,255,255,0.02); overflow: hidden;">
+        <div class="container">
+            <div class="section-title">
+                <h2>The Blueprint for Success</h2>
+                <p>LifeOS Prime isn't just an app; it's a methodology. Here is how you evolve.</p>
+            </div>
+            
+            <style>
+                .steps-container { position: relative; margin-top: 100px; }
+                .steps-container::before {
+                    content: '';
+                    position: absolute;
+                    left: 50%;
+                    top: 0;
+                    width: 2px;
+                    height: 100%;
+                    background: linear-gradient(to bottom, transparent, var(--primary), var(--accent), transparent);
+                    transform: translateX(-50%);
+                    z-index: 1;
+                }
+                .step {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 120px;
+                    position: relative;
+                    z-index: 2;
+                }
+                .step:nth-child(even) { flex-direction: row-reverse; }
+                .step-content { 
+                    width: 45%; 
+                    padding: 40px; 
+                    background: var(--bg-accent); 
+                    border: 1px solid var(--card-border); 
+                    border-radius: 24px;
+                    transition: 0.3s;
+                }
+                .step-content:hover { border-color: var(--primary); transform: scale(1.02); }
+                .step-graphic { 
+                    width: 45%; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center;
+                    font-size: 80px;
+                    color: rgba(255,255,255,0.05);
+                    position: relative;
+                }
+                .step-graphic i {
+                    background: var(--gradient);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    filter: blur(20px);
+                    opacity: 0.2;
+                    position: absolute;
+                }
+                .step-graphic i.main-icon {
+                    filter: none;
+                    opacity: 1;
+                    position: relative;
+                    font-size: 100px;
+                }
+                .step-number {
+                    width: 64px;
+                    height: 64px;
+                    background: var(--bg);
+                    border: 3px solid var(--primary);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 800;
+                    font-size: 26px;
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    box-shadow: 0 0 30px var(--primary-glow);
+                    color: white;
+                }
+                .step h3 { font-size: 28px; margin-bottom: 16px; color: var(--accent); }
+                .step p { color: var(--text-dim); font-size: 16px; line-height: 1.8; }
+                
+                @media (max-width: 768px) {
+                    .steps-container::before { left: 30px; }
+                    .step { flex-direction: row !important; padding-left: 80px; text-align: left; margin-bottom: 60px; }
+                    .step-content, .step-graphic { width: 100%; }
+                    .step-graphic { display: none; }
+                    .step-number { left: 30px; }
+                }
+            </style>
+
+            <div class="steps-container">
+                <div class="step">
+                    <div class="step-content">
+                        <h3>01. Initialize Your Life OS</h3>
+                        <p>Download and create your profile. Set your core values and primary focus for the month. Our AI analyzes your starting point to build a custom roadmap.</p>
+                    </div>
+                    <div class="step-number">1</div>
+                    <div class="step-graphic">
+                        <i class="fa-solid fa-power-off"></i>
+                        <i class="fa-solid fa-power-off main-icon"></i>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-content">
+                        <h3>02. Sync Your Routine</h3>
+                        <p>Add your existing habits and tasks. Use our smart triggers to link them together. The app starts tracking your discipline score immediately.</p>
+                    </div>
+                    <div class="step-number">2</div>
+                    <div class="step-graphic">
+                        <i class="fa-solid fa-rotate"></i>
+                        <i class="fa-solid fa-rotate main-icon"></i>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-content">
+                        <h3>03. Engage the AI Coach</h3>
+                        <p>Chat with your personalized AI whenever you feel stuck. It will provide real-time adjustments to your schedule based on your current performance and mood.</p>
+                    </div>
+                    <div class="step-number">3</div>
+                    <div class="step-graphic">
+                        <i class="fa-solid fa-comment-dots"></i>
+                        <i class="fa-solid fa-comment-dots main-icon"></i>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-content">
+                        <h3>04. Mastery & Evolution</h3>
+                        <p>Earn XP for every positive action. Watch your seeker level rise and unlock new insights into your productivity. Redefine your limits, one habit at a time.</p>
+                    </div>
+                    <div class="step-number">4</div>
+                    <div class="step-graphic">
+                        <i class="fa-solid fa-crown"></i>
+                        <i class="fa-solid fa-crown main-icon"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="showcase" style="padding: 120px 0; background: var(--bg-accent); overflow: hidden; position: relative;">
+        <div class="container">
+            <div class="section-title">
+                <h2>Inside LifeOS Prime</h2>
+                <p>Take a peek at the interface designed for clarity and high performance. All 12 views of your new evolution.</p>
+            </div>
+            
+            <div class="slider-wrapper" style="position: relative; max-width: 1000px; margin: 0 auto;">
+                <div class="screenshot-slider" id="mainSlider" style="display: flex; gap: 30px; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); cursor: grab;">
+                    <!-- All 12 Images -->
+                    <div class="screenshot-item"><img src="assets/IMG_5820.PNG" alt="View 1"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5821.PNG" alt="View 2"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5822.PNG" alt="View 3"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5823.PNG" alt="View 4"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5824.PNG" alt="View 5"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5825.PNG" alt="View 6"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5826.PNG" alt="View 7"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5827.PNG" alt="View 8"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5828.PNG" alt="View 9"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5829.PNG" alt="View 10"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5830.PNG" alt="View 11"></div>
+                    <div class="screenshot-item"><img src="assets/IMG_5831.PNG" alt="View 12"></div>
+                </div>
+
+                <!-- Navigation Controls -->
+                <button onclick="moveSlider(-1)" class="slider-btn prev" style="position: absolute; left: -80px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; backdrop-filter: blur(10px); z-index: 10;"><i class="fa-solid fa-chevron-left"></i></button>
+                <button onclick="moveSlider(1)" class="slider-btn next" style="position: absolute; right: -80px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; backdrop-filter: blur(10px); z-index: 10;"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+
+            <div class="slider-dots" id="sliderDots" style="display: flex; justify-content: center; gap: 10px; margin-top: 40px;">
+                <!-- Dots generated by JS -->
+            </div>
+        </div>
+
+        <script>
+            let currentIdx = 0;
+            const slider = document.getElementById('mainSlider');
+            const items = document.querySelectorAll('.screenshot-item');
+            const dotsContainer = document.getElementById('sliderDots');
+            const totalItems = items.length;
+
+            // Create dots
+            for(let i=0; i<totalItems; i++) {
+                const dot = document.createElement('div');
+                dot.style.width = '10px';
+                dot.style.height = '10px';
+                dot.style.borderRadius = '50%';
+                dot.style.background = 'rgba(255,255,255,0.1)';
+                dot.style.cursor = 'pointer';
+                dot.onclick = () => goToSlide(i);
+                dotsContainer.appendChild(dot);
+            }
+
+            function updateSlider() {
+                const itemWidth = items[0].offsetWidth + 30; // width + gap
+                slider.style.transform = `translateX(-${currentIdx * itemWidth}px)`;
+                
+                // Update dots
+                Array.from(dotsContainer.children).forEach((dot, index) => {
+                    dot.style.background = index === currentIdx ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+                    dot.style.width = index === currentIdx ? '24px' : '10px';
+                    dot.style.borderRadius = '10px';
+                });
+            }
+
+            function moveSlider(dir) {
+                currentIdx = (currentIdx + dir + totalItems) % totalItems;
+                updateSlider();
+            }
+
+            function goToSlide(idx) {
+                currentIdx = idx;
+                updateSlider();
+            }
+
+            // Init
+            updateSlider();
+
+            // Mobile Swipe Support
+            let startX = 0;
+            slider.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
+            slider.addEventListener('touchend', (e) => {
+                const endX = e.changedTouches[0].clientX;
+                if(startX - endX > 50) moveSlider(1);
+                if(endX - startX > 50) moveSlider(-1);
+            });
+        </script>
+
+        <style>
+            @media (max-width: 1200px) {
+                .slider-btn { display: none !important; }
+                .screenshot-slider { gap: 15px !important; }
+            }
+        </style>
+    </section>
+
+    <section id="pricing" class="pricing" style="padding: 120px 0;">
+        <div class="container">
+            <div class="section-title">
+                <h2>Choose Your Path</h2>
+                <p>Compare our plans and see why LifeOS Pro is the ultimate operating system for high performance.</p>
+            </div>
+
+            <div class="comparison-card" style="background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 40px; overflow: hidden; max-width: 900px; margin: 0 auto; box-shadow: 0 40px 100px rgba(0,0,0,0.5);">
+                <div class="pricing-header" style="display: grid; grid-template-columns: 2fr 1fr 1fr; background: rgba(255,255,255,0.03); padding: 40px; border-bottom: 1px solid var(--card-border); text-align: center;">
+                    <div style="text-align: left; font-size: 20px; font-weight: 800;">Features</div>
+                    <div><div style="font-size: 16px; font-weight: 700;">Free Seeker</div></div>
+                    <div><div style="font-size: 16px; font-weight: 700; color: var(--primary);">LifeOS Pro</div></div>
+                </div>
+
+                <div class="comparison-body">
+                    <div class="compare-row"><div class="feature-name">AI Coach Interaction</div><div class="status">20/day</div><div class="status yes"><i class="fa-solid fa-infinity"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">Habits & Tasks</div><div class="status">Max 5</div><div class="status yes"><i class="fa-solid fa-infinity"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">Focus Room (Monk Mode)</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">Streak Freezes (x3)</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">The Weekly League</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">Deep Insights & Synergy</div><div class="status">Basic</div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">Recurring Tasks & Pause</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="compare-row"><div class="feature-name">All Mood Themes & Colors</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
+                </div>
+
+                <div class="pricing-footer" style="padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <a href="#" class="btn-full btn-outline" style="text-align: center; padding: 18px; border-radius: 16px; border: 1px solid var(--card-border); color: white; text-decoration: none; font-weight: 700;">Continue Free</a>
+                    <a href="#" class="btn-full btn-primary" style="text-align: center; padding: 18px; border-radius: 16px; background: var(--gradient); color: white; text-decoration: none; font-weight: 700; box-shadow: 0 10px 30px var(--primary-glow);">Go Pro for $9.99/mo</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="help" class="help" style="padding: 120px 0;">
+        <div class="container">
+            <div class="help-grid">
+                <div>
+                    <h2>Need Assistance?</h2>
+                    <p style="color: var(--text-dim); margin-top: 20px; font-size: 18px;">Our support team is dedicated to helping you optimize your LifeOS experience.</p>
+                    <div style="margin-top: 40px;">
+                        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 24px;">
+                            <i class="fa-solid fa-envelope" style="color: var(--primary); font-size: 24px;"></i>
+                            <div>
+                                <div style="font-weight: 700;">Email Us</div>
+                                <div style="color: var(--text-dim); font-size: 14px;">support@lifeos.prime</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-card">
+                    <form id="enquiryForm">
+                        <div class="input-group">
+                            <label>Full Name</label>
+                            <input type="text" placeholder="John Doe" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Email Address</label>
+                            <input type="email" placeholder="john@example.com" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Message</label>
+                            <textarea rows="5" placeholder="How can we help you today?" required></textarea>
+                        </div>
+                        <button type="submit" class="btn-full btn-primary" style="border: none; cursor: pointer;">Send Enquiry</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo-container">
+                        <div class="logo-icon"><i class="fa-solid fa-brain" style="color: white;"></i></div>
+                        <div class="logo-text">LifeOS Prime</div>
+                    </div>
+                    <p>Redefining limits, one habit at a time. The complete operating system for your peak performance.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="#">Release Notes</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#help">Contact</a></li>
+                        <li><a href="#">Careers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="delete-account.html">Delete Account</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div style="text-align: center; color: var(--text-dim); font-size: 13px; padding-top: 40px; border-top: 1px solid var(--card-border);">
+                &copy; 2026 LifeOS Prime. All Rights Reserved. Engineered for excellence.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.getElementById('enquiryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Your enquiry has been received! Our team will contact you shortly.');
+            this.reset();
+        });
+    </script>
+</body>
+</html>

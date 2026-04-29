@@ -17,6 +17,50 @@ const getGenAIModule = async () => {
   return _genAIModule;
 };
 
+const buildSystemInstruction = () => {
+  const state = useStore.getState();
+  const isPro = state.isPro;
+  const name = state.userName || 'friend';
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+  return `You are LifeOS — ${name}'s pocket buddy + life coach. NOT a chatbot. The friend who hypes wins, calls bullshit, pushes harder.
+
+VOICE
+- Friend texting: "yo", "let's go", "got you", "damn", "I'm proud of you". Use ${name} sometimes.
+- Mood-aware: STATE.recentMoods < 3 → soft, validating first. ≥ 4 → push harder coach mode.
+- Real names/numbers from STATE only. No generic advice.
+- Reply in user's language. Hinglish ("kr do"/"haan"/"bhai") → match it. Hindi/Spanish/etc same — keep buddy voice in their language.
+
+STYLE
+- 1-3 sentences, under 50 words. Plain text — NO *, **, ###, dashes.
+- CAPS sparingly. Max 2 emojis (🔥 ✨ 💪 🫶 ⚡️ 🧠 🌅 🌙).
+- ALWAYS verbal reply alongside any tool call.
+- Speak human, never technical ("locked it in for 9 AM ✨").
+
+APPEARANCE — pass HEX always, never the name
+- Theme (light/dark/system): free for everyone.
+- FREE accents: Royal #7C5CFF, Azure #5B8CFF, Neo #00D68F.
+- PRO accents: Coral #FF4B4B, Sunset #FFB347, Candy #FF69B4, Cyber #00CED1, Emerald #10B981, Violet #8B5CF6, Crimson #DC2626, Amber #D97706, Rose #E11D48.
+- ${isPro ? 'User is PRO ✨ — every accent unlocked.' : 'User is FREE. If they ask for a PRO accent, say honestly "Coral is a Pro vibe — opening upgrade for you 🔥" THEN call updateSettings (the paywall pops automatically). Free options: Royal/Azure/Neo.'}
+- Resolve nicknames: "ocean"→Azure, "warm orange"→Sunset, "green"→Neo, "pink"→Candy, etc.
+
+POWERS (full toolkit, no gates)
+Tasks: addTask/updateTask/searchTasks. removeTask only after explicit "yes/confirm/delete it" with userConfirmed=true.
+Habits: addHabit/updateHabit/getHabitDetails. removeHabit same confirm rule.
+Mood: setMood with emotions. Profile: updateProfile.
+saveUserMemory whenever they share something real (goals, diet, milestones, fears, wins).
+getPerformanceTrends, getSocialLeaderboard, sendSocialNudge, showInteractiveCard.
+
+RULES
+- Read STATE first.
+- Time conflicts in today.tasks → offer updateTask reschedule unprompted.
+- Missed habits → ask the real reason, suggest a 1% smaller version.
+- Pull memories to personalize ("I know you're prepping for the marathon…").
+- Never sound corporate. Never "As an AI…". Never claim done without the tool call.
+
+Today: ${today}. User: ${name}.`;
+};
+
 const getCurrentAppContext = (memories: any[] = []) => {
   const state = useStore.getState();
   const today = getTodayLocal();
@@ -233,12 +277,12 @@ const tools = [
       },
       {
         name: 'updateSettings',
-        description: 'Change app theme (light/dark/system) or accent color.',
+        description: 'Change the app theme mode and/or accent color. Theme is free for everyone. Accent has a free tier (Royal/Azure/Neo) and a Pro tier (Coral/Sunset/Candy/Cyber/Emerald/Violet/Crimson/Amber/Rose). Always pass the HEX value for accentColor — never the name.',
         parameters: {
           type: 'object',
           properties: {
-            theme: { type: 'string', enum: ['light', 'dark', 'system'], description: 'Theme preference' },
-            accentColor: { type: 'string', description: 'Hex color code (e.g. #FF5733)' },
+            theme: { type: 'string', enum: ['light', 'dark', 'system'], description: 'Theme mode (free for all users)' },
+            accentColor: { type: 'string', description: 'Hex code of the accent. FREE: #7C5CFF (Royal), #5B8CFF (Azure), #00D68F (Neo). PRO: #FF4B4B (Coral), #FFB347 (Sunset), #FF69B4 (Candy), #00CED1 (Cyber), #10B981 (Emerald), #8B5CF6 (Violet), #DC2626 (Crimson), #D97706 (Amber), #E11D48 (Rose).' },
           },
         },
       },
@@ -295,17 +339,11 @@ const tools = [
   },
 ];
 
-// Gate 13+14: Free users only get basic tools. Pro users get the full set.
-const FREE_TOOL_NAMES = ['addTask', 'addHabit', 'setMood'];
-
-function getFilteredTools(isPro: boolean) {
-  if (isPro) return tools;
-  return [{
-    functionDeclarations: tools[0].functionDeclarations.filter(
-      (t: any) => FREE_TOOL_NAMES.includes(t.name)
-    ),
-  }];
-}
+// AI has FULL access to every tool for both Free and Pro users — the AI is
+// the heart of the app, so it can do anything. Free vs Pro gating happens
+// at two specific layers instead of restricting the toolset:
+//   1. Daily AI message cap (useProGate.canUseAI) — blocks the network call.
+//   2. Pro-only accents inside handleUpdateSettings — opens the paywall if hit.
 
 async function callAIProxy(messages: any[], baseSystemInstruction?: string, memories: any[] = []) {
   if (!auth.currentUser) {
@@ -318,16 +356,26 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string, memo
 
     // Inject full context even through proxy (F-BUG-02)
     const contextStr = getCurrentAppContext(memories);
-    const fullSystemInstruction = `${baseSystemInstruction || 'You are LifeOS, a premium assistant.'}\n\n${contextStr}`;
+    const basePrompt = baseSystemInstruction || 'You are LifeOS, a premium assistant.';
 
-    // Gate 13+14: Pass filtered tools based on Pro status
-    const isPro = useStore.getState().isPro;
-    const filteredTools = getFilteredTools(isPro);
+    // Safety: cloud function caps systemInstruction (currently 4000, 8000 after
+    // next deploy). If prompt + context overflows, keep the personality intact
+    // and trim the context tail — losing some habit history hurts less than
+    // losing the buddy persona entirely.
+    const MAX_SYSTEM_CHARS = 3900;
+    let fullSystemInstruction = `${basePrompt}\n\n${contextStr}`;
+    if (fullSystemInstruction.length > MAX_SYSTEM_CHARS) {
+      const room = MAX_SYSTEM_CHARS - basePrompt.length - 4;
+      const trimmedContext = room > 200 ? contextStr.slice(0, room) : '';
+      fullSystemInstruction = `${basePrompt}\n\n${trimmedContext}`;
+      console.warn(`[AI] System instruction trimmed from ${basePrompt.length + contextStr.length + 2} to ${fullSystemInstruction.length} chars.`);
+    }
 
+    // The cloud function defines its own canonical tool set, so we don't ship
+    // tools across the wire — saves ~3KB per request and a JSON serialize.
     const result = await httpsCallable(functions, 'callAI')({
       messages,
       systemInstruction: fullSystemInstruction,
-      tools: filteredTools as any,
     });
 
     const data = result.data as any;
@@ -416,25 +464,20 @@ export const getAIResponse = async (
     }
   }
 
+  const systemInstruction = buildSystemInstruction();
+
+  // Gemini hard-requires the conversation history to start with role 'user'.
+  // If the persisted convo begins with an assistant/proactive message, drop
+  // leading non-user messages until we hit the first user turn.
+  const firstUserIdx = messages.findIndex(m => m.role === 'user');
+  const sanitizedMessages = firstUserIdx > 0 ? messages.slice(firstUserIdx) : messages;
+
   if (USE_AI_PROXY) {
     try {
-      const state = useStore.getState();
-      const systemInstruction = `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
-      CRITICAL: NO MARKDOWN (* or **). Use CAPS for focus and emojis for bullets.
-      ALWAYS provide a full verbal response along with every tool call in the same message.
-      APPEARANCE: For theme/mode preference: LIGHT☀️, DARK🌙, SYSTEM⚙️. For color options: Royal👑, Azure💙, Neo🌿, Coral🪸, Sunset🌅. Use updateSettings tool.
-      MEMORY: Use saveUserMemory for user facts (goals, diet, names). Personalize advice using context memories.
-      PATTERNS: Analyze "missed" habits, suggest solutions.
-      RESEARCH: Use searchTasks/getHabitDetails for history.
-      EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
-      CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
-      CAPABILITIES: If asked what you can do, explicitly state you can manage tasks, track habits, log moods, change app theme/colors, remember user preferences, analyze productivity trends, and send motivational nudges to friends.
-      User: ${state.userName || 'User'}. Date: ${new Date().toLocaleDateString()}.`;
-
-      return await callAIProxy(messages, systemInstruction, memories);
+      return await callAIProxy(sanitizedMessages, systemInstruction, memories);
     } catch (err: any) {
       console.error('getAIResponse proxy error:', err);
-      return { text: 'I am sorry, I am having trouble connecting right now. Please try again.' };
+      return { text: "Yo, my brain glitched for a sec. Hit me again? 🙏" };
     }
   }
 
@@ -448,22 +491,17 @@ export const getAIResponse = async (
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: `You are LifeOS, a premium assistant. Be concise and use emojis! 🌈✨ 
-      CRITICAL: NO MARKDOWN. Use CAPS for focus and emojis for bullets.
-      ALWAYS provide a full verbal response along with every tool call in the same message.
-      APPEARANCE: Use updateSettings for theme (LIGHT☀️/DARK🌙/SYSTEM⚙️) and colors.
-      MEMORY: Use saveUserMemory for user facts (goals/diet/names). Personalize using context.
-      PATTERNS: Analyze missed habits, suggest solutions.
-      RESEARCH: Use searchTasks/getHabitDetails for history.
-      EQ: Analyze sentiment/mood. If low (<3), be EMPATHIC FRIEND. If high, be STRICT COACH.
-      CONFLICTS: Scan today's tasks for overlaps. Proactively offer reschedule via updateTask.
-      CAPABILITIES: If asked what you can do, explicitly state you can manage tasks, track habits, log moods, change app theme/colors, remember user preferences, analyze productivity trends, and send motivational nudges to friends.
-      ${getCurrentAppContext(memories)}`,
+      systemInstruction: `${systemInstruction}\n\n${getCurrentAppContext(memories)}`,
       tools: tools as any,
+      generationConfig: {
+        temperature: 0.85,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
     });
 
     // TOKEN-OPT: Truncate history to last 20 messages to reduce token costs ~40%
-    const recentMessages = messages.slice(-21);
+    const recentMessages = sanitizedMessages.slice(-21);
     const history = recentMessages.slice(0, -1)
       .filter(m => m.role !== 'system')
       .map(m => {
@@ -482,7 +520,7 @@ export const getAIResponse = async (
         };
       });
 
-    const lastMsg = messages[messages.length - 1];
+    const lastMsg = sanitizedMessages[sanitizedMessages.length - 1];
     const lastParts: any[] = [{ text: lastMsg.content || '' }];
     if (lastMsg.image) {
       lastParts.push({
@@ -495,7 +533,7 @@ export const getAIResponse = async (
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(lastParts);
-    const response = await result.response;
+    const response = result.response;
 
     const calls = response.functionCalls();
     if (calls && calls.length > 0) {
