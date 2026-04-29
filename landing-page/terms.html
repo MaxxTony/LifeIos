@@ -4,36 +4,88 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service | LifeOS Prime</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { background: #0B0B0F; color: #FFFFFF; font-family: 'Inter', sans-serif; line-height: 1.8; padding: 60px 20px; }
-        .content { max-width: 800px; margin: 0 auto; background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        h1 { color: #00F2FE; margin-bottom: 30px; }
-        h2 { margin-top: 30px; color: #00F2FE; font-size: 20px; }
-        p { color: #A1A1AA; margin-bottom: 20px; }
-        .back-link { display: inline-block; margin-bottom: 40px; color: #00F2FE; text-decoration: none; font-weight: 600; }
+        :root {
+            --primary: #9d50bb;
+            --secondary: #6e48aa;
+            --bg: #050505;
+            --bg-accent: #0f0f12;
+            --text: #ffffff;
+            --text-dim: #a0a0a0;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background-color: var(--bg); color: var(--text); line-height: 1.6; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 0 32px; }
+
+        nav { padding: 24px 0; border-bottom: 1px solid var(--card-border); background: rgba(5,5,5,0.8); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; }
+        .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; color: white; }
+        .logo-icon { width: 40px; height: 40px; background: var(--gradient); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
+
+        .legal-content { padding: 80px 0; }
+        .legal-card { background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 32px; padding: 60px; box-shadow: 0 40px 100px rgba(0,0,0,0.5); }
+        
+        h1 { font-size: 48px; font-weight: 800; margin-bottom: 24px; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 24px; font-weight: 700; margin: 40px 0 16px; color: var(--primary); }
+        p { color: var(--text-dim); margin-bottom: 20px; font-size: 17px; }
+        
+        footer { padding: 60px 0; border-top: 1px solid var(--card-border); text-align: center; color: var(--text-dim); font-size: 14px; }
+
+        @media (max-width: 768px) {
+            .legal-card { padding: 32px; border-radius: 24px; }
+            h1 { font-size: 32px; }
+        }
     </style>
 </head>
 <body>
-    <div class="content">
-        <a href="index.html" class="back-link">← Back to Home</a>
-        <h1>Terms of Service</h1>
-        <p>Last Updated: April 29, 2026</p>
-        
-        <h2>1. Acceptance of Terms</h2>
-        <p>By downloading or using LifeOS Prime, you agree to be bound by these Terms of Service.</p>
-        
-        <h2>2. Description of Service</h2>
-        <p>LifeOS Prime is a productivity application that includes task management, habit tracking, and AI-driven coaching.</p>
-        
-        <h2>3. User Responsibilities</h2>
-        <p>You are responsible for maintaining the confidentiality of your account and for all activities that occur under your account.</p>
-        
-        <h2>4. Prohibited Uses</h2>
-        <p>You may not use the service for any illegal or unauthorized purpose.</p>
-        
-        <h2>5. Limitation of Liability</h2>
-        <p>LifeOS Prime shall not be liable for any indirect, incidental, or consequential damages resulting from the use of the service.</p>
-    </div>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo-container">
+                <div class="logo-icon"><i class="fa-solid fa-brain"></i></div>
+                <div class="logo-text">LifeOS Prime</div>
+            </a>
+        </div>
+    </nav>
+
+    <section class="legal-content">
+        <div class="container">
+            <div class="legal-card">
+                <h1>Terms of Service</h1>
+                <p>Last Updated: April 29, 2026</p>
+                
+                <p>Welcome to LifeOS Prime. By using our application, you agree to the following terms. Please read them carefully to understand how our service operates.</p>
+
+                <h2>1. Acceptance of Terms</h2>
+                <p>By creating an account or using the LifeOS Prime app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, please do not use the service.</p>
+
+                <h2>2. User Accounts</h2>
+                <p>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate information when creating your account.</p>
+
+                <h2>3. Premium Subscriptions</h2>
+                <p>LifeOS Pro is a paid subscription service. Payments are processed through official app stores. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period.</p>
+
+                <h2>4. Prohibited Conduct</h2>
+                <p>You agree not to use LifeOS Prime for any illegal purposes, or to attempt to reverse engineer, hack, or disrupt the service in any way.</p>
+
+                <h2>5. Limitation of Liability</h2>
+                <p>LifeOS Prime is a productivity tool provided "as is". We are not responsible for any lost productivity, data loss, or other damages resulting from the use of the app.</p>
+
+                <h2>6. Changes to Terms</h2>
+                <p>We reserve the right to update these terms at any time. Significant changes will be notified to users through the app or website.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            &copy; 2026 LifeOS Prime. All Rights Reserved. Building your future together.
+        </div>
+    </footer>
 </body>
 </html>

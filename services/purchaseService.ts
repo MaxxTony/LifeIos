@@ -1,6 +1,6 @@
-import Purchases, { LOG_LEVEL, CustomerInfo } from 'react-native-purchases';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { Platform } from 'react-native';
+import Purchases, { CustomerInfo, LOG_LEVEL } from 'react-native-purchases';
+import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
 const ENTITLEMENT_ID = 'pro';
 
@@ -22,45 +22,43 @@ export const purchaseService = {
    * Initialize RevenueCat SDK. Called once after Firebase auth resolves.
    * Links the RC anonymous user to the Firebase UID for cross-platform sync.
    */
-  async initialize(userId: string): Promise<void> {
+  async initialize(userId: string, email?: string | null, name?: string | null): Promise<void> {
     try {
-      // Check if already configured to avoid the "Purchases instance already set" warning
       const isConfigured = await Purchases.isConfigured();
-      
-      if (isConfigured) {
+
+      if (!isConfigured) {
+        if (__DEV__) {
+          Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+        }
+
+        const apiKey = Platform.select({
+          ios: process.env.EXPO_PUBLIC_RC_IOS_KEY,
+          android: process.env.EXPO_PUBLIC_RC_ANDROID_KEY,
+        });
+
+        if (!apiKey) {
+          console.warn('[PurchaseService] No RevenueCat API key found for platform:', Platform.OS);
+          return;
+        }
+
+        Purchases.configure({
+          apiKey,
+          appUserID: userId
+        });
+      } else {
         const currentUserId = await Purchases.getAppUserID();
         if (currentUserId !== userId) {
           console.log('[PurchaseService] User mismatch. Switching to:', userId);
           await Purchases.logIn(userId);
         }
-        this._initialized = true;
-        return;
       }
 
-      if (this._initialized) return;
-
-      if (__DEV__) {
-        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-      }
-
-      const apiKey = Platform.select({
-        ios: process.env.EXPO_PUBLIC_RC_IOS_KEY,
-        android: process.env.EXPO_PUBLIC_RC_ANDROID_KEY,
-      });
-
-      if (!apiKey) {
-        console.warn('[PurchaseService] No RevenueCat API key found for platform:', Platform.OS);
-        return;
-      }
-
-      // Pass appUserID directly to configure to avoid creating unnecessary anonymous users
-      Purchases.configure({ 
-        apiKey,
-        appUserID: userId 
-      });
+      // ALWAYS set or update subscriber attributes after login/configuration
+      if (email) Purchases.setEmail(email);
+      if (name) Purchases.setDisplayName(name);
 
       this._initialized = true;
-      console.log('[PurchaseService] Initialized for user:', userId);
+      console.log('[PurchaseService] Initialized and attributes synced for:', userId);
     } catch (error) {
       console.error('[PurchaseService] Initialization failed:', error);
     }
@@ -114,10 +112,12 @@ export const purchaseService = {
    * Listen for real-time subscription changes (purchase, expiry, renewal).
    * The callback fires whenever the customer's entitlement status changes.
    */
-  addListener(callback: (isPro: boolean) => void): void {
+  addListener(callback: (isPro: boolean, expiryDate: string | null) => void): void {
     Purchases.addCustomerInfoUpdateListener((info: CustomerInfo) => {
-      const isPro = !!info.entitlements.active[ENTITLEMENT_ID];
-      callback(isPro);
+      const entitlement = info.entitlements.active[ENTITLEMENT_ID];
+      const isPro = !!entitlement;
+      const expiryDate = entitlement?.expirationDate || null;
+      callback(isPro, expiryDate);
     });
   },
 

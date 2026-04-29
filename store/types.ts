@@ -204,7 +204,7 @@ export interface UserActions {
   // Auth/Profile
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
-  setAuth: (userId: string | null, userName: string | null, sessionToken?: string | null) => Promise<void>;
+  setAuth: (userId: string | null, userName: string | null, email?: string | null, sessionToken?: string | null) => Promise<void>;
   setOnboardingData: (data: Partial<UserState['onboardingData']>) => void;
   updateProfile: (updates: Partial<{
     userName: string; bio: string; location: string; occupation: string;

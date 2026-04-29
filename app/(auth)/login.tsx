@@ -1,20 +1,20 @@
+import { BlurView } from '@/components/BlurView';
 import { Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { analyticsService } from '@/services/analyticsService';
 import { authService } from '@/services/authService';
 import { dbService } from '@/services/dbService';
-import { analyticsService } from '@/services/analyticsService';
 import { useStore } from '@/store/useStore';
 import { AntDesign } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { BlurView } from '@/components/BlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { deleteUser } from 'firebase/auth';
 import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-import { deleteUser } from 'firebase/auth';
 
 const { height } = Dimensions.get('window');
 
@@ -154,10 +154,10 @@ export default function LoginScreen() {
 
   const onGoogleButtonPress = async () => {
     if (!hasPlayServices) {
-      Toast.show({ 
-        type: 'error', 
-        text1: 'Google Play Services', 
-        text2: 'Play services not available on this device.' 
+      Toast.show({
+        type: 'error',
+        text1: 'Google Play Services',
+        text2: 'Play services not available on this device.'
       });
       return;
     }

@@ -303,14 +303,14 @@ export default function RootLayout() {
       }
 
       // Phase B: Initialize RevenueCat for subscription management
-      const rcUserId = useStore.getState().userId;
+      const { userId: rcUserId, email: rcUserEmail, userName: rcUserName } = useStore.getState();
       if (isAuthenticated && rcUserId) {
-        purchaseService.initialize(rcUserId).then(() => {
+        purchaseService.initialize(rcUserId, rcUserEmail, rcUserName).then(() => {
           // Check current entitlements on init
           useStore.getState().actions.checkEntitlements();
           // Listen for real-time subscription changes
-          purchaseService.addListener((isPro) => {
-            useStore.getState().actions.setProStatus(isPro);
+          purchaseService.addListener((isPro, expiryDate) => {
+            useStore.getState().actions.setProStatus(isPro, expiryDate);
           });
         });
       }
@@ -343,7 +343,7 @@ export default function RootLayout() {
           }
 
           console.log('[LifeOS Layout] Session valid. Setting auth state.');
-          setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User');
+          setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User', user.email);
           useStore.getState().actions.subscribeToCloud();
           
           if (!useStore.getState().sessionToken) {

@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { UserState, SubscriptionActions } from '../types';
 import { purchaseService } from '@/services/purchaseService';
+import { dbService } from '@/services/dbService';
 import { getTodayLocal } from '@/utils/dateUtils';
 
 /**
@@ -25,6 +26,12 @@ export const createSubscriptionSlice: StateCreator<
     try {
       const { isPro, expiryDate } = await purchaseService.checkProStatus();
       set({ isPro, subscriptionExpiryDate: expiryDate });
+      
+      // Sync to Firebase
+      const { userId } = get();
+      if (userId) {
+        dbService.saveUserProfile(userId, { isPro, subscriptionExpiryDate: expiryDate });
+      }
     } catch (error) {
       console.error('[SubscriptionSlice] Failed to check entitlements:', error);
     }
@@ -39,6 +46,12 @@ export const createSubscriptionSlice: StateCreator<
       isPro,
       subscriptionExpiryDate: expiry ?? null,
     });
+
+    // Sync to Firebase
+    const { userId } = get();
+    if (userId) {
+      dbService.saveUserProfile(userId, { isPro, subscriptionExpiryDate: expiry ?? null });
+    }
   },
 
   /**

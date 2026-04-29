@@ -11,23 +11,23 @@
  *        (paste the key — it is never written to disk)
  *   3. firebase deploy --only functions
  *   4. Rotate the old EXPO_PUBLIC_GEMINI_API_KEY in Google Cloud Console.
- *   5. Set EXPO_PUBLIC_USE_AI_PROXY=true in the client .env and rebuild.
+ *   5. Set USE_AI_PROXY=true in the client .env and rebuild.
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as admin from 'firebase-admin';
 import { defineSecret } from 'firebase-functions/params';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { isWithinRateLimit } from './rateLimiter';
 
 admin.initializeApp();
 
-export { scheduledStatsAggregator } from './statsAggregator';
-export { onMessageCreate } from './onMessageCreate';
-export { weeklyRecapGenerator } from './weeklyRecapGenerator';
 export { analyzeUserTiming } from './analyzeUserTiming';
+export { onMessageCreate } from './onMessageCreate';
+export { scheduledStatsAggregator } from './statsAggregator';
+export { weeklyRecapGenerator } from './weeklyRecapGenerator';
 
 // defineSecret takes the secret's NAME (an identifier), not its value.
 // The actual key lives in Google Secret Manager and is set out-of-band via

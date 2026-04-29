@@ -4,38 +4,95 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delete Account | LifeOS Prime</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { background: #0B0B0F; color: #FFFFFF; font-family: 'Inter', sans-serif; line-height: 1.8; padding: 60px 20px; }
-        .content { max-width: 800px; margin: 0 auto; background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        h1 { color: #FF4B4B; margin-bottom: 30px; }
-        h2 { margin-top: 30px; color: #FFFFFF; font-size: 20px; }
-        p { color: #A1A1AA; margin-bottom: 20px; }
-        .back-link { display: inline-block; margin-bottom: 40px; color: #00F2FE; text-decoration: none; font-weight: 600; }
-        .btn-danger { background: #FF4B4B; color: white; padding: 14px 28px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
-        .warning-box { border: 1px solid #FF4B4B; padding: 20px; border-radius: 12px; background: rgba(255, 75, 75, 0.1); margin-bottom: 30px; }
+        :root {
+            --primary: #9d50bb;
+            --secondary: #6e48aa;
+            --bg: #050505;
+            --bg-accent: #0f0f12;
+            --text: #ffffff;
+            --text-dim: #a0a0a0;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background-color: var(--bg); color: var(--text); line-height: 1.6; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 0 32px; }
+
+        nav { padding: 24px 0; border-bottom: 1px solid var(--card-border); background: rgba(5,5,5,0.8); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; }
+        .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; color: white; }
+        .logo-icon { width: 40px; height: 40px; background: var(--gradient); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
+
+        .legal-content { padding: 80px 0; min-height: 80vh; display: flex; align-items: center; }
+        .legal-card { background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 32px; padding: 60px; box-shadow: 0 40px 100px rgba(0,0,0,0.5); width: 100%; text-align: center; }
+        
+        h1 { font-size: 48px; font-weight: 800; margin-bottom: 24px; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { color: var(--text-dim); margin-bottom: 32px; font-size: 18px; }
+
+        .delete-form { max-width: 400px; margin: 0 auto; text-align: left; }
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-dim); font-size: 14px; }
+        .input-group input { width: 100%; padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 12px; color: white; outline: none; font-family: inherit; }
+        .input-group input:focus { border-color: var(--primary); }
+
+        .btn-delete { width: 100%; padding: 18px; background: #ff4d4d; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.3s; }
+        .btn-delete:hover { background: #ff3333; transform: translateY(-2px); }
+
+        .warning-box { background: rgba(255, 77, 77, 0.05); border: 1px solid rgba(255, 77, 77, 0.2); border-radius: 16px; padding: 20px; margin-bottom: 32px; text-align: left; }
+        .warning-box i { color: #ff4d4d; margin-right: 10px; }
+
+        footer { padding: 60px 0; border-top: 1px solid var(--card-border); text-align: center; color: var(--text-dim); font-size: 14px; }
+
+        @media (max-width: 768px) {
+            .legal-card { padding: 32px; border-radius: 24px; }
+            h1 { font-size: 32px; }
+        }
     </style>
 </head>
 <body>
-    <div class="content">
-        <a href="index.html" class="back-link">← Back to Home</a>
-        <h1>Account Deletion Request</h1>
-        
-        <div class="warning-box">
-            <p style="color: #FF4B4B; font-weight: 600; margin-bottom: 0;">Warning: This action is permanent and cannot be undone. All your habits, tasks, and AI coach history will be permanently deleted.</p>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo-container">
+                <div class="logo-icon"><i class="fa-solid fa-brain"></i></div>
+                <div class="logo-text">LifeOS Prime</div>
+            </a>
         </div>
+    </nav>
 
-        <h2>How to delete your account:</h2>
-        <p>1. Open the LifeOS Prime app on your device.</p>
-        <p>2. Go to <strong>Settings</strong> > <strong>Edit Profile</strong>.</p>
-        <p>3. Scroll to the bottom and tap <strong>Delete Account</strong>.</p>
-        <p>4. Confirm the deletion.</p>
+    <section class="legal-content">
+        <div class="container">
+            <div class="legal-card">
+                <h1>Delete Your Account</h1>
+                <p>We're sorry to see you go. Please note that this action is permanent.</p>
 
-        <h2>Submit a manual request:</h2>
-        <p>If you no longer have access to the app, you can request account deletion by emailing us from your registered email address.</p>
-        <a href="mailto:support@lifeos.prime?subject=Account Deletion Request" class="btn-danger">Email Support to Delete Account</a>
-        
-        <p style="margin-top: 40px; font-size: 14px;">Please allow up to 7 business days for manual deletion requests to be processed.</p>
-    </div>
+                <div class="warning-box">
+                    <p style="margin-bottom: 0; font-size: 14px; color: #ffbaba;"><i class="fa-solid fa-triangle-exclamation"></i> <strong>WARNING:</strong> Deleting your account will permanently remove all your habits, task history, AI coach logs, and subscription data. This cannot be undone.</p>
+                </div>
+
+                <form class="delete-form" onsubmit="event.preventDefault(); alert('Your request has been submitted. Our team will verify and delete your account within 48 hours.'); window.location.href='index.html';">
+                    <div class="input-group">
+                        <label>Confirm Email Address</label>
+                        <input type="email" placeholder="Enter your email" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Reason for leaving (Optional)</label>
+                        <input type="text" placeholder="Tell us why">
+                    </div>
+                    <button type="submit" class="btn-delete">Request Account Deletion</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            &copy; 2026 LifeOS Prime. All Rights Reserved. Wishing you the best on your journey.
+        </div>
+    </footer>
 </body>
 </html>

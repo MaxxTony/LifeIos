@@ -26,7 +26,7 @@ firebase deploy --only functions
 
 Then in the client:
 
-1. Set `EXPO_PUBLIC_USE_AI_PROXY=true` in `.env.local`.
+1. Set `USE_AI_PROXY=true` in `.env.local`.
 2. Rebuild the app. `services/ai.ts` will now call the function via
    `httpsCallable('callAI')` instead of using the client key.
 3. Once confirmed working, **rotate and delete** `EXPO_PUBLIC_GEMINI_API_KEY`

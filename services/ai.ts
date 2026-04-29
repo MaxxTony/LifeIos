@@ -8,7 +8,7 @@ const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // NOT EXPO_PUBLIC_ — dev only, never ships in bundle
 
 if (!USE_AI_PROXY && !__DEV__) {
-  console.warn('[LifeOS] AI is running in direct mode on a production build. This is usually due to missing EXPO_PUBLIC_USE_AI_PROXY env var.');
+  console.warn('[LifeOS] AI is running in direct mode on a production build. This is usually due to missing USE_AI_PROXY env var.');
 }
 
 let _genAIModule: typeof import('@google/generative-ai') | null = null;
@@ -419,7 +419,7 @@ async function callAIProxy(messages: any[], baseSystemInstruction?: string, memo
       const parts: string[] = [];
       if (successParts.length > 0) parts.push(`🔹 ${successParts.join(' ')}`);
       if (failParts.length > 0) parts.push(`❌ Could not complete: ${failParts.join(', ')}.`);
-      
+
       // C-UI-CLEAN: Remove technical prefixes (🔹, ❌) as requested by user.
       // We rely on the AI's natural language response (data.text) for feedback.
       if (data.text) {
@@ -450,7 +450,7 @@ export const getAIResponse = async (
   const state = useStore.getState();
   const userId = state.userId;
   let memories: any[] = [];
-  
+
   if (userId) {
     try {
       const { getDocs, query, collection, orderBy, limit } = await import('firebase/firestore');

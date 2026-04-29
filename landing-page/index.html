@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0B0B0F">
     <title>LifeOS Prime | Redefining Your Daily Reality</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,47 +24,52 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
-        h1, h2, h3, .logo { font-family: 'Outfit', sans-serif; font-weight: 800; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-        
-        /* Smooth Scroll */
+        html, body { background-color: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; width: 100%; position: relative; }
         html { scroll-behavior: smooth; }
+        h1, h2, h3, .logo { font-family: 'Outfit', sans-serif; font-weight: 800; }
+        img { max-width: 100%; height: auto; display: block; }
+        a { -webkit-tap-highlight-color: transparent; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; width: 100%; }
 
         /* Navigation */
         nav {
-            padding: 24px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 18px 0;
             position: fixed;
             top: 0;
+            left: 0;
             width: 100%;
             z-index: 1000;
             background: rgba(11, 11, 15, 0.8);
             backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--card-border);
         }
+        .nav-inner { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 
         .logo-container { display: flex; align-items: center; gap: 12px; }
-        .logo-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--gradient); display: flex; align-items: center; justify-content: center; }
-        .logo-text { font-size: 22px; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--gradient); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .logo-text { font-size: clamp(18px, 2vw, 22px); background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap; font-weight: 800; }
 
         .nav-links { display: flex; gap: 32px; align-items: center; }
         .nav-links a { text-decoration: none; color: var(--text-dim); font-size: 14px; font-weight: 500; transition: 0.3s; }
         .nav-links a:hover { color: var(--text); }
         .btn-nav { padding: 10px 20px; background: var(--gradient); border-radius: 8px; color: white !important; }
 
-        /* Hero Section */
+        .hamburger { display: none; font-size: 22px; color: white; cursor: pointer; padding: 6px; }
+        .nav-close { display: none; }
+        .nav-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .nav-overlay.active { opacity: 1; pointer-events: auto; }
+
+        /* Hero */
         .hero {
-            padding: 180px 0 100px;
+            padding: 160px 0 80px;
             display: grid;
             grid-template-columns: 1.2fr 1fr;
             align-items: center;
             gap: 60px;
             position: relative;
         }
-
         .hero::before {
             content: '';
             position: absolute;
@@ -74,6 +80,7 @@
             background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
             z-index: -1;
             filter: blur(60px);
+            pointer-events: none;
         }
 
         .hero-tag {
@@ -90,108 +97,137 @@
             letter-spacing: 1px;
         }
 
-        .hero h1 { font-size: 72px; line-height: 1.1; margin-bottom: 24px; letter-spacing: -2px; }
+        .hero h1 { font-size: clamp(36px, 6vw, 72px); line-height: 1.1; margin-bottom: 24px; letter-spacing: -2px; }
         .hero h1 span { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero p { font-size: 20px; color: var(--text-dim); margin-bottom: 48px; max-width: 540px; }
+        .hero p { font-size: clamp(16px, 1.4vw, 20px); color: var(--text-dim); margin-bottom: 32px; max-width: 540px; }
+
+        .cta-btns { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+        .btn-primary { padding: 16px 32px; background: var(--gradient); color: white; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 24px var(--primary-glow); text-decoration: none; display: inline-block; transition: 0.3s; text-align: center; border: none; cursor: pointer; }
+        .btn-outline { padding: 16px 32px; border: 1px solid var(--card-border); color: white; border-radius: 12px; font-weight: 700; text-decoration: none; display: inline-block; transition: 0.3s; text-align: center; background: transparent; cursor: pointer; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 32px var(--primary-glow); }
+        .btn-outline:hover { background: rgba(255,255,255,0.05); border-color: var(--primary); }
 
         .hero-image { position: relative; display: flex; justify-content: center; }
-        .hero-image img { width: 85%; filter: drop-shadow(0 20px 50px rgba(0,0,0,0.5)); animation: float 6s ease-in-out infinite; }
+        .hero-image img { width: 85%; max-width: 460px; filter: drop-shadow(0 20px 50px rgba(0,0,0,0.5)); animation: float 6s ease-in-out infinite; }
 
         @keyframes float {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(-20px) rotate(1deg); }
         }
 
-        /* Features Section */
-        .features { padding: 120px 0; }
-        .section-title { text-align: center; margin-bottom: 80px; }
-        .section-title h2 { font-size: 48px; margin-bottom: 16px; }
-        .section-title p { color: var(--text-dim); font-size: 18px; max-width: 600px; margin: 0 auto; }
+        /* Sections - Generic */
+        section { position: relative; }
+        .features { padding: 100px 0; }
+        .section-title { text-align: center; margin-bottom: 64px; }
+        .section-title h2 { font-size: clamp(28px, 4vw, 48px); margin-bottom: 16px; line-height: 1.2; }
+        .section-title p { color: var(--text-dim); font-size: clamp(15px, 1.3vw, 18px); max-width: 600px; margin: 0 auto; }
 
-        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 32px; }
-        .feature-card {
-            background: var(--bg-accent);
-            border: 1px solid var(--card-border);
-            padding: 48px;
-            border-radius: 32px;
-            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            position: relative;
-            overflow: hidden;
-        }
-
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+        .feature-card { background: var(--bg-accent); border: 1px solid var(--card-border); padding: clamp(28px, 4vw, 48px); border-radius: 28px; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; overflow: hidden; }
         .feature-card:hover { transform: translateY(-12px); border-color: var(--primary); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
-        .feature-icon { width: 64px; height: 64px; background: rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 32px; font-size: 28px; color: var(--primary); }
-        .feature-card h3 { font-size: 24px; margin-bottom: 16px; }
-        .feature-card p { color: var(--text-dim); font-size: 16px; }
+        .feature-icon { width: 64px; height: 64px; background: rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; font-size: 28px; color: var(--primary); }
+        .feature-card h3 { font-size: clamp(20px, 2vw, 24px); margin-bottom: 12px; }
+        .feature-card p { color: var(--text-dim); font-size: clamp(14px, 1.1vw, 16px); }
 
-        /* Screenshot Slider */
-        .showcase { padding: 120px 0; background: var(--bg-accent); }
-        .screenshot-container { 
-            display: flex; 
-            gap: 24px; 
-            overflow-x: auto; 
-            padding: 40px 0;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-        }
-        .screenshot-container::-webkit-scrollbar { display: none; }
-        .screenshot-item { min-width: 280px; height: 580px; border-radius: 40px; border: 8px solid #222; overflow: hidden; background: #000; flex-shrink: 0; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
-        .screenshot-item img { width: 100%; height: 100%; object-fit: cover; }
+        /* Unfair Advantage */
+        .unfair-advantage { padding: 100px 0; background: linear-gradient(180deg, var(--bg) 0%, var(--bg-accent) 100%); }
 
-        /* Pricing Table */
-        .pricing { padding: 120px 0; }
-        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 900px; margin: 0 auto; }
-        .pricing-card {
-            background: var(--bg-accent);
-            border: 1px solid var(--card-border);
-            padding: 56px;
-            border-radius: 40px;
-            position: relative;
-        }
-        .pricing-card.pro { border: 2px solid var(--primary); background: rgba(139, 92, 246, 0.03); }
-        .pricing-card.pro::after {
-            content: 'MOST POPULAR';
+        /* How It Works */
+        .how-it-works { padding: 100px 0; background: rgba(255,255,255,0.02); overflow: hidden; }
+        .steps-container { position: relative; margin-top: 60px; }
+        .steps-container::before {
+            content: '';
             position: absolute;
-            top: 24px;
-            right: 24px;
-            background: var(--primary);
-            font-size: 10px;
-            padding: 4px 12px;
-            border-radius: 100px;
-            font-weight: 800;
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, var(--primary), var(--accent), transparent);
+            transform: translateX(-50%);
+            z-index: 1;
         }
+        .step { display: flex; justify-content: space-between; align-items: center; margin-bottom: 100px; position: relative; z-index: 2; }
+        .step:last-child { margin-bottom: 0; }
+        .step:nth-child(even) { flex-direction: row-reverse; }
+        .step-content { width: 45%; padding: 32px; background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 24px; transition: 0.3s; }
+        .step-content:hover { border-color: var(--primary); transform: scale(1.02); }
+        .step-graphic { width: 45%; display: flex; justify-content: center; align-items: center; font-size: 80px; color: rgba(255,255,255,0.05); position: relative; }
+        .step-graphic i { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: blur(20px); opacity: 0.2; position: absolute; }
+        .step-graphic i.main-icon { filter: none; opacity: 1; position: relative; font-size: 100px; }
+        .step-number { width: 60px; height: 60px; background: var(--bg); border: 3px solid var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 24px; position: absolute; left: 50%; transform: translateX(-50%); box-shadow: 0 0 30px var(--primary-glow); color: white; }
+        .step h3 { font-size: clamp(20px, 2vw, 28px); margin-bottom: 12px; color: var(--accent); }
+        .step p { color: var(--text-dim); font-size: clamp(14px, 1.1vw, 16px); line-height: 1.8; }
 
-        .price { font-size: 48px; font-weight: 800; margin: 24px 0; }
-        .price span { font-size: 16px; color: var(--text-dim); }
+        /* Showcase / Carousel */
+        .showcase { padding: 100px 0; background: var(--bg-accent); overflow: hidden; }
+        .slider-wrapper { position: relative; max-width: 1100px; margin: 0 auto; padding: 24px 12px; }
+        .slider-viewport { overflow: hidden; }
+        .screenshot-slider { display: flex; gap: 30px; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); cursor: grab; will-change: transform; padding: 20px 0; }
+        .screenshot-slider:active { cursor: grabbing; }
+        .screenshot-item { width: 320px; aspect-ratio: 9 / 19.5; border-radius: 40px; border: 8px solid #1a1a1a; overflow: hidden; background: #000; flex-shrink: 0; box-shadow: 0 30px 60px rgba(0,0,0,0.5); transition: 0.4s; }
+        .screenshot-item img { width: 100%; height: 100%; object-fit: cover; }
+        .screenshot-item:hover { transform: scale(1.02); border-color: var(--primary); }
 
-        .feature-list { list-style: none; margin-bottom: 40px; }
-        .feature-list li { margin-bottom: 16px; color: var(--text-dim); display: flex; align-items: center; gap: 12px; }
-        .feature-list li i { color: var(--accent); font-size: 14px; }
-
-        .btn-full { width: 100%; display: block; text-align: center; padding: 16px; border-radius: 12px; text-decoration: none; font-weight: 700; transition: 0.3s; }
-        .btn-outline { border: 1px solid var(--card-border); color: white; }
-        .btn-outline:hover { background: rgba(255,255,255,0.05); }
-
-        /* Help Section */
-        .help { padding: 120px 0; background: radial-gradient(circle at bottom, rgba(139, 92, 246, 0.1), transparent 70%); }
-        .help-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; align-items: center; }
-        .form-card { background: var(--bg-accent); border: 1px solid var(--card-border); padding: 48px; border-radius: 32px; }
-        .input-group { margin-bottom: 24px; }
-        .input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; }
-        .input-group input, .input-group textarea {
-            width: 100%;
+        .slider-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
             background: rgba(255,255,255,0.05);
             border: 1px solid var(--card-border);
-            padding: 16px;
-            border-radius: 12px;
             color: white;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
             font-size: 16px;
             transition: 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .input-group input:focus { outline: none; border-color: var(--primary); background: rgba(255,255,255,0.08); }
+        .slider-btn:hover { background: var(--primary); border-color: var(--primary); }
+        .slider-btn.prev { left: -72px; }
+        .slider-btn.next { right: -72px; }
+
+        .slider-dots { display: flex; justify-content: center; gap: 8px; margin-top: 32px; flex-wrap: wrap; }
+        .slider-dots .dot { width: 10px; height: 10px; border-radius: 10px; background: rgba(255,255,255,0.15); cursor: pointer; transition: 0.3s; }
+        .slider-dots .dot.active { background: var(--primary); width: 28px; box-shadow: 0 0 12px var(--primary-glow); }
+
+        /* Pricing */
+        .pricing { padding: 100px 0; }
+        .comparison-card { background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 32px; overflow: hidden; max-width: 900px; margin: 0 auto; box-shadow: 0 40px 100px rgba(0,0,0,0.5); }
+        .pricing-header { display: grid; grid-template-columns: 2fr 1fr 1fr; background: rgba(255,255,255,0.03); padding: 32px 40px; border-bottom: 1px solid var(--card-border); text-align: center; gap: 12px; align-items: center; }
+        .pricing-header > div:first-child { text-align: left; font-size: clamp(16px, 1.5vw, 20px); font-weight: 800; }
+        .plan-label { font-size: clamp(13px, 1.2vw, 16px); font-weight: 700; }
+        .plan-label.pro { color: var(--primary); }
+        .compare-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 18px 40px; border-bottom: 1px solid rgba(255,255,255,0.03); align-items: center; transition: 0.3s; gap: 12px; }
+        .compare-row:hover { background: rgba(255,255,255,0.01); }
+        .compare-row .feature-name { font-weight: 500; font-size: clamp(13px, 1.1vw, 15px); }
+        .compare-row .status { text-align: center; font-size: clamp(13px, 1.2vw, 18px); }
+        .status.yes { color: var(--primary); filter: drop-shadow(0 0 10px var(--primary-glow)); }
+        .status.no { color: #ff4d4d; opacity: 0.4; }
+        .pricing-footer { padding: 32px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Help */
+        .help { padding: 100px 0; background: radial-gradient(circle at bottom, rgba(139, 92, 246, 0.1), transparent 70%); }
+        .help-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 64px; align-items: center; }
+        .help-info p.lead { color: var(--text-dim); margin-top: 20px; font-size: clamp(15px, 1.3vw, 18px); }
+        .contact-block { margin-top: 32px; display: flex; gap: 20px; align-items: center; }
+        .contact-block i { color: var(--primary); font-size: 24px; }
+        .contact-block .contact-label { font-weight: 700; }
+        .contact-block .contact-value { color: var(--text-dim); font-size: 14px; }
+        .form-card { background: var(--bg-accent); border: 1px solid var(--card-border); padding: clamp(28px, 4vw, 48px); border-radius: 28px; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .input-group input, .input-group textarea { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); padding: 14px 16px; border-radius: 12px; color: white; font-size: 15px; transition: 0.3s; font-family: inherit; resize: vertical; }
+        .input-group input:focus, .input-group textarea:focus { outline: none; border-color: var(--primary); background: rgba(255,255,255,0.08); }
+        .form-card .btn-primary { width: 100%; }
 
         /* Footer */
-        footer { padding: 100px 0 40px; border-top: 1px solid var(--card-border); }
+        footer { padding: 80px 0 32px; border-top: 1px solid var(--card-border); }
         .footer-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 60px; }
         .footer-brand p { color: var(--text-dim); margin-top: 20px; font-size: 14px; }
         .footer-col h4 { font-size: 16px; margin-bottom: 24px; }
@@ -199,96 +235,158 @@
         .footer-col ul li { margin-bottom: 12px; }
         .footer-col ul li a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: 0.3s; }
         .footer-col ul li a:hover { color: var(--primary); }
+        .footer-bottom { text-align: center; color: var(--text-dim); font-size: 13px; padding-top: 32px; border-top: 1px solid var(--card-border); }
 
-        body, html { overflow-x: hidden; width: 100%; position: relative; }
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 1200px) {
+            .slider-btn.prev { left: 8px; background: rgba(11,11,15,0.85); }
+            .slider-btn.next { right: 8px; background: rgba(11,11,15,0.85); }
+        }
 
         @media (max-width: 1024px) {
-            .hero { grid-template-columns: 1fr; text-align: center; padding-top: 140px; }
-            .hero h1 { font-size: 56px; }
-            .hero p { margin: 0 auto 48px; }
-            .hero-image { order: -1; margin-bottom: 40px; }
-            .hero-image img { width: 80%; max-width: 400px; }
-            .pricing-grid { grid-template-columns: 1fr; max-width: 500px; margin: 0 auto; }
-            .help-grid { grid-template-columns: 1fr; gap: 40px; }
-            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .hero { grid-template-columns: 1fr; text-align: center; padding-top: 130px; gap: 40px; }
+            .hero p { margin: 0 auto 32px; }
+            .cta-btns { justify-content: center; }
+            .hero-image { order: -1; }
+            .hero-image img { width: 60%; max-width: 320px; }
+            .help-grid { grid-template-columns: 1fr; gap: 40px; text-align: center; }
+            .contact-block { justify-content: center; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+            .features, .showcase, .pricing, .help, .unfair-advantage, .how-it-works { padding: 80px 0; }
+            .step { margin-bottom: 80px; }
         }
 
         @media (max-width: 768px) {
-            .container { padding: 0 32px !important; width: 100% !important; max-width: 100vw !important; overflow: hidden; }
-            .feature-grid { grid-template-columns: 1fr; gap: 24px; }
-            .section-title { margin-bottom: 60px; }
-            .hero h1 { font-size: 34px; }
-            .screenshot-container { width: 100vw; margin-left: -32px; padding-left: 32px; padding-right: 32px; }
-            .nav-links { 
-                position: fixed; 
-                top: 0; 
-                right: -100%; 
-                height: 100vh; 
-                width: 80%; 
-                background: var(--bg-accent); 
-                flex-direction: column; 
-                justify-content: center; 
-                transition: 0.4s; 
-                z-index: 1001; 
+            .container { padding: 0 20px; }
+            nav { padding: 14px 0; }
+            .logo-icon { width: 36px; height: 36px; }
+
+            .nav-links {
+                position: fixed;
+                top: 0;
+                right: -100%;
+                height: 100vh;
+                width: 82%;
+                max-width: 320px;
+                background: var(--bg-accent);
+                flex-direction: column;
+                justify-content: center;
+                gap: 24px;
+                transition: right 0.4s ease;
+                z-index: 1001;
                 box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+                padding: 60px 32px;
             }
             .nav-links.active { right: 0; }
-            .hamburger { display: block !important; cursor: pointer; z-index: 1002; margin-right: 10px; }
-            .hero-content .cta-btns { flex-direction: column; width: 100%; gap: 12px; }
-            .hero-content .btn-full { width: 100% !important; text-align: center; }
+            .nav-links a { font-size: 16px; }
+            .hamburger { display: block; }
+            .nav-close { display: flex; align-items: center; justify-content: center; position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 22px; color: var(--text-dim); cursor: pointer; background: transparent; border: none; }
 
-            /* Comparison Table Mobile */
-            .pricing-header, .compare-row { grid-template-columns: 1.5fr 1fr 1fr !important; padding: 15px 20px !important; }
-            .feature-name { font-size: 13px !important; }
-            .status { font-size: 14px !important; }
+            .hero { padding-top: 110px; padding-bottom: 60px; }
+            .hero-image img { width: 65%; max-width: 260px; }
+            .hero h1 { letter-spacing: -1px; }
+
+            .feature-grid { grid-template-columns: 1fr; gap: 20px; }
+            .section-title { margin-bottom: 48px; }
+
+            .cta-btns { flex-direction: column; width: 100%; max-width: 360px; margin: 0 auto; }
+            .cta-btns .btn-primary, .cta-btns .btn-outline { width: 100%; padding: 15px 24px; }
+
+            /* Carousel mobile */
+            .slider-wrapper { padding: 16px 0; max-width: 100%; }
+            .slider-viewport { padding: 0 20px; }
+            .screenshot-slider { gap: 16px; }
+            .screenshot-item { width: calc(100vw - 80px) !important; max-width: 280px !important; border-width: 6px; border-radius: 32px; }
+            .slider-btn { width: 44px; height: 44px; font-size: 14px; }
+            .slider-btn.prev { left: 4px; }
+            .slider-btn.next { right: 4px; }
+            .slider-dots { margin-top: 24px; }
+
+            /* Pricing mobile */
+            .pricing-header { padding: 24px 18px; gap: 8px; }
+            .pricing-header > div:first-child { font-size: 16px; }
+            .plan-label { font-size: 13px; }
+            .compare-row { padding: 14px 18px; grid-template-columns: 1.6fr 0.7fr 0.7fr; gap: 8px; }
+            .compare-row .feature-name { font-size: 13px; line-height: 1.4; }
+            .compare-row .status { font-size: 14px; }
+            .pricing-footer { padding: 20px; grid-template-columns: 1fr; gap: 12px; }
+            .pricing-footer .btn-primary, .pricing-footer .btn-outline { width: 100%; padding: 16px; }
+
+            /* Steps mobile */
+            .steps-container { margin-top: 40px; }
+            .steps-container::before { left: 24px; }
+            .step { flex-direction: row !important; padding-left: 64px; text-align: left; margin-bottom: 48px; align-items: flex-start; }
+            .step-content { width: 100%; padding: 24px; }
+            .step-graphic { display: none; }
+            .step-number { left: 24px; width: 48px; height: 48px; font-size: 18px; transform: none; top: 0; }
+
+            /* Footer mobile */
+            footer { padding: 60px 0 24px; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 40px; }
+            .footer-brand { grid-column: 1 / -1; text-align: center; }
+            .footer-brand .logo-container { justify-content: center; }
         }
 
-        .hamburger { display: none; font-size: 24px; color: white; }
+        @media (max-width: 480px) {
+            .container { padding: 0 16px; }
+            .hero { padding-top: 100px; }
+            .hero-tag { font-size: 11px; padding: 5px 12px; margin-bottom: 16px; }
+            .hero p { font-size: 15px; margin-bottom: 24px; }
+            .btn-primary, .btn-outline { padding: 14px 22px; font-size: 14px; border-radius: 10px; }
 
-        /* Comparison Table Global Styles */
-        .compare-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 20px 40px; border-bottom: 1px solid rgba(255,255,255,0.03); align-items: center; transition: 0.3s; }
-        .compare-row:hover { background: rgba(255,255,255,0.01); }
-        .compare-row .feature-name { font-weight: 500; font-size: 15px; }
-        .compare-row .status { text-align: center; font-size: 18px; }
-        .status.yes { color: var(--primary); filter: drop-shadow(0 0 10px var(--primary-glow)); }
-        .status.no { color: #ff4d4d; opacity: 0.3; }
+            .feature-card { padding: 26px 22px; border-radius: 24px; }
+            .feature-icon { width: 56px; height: 56px; font-size: 24px; margin-bottom: 20px; border-radius: 14px; }
+
+            .screenshot-item { min-width: calc(100vw - 72px); max-width: 260px; border-width: 6px; border-radius: 32px; }
+
+            .pricing-header { padding: 20px 14px; }
+            .pricing-header > div:first-child { font-size: 14px; }
+            .plan-label { font-size: 12px; }
+            .compare-row { padding: 12px 14px; }
+            .compare-row .feature-name { font-size: 12px; }
+            .compare-row .status { font-size: 12px; }
+
+            .step { padding-left: 56px; }
+            .step-content { padding: 20px; border-radius: 18px; }
+            .step-number { left: 18px; width: 40px; height: 40px; font-size: 16px; border-width: 2px; }
+            .steps-container::before { left: 18px; }
+
+            .footer-grid { grid-template-columns: 1fr; gap: 28px; text-align: center; }
+            .footer-brand { grid-column: auto; }
+            .footer-col ul li { margin-bottom: 10px; }
+        }
     </style>
 </head>
 <body>
 
     <nav>
-        <div class="container" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div class="container nav-inner">
             <div class="logo-container">
                 <div class="logo-icon"><i class="fa-solid fa-brain" style="color: white;"></i></div>
                 <div class="logo-text">LifeOS Prime</div>
             </div>
             <div class="nav-links" id="navLinks">
+                <button class="nav-close" onclick="toggleMenu()" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
                 <a href="#features" onclick="toggleMenu()">Features</a>
                 <a href="#how-it-works" onclick="toggleMenu()">How it Works</a>
                 <a href="#pricing" onclick="toggleMenu()">Pricing</a>
                 <a href="#help" class="btn-nav" onclick="toggleMenu()">Get Started</a>
             </div>
-            <div class="hamburger" onclick="toggleMenu()">
+            <div class="hamburger" onclick="toggleMenu()" aria-label="Open menu">
                 <i class="fa-solid fa-bars"></i>
             </div>
         </div>
     </nav>
-
-    <script>
-        function toggleMenu() {
-            const nav = document.getElementById('navLinks');
-            nav.classList.toggle('active');
-        }
-    </script>
+    <div class="nav-overlay" id="navOverlay" onclick="toggleMenu()"></div>
 
     <section class="hero container">
         <div class="hero-content">
             <div class="hero-tag">Optimizing Human Potential</div>
             <h1>The Operating System for <span>Your Life.</span></h1>
             <p>LifeOS Prime combines AI-driven coaching, habit mastery, and gamified progress to help you redefine what's possible.</p>
-            <div class="cta-btns" style="display: flex; gap: 16px; justify-content: center; align-items: center; width: 100%; margin-top: 32px;">
-                <a href="#help" class="btn-full btn-primary" style="padding: 16px 32px; display: inline-block; width: auto; text-align: center; background: var(--gradient); color: white; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 20px var(--primary-glow);">Download Now</a>
-                <a href="#features" class="btn-full btn-outline" style="padding: 16px 32px; display: inline-block; width: auto; text-align: center; border: 1px solid var(--card-border); color: white; border-radius: 12px; font-weight: 700;">Explore Features</a>
+            <div class="cta-btns">
+                <a href="#help" class="btn-primary">Download Now</a>
+                <a href="#features" class="btn-outline">Explore Features</a>
             </div>
         </div>
         <div class="hero-image">
@@ -296,7 +394,7 @@
         </div>
     </section>
 
-    <section class="unfair-advantage" style="padding: 100px 0; background: linear-gradient(180deg, var(--bg) 0%, var(--bg-accent) 100%);">
+    <section class="unfair-advantage">
         <div class="container">
             <div class="section-title">
                 <div class="hero-tag" style="background: rgba(0, 242, 254, 0.1); color: var(--accent); border-color: rgba(0, 242, 254, 0.2);">The Unfair Advantage</div>
@@ -304,7 +402,7 @@
                 <p>Most productivity apps are just digital notebooks. We built an active intelligence that works for you, not against you.</p>
             </div>
 
-            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+            <div class="feature-grid">
                 <div class="feature-card" style="border-top: 4px solid var(--accent);">
                     <div class="feature-icon" style="color: var(--accent);"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
                     <h3>Active Intervention</h3>
@@ -353,95 +451,12 @@
         </div>
     </section>
 
-    <section id="how-it-works" class="how-it-works" style="padding: 120px 0; background: rgba(255,255,255,0.02); overflow: hidden;">
+    <section id="how-it-works" class="how-it-works">
         <div class="container">
             <div class="section-title">
                 <h2>The Blueprint for Success</h2>
                 <p>LifeOS Prime isn't just an app; it's a methodology. Here is how you evolve.</p>
             </div>
-            
-            <style>
-                .steps-container { position: relative; margin-top: 100px; }
-                .steps-container::before {
-                    content: '';
-                    position: absolute;
-                    left: 50%;
-                    top: 0;
-                    width: 2px;
-                    height: 100%;
-                    background: linear-gradient(to bottom, transparent, var(--primary), var(--accent), transparent);
-                    transform: translateX(-50%);
-                    z-index: 1;
-                }
-                .step {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 120px;
-                    position: relative;
-                    z-index: 2;
-                }
-                .step:nth-child(even) { flex-direction: row-reverse; }
-                .step-content { 
-                    width: 45%; 
-                    padding: 40px; 
-                    background: var(--bg-accent); 
-                    border: 1px solid var(--card-border); 
-                    border-radius: 24px;
-                    transition: 0.3s;
-                }
-                .step-content:hover { border-color: var(--primary); transform: scale(1.02); }
-                .step-graphic { 
-                    width: 45%; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center;
-                    font-size: 80px;
-                    color: rgba(255,255,255,0.05);
-                    position: relative;
-                }
-                .step-graphic i {
-                    background: var(--gradient);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    filter: blur(20px);
-                    opacity: 0.2;
-                    position: absolute;
-                }
-                .step-graphic i.main-icon {
-                    filter: none;
-                    opacity: 1;
-                    position: relative;
-                    font-size: 100px;
-                }
-                .step-number {
-                    width: 64px;
-                    height: 64px;
-                    background: var(--bg);
-                    border: 3px solid var(--primary);
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-weight: 800;
-                    font-size: 26px;
-                    position: absolute;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    box-shadow: 0 0 30px var(--primary-glow);
-                    color: white;
-                }
-                .step h3 { font-size: 28px; margin-bottom: 16px; color: var(--accent); }
-                .step p { color: var(--text-dim); font-size: 16px; line-height: 1.8; }
-                
-                @media (max-width: 768px) {
-                    .steps-container::before { left: 30px; }
-                    .step { flex-direction: row !important; padding-left: 80px; text-align: left; margin-bottom: 60px; }
-                    .step-content, .step-graphic { width: 100%; }
-                    .step-graphic { display: none; }
-                    .step-number { left: 30px; }
-                }
-            </style>
 
             <div class="steps-container">
                 <div class="step">
@@ -495,114 +510,51 @@
         </div>
     </section>
 
-    <section class="showcase" style="padding: 120px 0; background: var(--bg-accent); overflow: hidden; position: relative;">
+    <section class="showcase">
         <div class="container">
             <div class="section-title">
                 <h2>Inside LifeOS Prime</h2>
                 <p>Take a peek at the interface designed for clarity and high performance. All 12 views of your new evolution.</p>
             </div>
-            
-            <div class="slider-wrapper" style="position: relative; max-width: 1000px; margin: 0 auto;">
-                <div class="screenshot-slider" id="mainSlider" style="display: flex; gap: 30px; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); cursor: grab;">
-                    <!-- All 12 Images -->
-                    <div class="screenshot-item"><img src="assets/IMG_5820.PNG" alt="View 1"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5821.PNG" alt="View 2"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5822.PNG" alt="View 3"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5823.PNG" alt="View 4"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5824.PNG" alt="View 5"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5825.PNG" alt="View 6"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5826.PNG" alt="View 7"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5827.PNG" alt="View 8"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5828.PNG" alt="View 9"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5829.PNG" alt="View 10"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5830.PNG" alt="View 11"></div>
-                    <div class="screenshot-item"><img src="assets/IMG_5831.PNG" alt="View 12"></div>
+
+            <div class="slider-wrapper">
+                <div class="slider-viewport">
+                    <div class="screenshot-slider" id="mainSlider">
+                        <div class="screenshot-item"><img src="assets/IMG_5820.PNG" alt="View 1"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5821.PNG" alt="View 2"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5822.PNG" alt="View 3"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5823.PNG" alt="View 4"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5824.PNG" alt="View 5"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5825.PNG" alt="View 6"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5826.PNG" alt="View 7"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5827.PNG" alt="View 8"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5828.PNG" alt="View 9"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5829.PNG" alt="View 10"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5830.PNG" alt="View 11"></div>
+                        <div class="screenshot-item"><img src="assets/IMG_5831.PNG" alt="View 12"></div>
+                    </div>
                 </div>
 
-                <!-- Navigation Controls -->
-                <button onclick="moveSlider(-1)" class="slider-btn prev" style="position: absolute; left: -80px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; backdrop-filter: blur(10px); z-index: 10;"><i class="fa-solid fa-chevron-left"></i></button>
-                <button onclick="moveSlider(1)" class="slider-btn next" style="position: absolute; right: -80px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; backdrop-filter: blur(10px); z-index: 10;"><i class="fa-solid fa-chevron-right"></i></button>
+                <button onclick="moveSlider(-1)" class="slider-btn prev" aria-label="Previous"><i class="fa-solid fa-chevron-left"></i></button>
+                <button onclick="moveSlider(1)" class="slider-btn next" aria-label="Next"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
-            <div class="slider-dots" id="sliderDots" style="display: flex; justify-content: center; gap: 10px; margin-top: 40px;">
-                <!-- Dots generated by JS -->
-            </div>
+            <div class="slider-dots" id="sliderDots"></div>
         </div>
-
-        <script>
-            let currentIdx = 0;
-            const slider = document.getElementById('mainSlider');
-            const items = document.querySelectorAll('.screenshot-item');
-            const dotsContainer = document.getElementById('sliderDots');
-            const totalItems = items.length;
-
-            // Create dots
-            for(let i=0; i<totalItems; i++) {
-                const dot = document.createElement('div');
-                dot.style.width = '10px';
-                dot.style.height = '10px';
-                dot.style.borderRadius = '50%';
-                dot.style.background = 'rgba(255,255,255,0.1)';
-                dot.style.cursor = 'pointer';
-                dot.onclick = () => goToSlide(i);
-                dotsContainer.appendChild(dot);
-            }
-
-            function updateSlider() {
-                const itemWidth = items[0].offsetWidth + 30; // width + gap
-                slider.style.transform = `translateX(-${currentIdx * itemWidth}px)`;
-                
-                // Update dots
-                Array.from(dotsContainer.children).forEach((dot, index) => {
-                    dot.style.background = index === currentIdx ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
-                    dot.style.width = index === currentIdx ? '24px' : '10px';
-                    dot.style.borderRadius = '10px';
-                });
-            }
-
-            function moveSlider(dir) {
-                currentIdx = (currentIdx + dir + totalItems) % totalItems;
-                updateSlider();
-            }
-
-            function goToSlide(idx) {
-                currentIdx = idx;
-                updateSlider();
-            }
-
-            // Init
-            updateSlider();
-
-            // Mobile Swipe Support
-            let startX = 0;
-            slider.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
-            slider.addEventListener('touchend', (e) => {
-                const endX = e.changedTouches[0].clientX;
-                if(startX - endX > 50) moveSlider(1);
-                if(endX - startX > 50) moveSlider(-1);
-            });
-        </script>
-
-        <style>
-            @media (max-width: 1200px) {
-                .slider-btn { display: none !important; }
-                .screenshot-slider { gap: 15px !important; }
-            }
-        </style>
     </section>
 
-    <section id="pricing" class="pricing" style="padding: 120px 0;">
+    <section id="pricing" class="pricing">
         <div class="container">
             <div class="section-title">
                 <h2>Choose Your Path</h2>
                 <p>Compare our plans and see why LifeOS Pro is the ultimate operating system for high performance.</p>
             </div>
 
-            <div class="comparison-card" style="background: var(--bg-accent); border: 1px solid var(--card-border); border-radius: 40px; overflow: hidden; max-width: 900px; margin: 0 auto; box-shadow: 0 40px 100px rgba(0,0,0,0.5);">
-                <div class="pricing-header" style="display: grid; grid-template-columns: 2fr 1fr 1fr; background: rgba(255,255,255,0.03); padding: 40px; border-bottom: 1px solid var(--card-border); text-align: center;">
-                    <div style="text-align: left; font-size: 20px; font-weight: 800;">Features</div>
-                    <div><div style="font-size: 16px; font-weight: 700;">Free Seeker</div></div>
-                    <div><div style="font-size: 16px; font-weight: 700; color: var(--primary);">LifeOS Pro</div></div>
+            <div class="comparison-card">
+                <div class="pricing-header">
+                    <div>Features</div>
+                    <div><div class="plan-label">Free Seeker</div></div>
+                    <div><div class="plan-label pro">LifeOS Pro</div></div>
                 </div>
 
                 <div class="comparison-body">
@@ -616,27 +568,25 @@
                     <div class="compare-row"><div class="feature-name">All Mood Themes & Colors</div><div class="status no"><i class="fa-solid fa-circle-xmark"></i></div><div class="status yes"><i class="fa-solid fa-circle-check"></i></div></div>
                 </div>
 
-                <div class="pricing-footer" style="padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <a href="#" class="btn-full btn-outline" style="text-align: center; padding: 18px; border-radius: 16px; border: 1px solid var(--card-border); color: white; text-decoration: none; font-weight: 700;">Continue Free</a>
-                    <a href="#" class="btn-full btn-primary" style="text-align: center; padding: 18px; border-radius: 16px; background: var(--gradient); color: white; text-decoration: none; font-weight: 700; box-shadow: 0 10px 30px var(--primary-glow);">Go Pro for $9.99/mo</a>
+                <div class="pricing-footer">
+                    <a href="#" class="btn-outline">Continue Free</a>
+                    <a href="#" class="btn-primary">Go Pro for $9.99/mo</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="help" class="help" style="padding: 120px 0;">
+    <section id="help" class="help">
         <div class="container">
             <div class="help-grid">
-                <div>
+                <div class="help-info">
                     <h2>Need Assistance?</h2>
-                    <p style="color: var(--text-dim); margin-top: 20px; font-size: 18px;">Our support team is dedicated to helping you optimize your LifeOS experience.</p>
-                    <div style="margin-top: 40px;">
-                        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 24px;">
-                            <i class="fa-solid fa-envelope" style="color: var(--primary); font-size: 24px;"></i>
-                            <div>
-                                <div style="font-weight: 700;">Email Us</div>
-                                <div style="color: var(--text-dim); font-size: 14px;">support@lifeos.prime</div>
-                            </div>
+                    <p class="lead">Our support team is dedicated to helping you optimize your LifeOS experience.</p>
+                    <div class="contact-block">
+                        <i class="fa-solid fa-envelope"></i>
+                        <div>
+                            <div class="contact-label">Email Us</div>
+                            <div class="contact-value">support@lifeos.prime</div>
                         </div>
                     </div>
                 </div>
@@ -654,7 +604,7 @@
                             <label>Message</label>
                             <textarea rows="5" placeholder="How can we help you today?" required></textarea>
                         </div>
-                        <button type="submit" class="btn-full btn-primary" style="border: none; cursor: pointer;">Send Enquiry</button>
+                        <button type="submit" class="btn-primary">Send Enquiry</button>
                     </form>
                 </div>
             </div>
@@ -696,14 +646,100 @@
                     </ul>
                 </div>
             </div>
-            <div style="text-align: center; color: var(--text-dim); font-size: 13px; padding-top: 40px; border-top: 1px solid var(--card-border);">
+            <div class="footer-bottom">
                 &copy; 2026 LifeOS Prime. All Rights Reserved. Engineered for excellence.
             </div>
         </div>
     </footer>
 
     <script>
-        document.getElementById('enquiryForm').addEventListener('submit', function(e) {
+        // Mobile Menu
+        function toggleMenu() {
+            const nav = document.getElementById('navLinks');
+            const overlay = document.getElementById('navOverlay');
+            nav.classList.toggle('active');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = nav.classList.contains('active') ? 'hidden' : '';
+        }
+
+        // Carousel
+        (function () {
+            const slider = document.getElementById('mainSlider');
+            const items = slider.querySelectorAll('.screenshot-item');
+            const dotsContainer = document.getElementById('sliderDots');
+            const totalItems = items.length;
+            let currentIdx = 0;
+
+            for (let i = 0; i < totalItems; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dot.addEventListener('click', () => goToSlide(i));
+                dotsContainer.appendChild(dot);
+            }
+            const dots = dotsContainer.querySelectorAll('.dot');
+
+            function getStep() {
+                const styles = window.getComputedStyle(slider);
+                const gap = parseFloat(styles.gap) || 0;
+                return items[0].offsetWidth + gap;
+            }
+
+            function maxIndex() {
+                const viewport = slider.parentElement.offsetWidth;
+                const step = getStep();
+                const visible = Math.max(1, Math.floor((viewport + parseFloat(window.getComputedStyle(slider).gap || 0)) / step));
+                return Math.max(0, totalItems - visible);
+            }
+
+            function clampIdx(i) {
+                const max = maxIndex();
+                if (i < 0) return max;
+                if (i > max) return 0;
+                return i;
+            }
+
+            function updateSlider() {
+                currentIdx = clampIdx(currentIdx);
+                const step = getStep();
+                slider.style.transform = `translateX(-${currentIdx * step}px)`;
+                dots.forEach((dot, idx) => {
+                    dot.classList.toggle('active', idx === currentIdx);
+                });
+            }
+
+            window.moveSlider = function (dir) {
+                currentIdx = clampIdx(currentIdx + dir);
+                updateSlider();
+            };
+
+            window.goToSlide = function (idx) {
+                currentIdx = clampIdx(idx);
+                updateSlider();
+            };
+
+            // Touch / swipe
+            let startX = 0, isDragging = false;
+            slider.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; isDragging = true; }, { passive: true });
+            slider.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                const endX = e.changedTouches[0].clientX;
+                if (startX - endX > 50) moveSlider(1);
+                else if (endX - startX > 50) moveSlider(-1);
+            });
+
+            // Recompute on resize
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(updateSlider, 100);
+            });
+
+            updateSlider();
+        })();
+
+        // Form
+        document.getElementById('enquiryForm').addEventListener('submit', function (e) {
             e.preventDefault();
             alert('Your enquiry has been received! Our team will contact you shortly.');
             this.reset();

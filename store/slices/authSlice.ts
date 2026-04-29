@@ -85,7 +85,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     }
   },
 
-  setAuth: async (userId, userName, sessionToken) => {
+  setAuth: async (userId, userName, email, sessionToken) => {
     const currentState = get();
     const unsubs = currentState._syncUnsubscribes;
     for (const unsub of unsubs) {
@@ -115,6 +115,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
       // C-AUTH-15 FIX: Protect local userName. If we have a name in store, 
       // don't overwrite it with a generic Firebase display name (e.g. from email).
       userName: state.userName || userName,
+      email: state.email || email,
       sessionToken: sessionToken || state.sessionToken,
       isAuthenticated: true,
       _syncUnsubscribes: [],
@@ -295,6 +296,12 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           if (data.hasSeenWalkthrough !== undefined) updates.hasSeenWalkthrough = data.hasSeenWalkthrough;
           if (data.streakFreezes !== undefined) updates.streakFreezes = data.streakFreezes;
           if (data.lastLoginBonusDate !== undefined) updates.lastLoginBonusDate = data.lastLoginBonusDate;
+          if (data.isPro !== undefined) updates.isPro = data.isPro;
+          if (data.subscriptionExpiryDate !== undefined) updates.subscriptionExpiryDate = data.subscriptionExpiryDate;
+          if (data.dailyAIMessageCount !== undefined) updates.dailyAIMessageCount = data.dailyAIMessageCount;
+          if (data.lastAIMessageCountReset !== undefined) updates.lastAIMessageCountReset = data.lastAIMessageCountReset;
+          if (data.preferredNudgeTime !== undefined) updates.preferredNudgeTime = data.preferredNudgeTime;
+          if (data.aiInsight !== undefined) updates.aiInsight = data.aiInsight;
 
           // SYNC FIX: Handle remote focus session changes (cross-device)
           if (data.activeFocusSession !== undefined) {
@@ -595,6 +602,12 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           if (data.socialLinks !== undefined) updates.socialLinks = data.socialLinks;
           if (data.accentColor) updates.accentColor = data.accentColor;
           if (data.homeTimezone) updates.homeTimezone = data.homeTimezone;
+          if (data.isPro !== undefined) updates.isPro = data.isPro;
+          if (data.subscriptionExpiryDate !== undefined) updates.subscriptionExpiryDate = data.subscriptionExpiryDate;
+          if (data.dailyAIMessageCount !== undefined) updates.dailyAIMessageCount = data.dailyAIMessageCount;
+          if (data.lastAIMessageCountReset !== undefined) updates.lastAIMessageCountReset = data.lastAIMessageCountReset;
+          if (data.preferredNudgeTime !== undefined) updates.preferredNudgeTime = data.preferredNudgeTime;
+          if (data.aiInsight !== undefined) updates.aiInsight = data.aiInsight;
           // C-AUTH-10 FIX: Sticky flags in hydrate path
           if (data.hasCompletedOnboarding === true || get().hasCompletedOnboarding === true) updates.hasCompletedOnboarding = true;
           if (data.hasSeenWalkthrough === true || get().hasSeenWalkthrough === true || updates.hasCompletedOnboarding) updates.hasSeenWalkthrough = true;
