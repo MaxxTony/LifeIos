@@ -12,6 +12,7 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import {
   Bell,
+  Crown,
   HelpCircle,
   History,
   Info,
@@ -123,6 +124,13 @@ export default function ProfileScreen() {
               <Text style={[styles.sectionHeader, { color: colors.text }]}>PREFERENCES</Text>
             </View>
             <View style={[styles.menuList, { backgroundColor: cardBg, borderColor }]}>
+              <ProfileMenuItem
+                icon={Crown}
+                label={isPro ? 'Pro Plan — Active' : 'Upgrade to Pro'}
+                value={isPro ? '✦' : undefined}
+                accentColor="#FFD700"
+                onPress={() => router.push('/settings/subscription')}
+              />
               <ProfileMenuItem
                 icon={History}
                 label="Weekly Review"

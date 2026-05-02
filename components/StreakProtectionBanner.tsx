@@ -1,5 +1,6 @@
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { getTodayLocal } from '@/utils/dateUtils';
 import { useStore } from '@/store/useStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +17,8 @@ export const StreakProtectionBanner = () => {
   const habits = useStore(s => s.habits);
   const focusSeconds = useStore(s => s.focusSession?.totalSecondsToday || 0);
   const lastMoodLog = useStore(s => s.lastMoodLog);
-  const today = new Date().toISOString().split('T')[0];
+  const globalStreak = useStore(s => s.globalStreak || 0);
+  const today = getTodayLocal();
 
   const tasksDone = tasks.filter(t => t.date === today && t.completed).length;
   const habitsDone = habits.filter(h => h.completedDays.includes(today)).length;
@@ -24,9 +26,9 @@ export const StreakProtectionBanner = () => {
 
   const isDayComplete = tasksDone >= 1 || habitsDone >= 1 || focusSeconds >= 600 || moodLogged;
 
-  // Show after 6 PM if not complete
+  // Show after 6 PM if not complete AND user has an existing streak
   const currentHour = new Date().getHours();
-  const shouldShow = !isDayComplete && currentHour >= 18;
+  const shouldShow = globalStreak > 0 && !isDayComplete && currentHour >= 18;
 
   if (!shouldShow) return null;
 

@@ -371,25 +371,18 @@ export const dbService = {
     }
   },
 
-  // BUFFERED XP SYSTEM: To reduce Firestore write costs and prevent 'hot doc' 
-  // contention, we no longer write XP directly to users/{uid}/stats/global 
-  // on every small gain. Instead, we write to a global 'xpBuffer' collection
-  // which a Cloud Function aggregates every 5 minutes.
+  // Always write stats/global directly so XP, level, and streak sync instantly
+  // across devices via the Firestore onSnapshot subscription. Per-user paths are
+  // never hot-contended, so there is no benefit to delaying the write.
   updateGlobalStats: async (userId: string, statsData: Record<string, any>, deltaXP: number = 0) => {
     try {
       const now = Date.now();
-      // 1. Direct update to stats/global doc only every 5 minutes
-      const shouldUpdateCloudStats = now - (dbService as any)._lastStatsUpdate > 300000; 
+      await setDoc(doc(db, 'users', userId, 'stats', 'global'), sanitizeData({
+        ...statsData,
+        lastUpdatedAt: serverTimestamp(),
+      }), { merge: true });
 
-      if (shouldUpdateCloudStats) {
-        (dbService as any)._lastStatsUpdate = now;
-        await setDoc(doc(db, 'users', userId, 'stats', 'global'), sanitizeData({
-          ...statsData,
-          lastUpdatedAt: serverTimestamp(),
-        }), { merge: true });
-      }
-
-      // 2. Buffer the XP gain via transaction collection
+      // Keep xpBuffer for analytics / Cloud Function aggregation
       if (deltaXP > 0) {
         const txId = `tx_${userId}_${now}_${Math.random().toString(36).substring(7)}`;
         await setDoc(doc(db, 'xpBuffer', txId), {
@@ -402,5 +395,4 @@ export const dbService = {
       console.warn('[LifeOS] updateGlobalStats failed:', err);
     }
   },
-  _lastStatsUpdate: 0,
 };

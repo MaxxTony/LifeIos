@@ -96,6 +96,7 @@ export const purchaseService = {
 
   /**
    * Restore previous purchases. Used for "Already purchased?" flows.
+   * Only restores if the Apple ID's purchase belongs to the current app user.
    * Returns true if the user now has pro access.
    */
   async restorePurchases(): Promise<boolean> {
@@ -105,6 +106,24 @@ export const purchaseService = {
     } catch (error) {
       console.error('[PurchaseService] Restore failed:', error);
       return false;
+    }
+  },
+
+  /**
+   * Log out the current user from RevenueCat.
+   * This resets the SDK to an anonymous user, preventing the next login
+   * from inheriting the previous user's subscription via transfer behavior.
+   * 
+   * MUST be called during app logout, BEFORE clearing auth state.
+   */
+  async logOut(): Promise<void> {
+    try {
+      if (!this._initialized) return;
+      await Purchases.logOut();
+      this._initialized = false;
+      console.log('[PurchaseService] Logged out from RevenueCat.');
+    } catch (error) {
+      console.error('[PurchaseService] Logout failed:', error);
     }
   },
 

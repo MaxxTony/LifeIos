@@ -15,6 +15,7 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   isAuthenticated: false,
   userId: null,
   userName: null,
+  email: null,
   sessionToken: null,
   // Sync control
   _syncUnsubscribes: [],
@@ -70,6 +71,10 @@ const LOGGED_OUT_STATE: Partial<UserState> = {
   hasCompletedOnboarding: false,
   onboardingData: { struggles: [] },
   aiInsight: null,
+  // SUB-SECURITY: Always reset subscription state on logout to prevent
+  // stale Pro access leaking to the next account on a shared device.
+  isPro: false,
+  subscriptionExpiryDate: null,
 };
 
 export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unknown]], [], AuthActions> = (set, get) => ({
@@ -112,10 +117,13 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
 
     set((state) => ({
       userId,
-      // C-AUTH-15 FIX: Protect local userName. If we have a name in store, 
+      // C-AUTH-15 FIX: Protect local userName. If we have a name in store,
       // don't overwrite it with a generic Firebase display name (e.g. from email).
       userName: state.userName || userName,
-      email: state.email || email,
+      // Always prefer a newly-provided email over the cached one. The cached value
+      // could be stale or wrong (e.g. a UUID accidentally passed in an earlier session).
+      // Only fall back to the cached email when the new one is not provided (undefined).
+      email: email !== undefined ? email : state.email,
       sessionToken: sessionToken || state.sessionToken,
       isAuthenticated: true,
       _syncUnsubscribes: [],
@@ -173,6 +181,10 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     state._syncUnsubscribes.forEach(unsub => {
       try { if (typeof unsub === 'function') unsub(); } catch (_) {}
     });
+
+    // 3. Detach RevenueCat user — prevents subscription transfer to next login
+    const { purchaseService } = await import('@/services/purchaseService');
+    await purchaseService.logOut();
 
     // Storage is intentionally NOT cleared here. Tasks, habits, and history
     // survive logout so the dashboard renders instantly on re-login without a
@@ -257,6 +269,15 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           }
 
           const currentToken = get().sessionToken;
+
+          // SYNC-SESSION FIX: When the device has no session token in state (e.g. after
+          // an app restart — sessionToken is not persisted to AsyncStorage), load our own
+          // token from Firestore so the multi-device mismatch check works from this point on.
+          // We do NOT regenerate on restart — only explicit logins should create new tokens.
+          if (data.sessionToken && !currentToken && !data._fromCache) {
+            set({ sessionToken: data.sessionToken });
+          }
+
           if (data.sessionToken && currentToken && data.sessionToken !== currentToken && !data._fromCache) {
             console.warn('[LifeOS] sessionToken mismatch - logging out device.');
             Toast.show({
@@ -577,8 +598,14 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
     const userId = authService.currentUser?.uid || get().userId;
     if (userId) {
       try {
-        const { data } = await dbService.getUserProfile(userId);
+        // Fetch profile and stats in parallel — they're independent reads
+        const [{ data }, statsDoc] = await Promise.all([
+          dbService.getUserProfile(userId),
+          dbService.getCollectionDoc(userId, 'stats', 'global'),
+        ]);
+
         if (data) {
+          // Migration is guarded by _migrationComplete so only runs once per account
           await dbService.migrateLegacyData(userId, data);
           const struggles = (data as any).struggles;
           
@@ -617,7 +644,7 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
 
         // M-12 FIX: Server-wins for XP — take max(local, server) so the higher value always wins.
         // Prevents cheating rollbacks when re-logging in and prevents data loss from multi-device use.
-        const statsDoc = await dbService.getCollectionDoc(userId, 'stats', 'global');
+        // statsDoc was already fetched in the parallel Promise.all above.
         if (statsDoc) {
           const serverXP: number = statsDoc.totalXP || 0;
           const localXP = get().totalXP;
@@ -668,27 +695,22 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
         }
 
         // SOCIAL FIX: Always upsert publicProfile on login so user appears
-        // in other users' Discover tab. This fires even if user has never earned XP.
-        try {
-          const state = get();
-          const displayName = state.userName || 'Unknown';
-          await setDoc(
-            doc(db, 'publicProfiles', userId),
-            {
-              userName: displayName,
-              // O9 FIX: Keep lowercase version for case-insensitive search queries.
-              userNameLower: displayName.toLowerCase(),
-              avatarUrl: state.avatarUrl || null,
-              level: state.level || 1,
-              weeklyXP: state.weeklyXP || 0,
-              globalStreak: state.globalStreak || 0,
-              lastActive: Date.now(),
-            },
-            { merge: true }
-          );
-        } catch (profileErr) {
-          console.warn('[LifeOS] publicProfile upsert failed (non-fatal):', profileErr);
-        }
+        // in other users' Discover tab. Fire-and-forget — no need to await.
+        const state = get();
+        const displayName = state.userName || 'Unknown';
+        setDoc(
+          doc(db, 'publicProfiles', userId),
+          {
+            userName: displayName,
+            userNameLower: displayName.toLowerCase(),
+            avatarUrl: state.avatarUrl || null,
+            level: state.level || 1,
+            weeklyXP: state.weeklyXP || 0,
+            globalStreak: state.globalStreak || 0,
+            lastActive: Date.now(),
+          },
+          { merge: true }
+        ).catch(profileErr => console.warn('[LifeOS] publicProfile upsert failed (non-fatal):', profileErr));
       } catch (err: any) {
         console.error('Cloud hydration failed:', err);
       }

@@ -241,7 +241,7 @@ export default function LoginScreen() {
         }
 
         analyticsService.logMilestone(user.uid, 'login_success', { method: 'google' });
-        setAuth(user.uid, user.displayName || existingProfile?.userName || 'User', sessionToken);
+        setAuth(user.uid, user.displayName || existingProfile?.userName || 'User', user.email, sessionToken);
         completeOnboarding();
 
         Toast.show({
@@ -356,7 +356,7 @@ export default function LoginScreen() {
         }
 
         analyticsService.logMilestone(user.uid, isSignUp ? 'signup_success' : 'login_success', { method: 'email' });
-        setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User', sessionToken);
+        setAuth(user.uid, fullName || user.email?.split('@')[0] || existingProfile?.userName || 'User', user.email, sessionToken);
         completeOnboarding();
 
         Toast.show({
@@ -407,7 +407,7 @@ export default function LoginScreen() {
     try {
       if (setupUser) {
         await dbService.saveUserProfile(setupUser.uid, { userName: fullName.trim() });
-        setAuth(setupUser.uid, fullName.trim(), setupSessionToken);
+        setAuth(setupUser.uid, fullName.trim(), setupUser.email, setupSessionToken);
         completeOnboarding();
 
         Toast.show({

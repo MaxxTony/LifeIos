@@ -345,13 +345,12 @@ export default function RootLayout() {
           console.log('[LifeOS Layout] Session valid. Setting auth state.');
           setAuth(user.uid, user.displayName || user.email?.split('@')[0] || 'User', user.email);
           useStore.getState().actions.subscribeToCloud();
-          
-          if (!useStore.getState().sessionToken) {
-            authService.generateAndSaveSessionToken(user.uid).then(token => {
-              // BUG-024: Use setState directly to avoid triggering unsubs/re-subs in setAuth
-              useStore.setState({ sessionToken: token });
-            }).catch(() => {});
-          }
+          // NOTE: We do NOT generate a new sessionToken here. Token generation happens only
+          // inside authService.login / signUp / loginWithGoogle (explicit user sign-ins).
+          // Generating on every app open (session restore) would overwrite the Firestore token
+          // and immediately kick out any other logged-in device — breaking multi-device usage.
+          // The subscribeToCloud snapshot handler will load the saved token from Firestore
+          // into local state if it is missing (see SYNC-SESSION FIX in authSlice.ts).
           useStore.getState().actions.hydrateFromCloud();
         } else {
           console.log('[LifeOS Layout] No user found in onAuthStateChanged.');
@@ -532,6 +531,7 @@ export default function RootLayout() {
               <Stack.Screen name="settings/about" options={{ headerShown: true, title: 'About LifeOS', headerBackButtonDisplayMode: "generic" }} />
               <Stack.Screen name="settings/change-password" options={{ headerShown: true, title: 'Change Password', headerBackButtonDisplayMode: "generic" }} />
               <Stack.Screen name="settings/terms" options={{ headerShown: true, title: 'Terms & Conditions', headerBackButtonDisplayMode: "generic" }} />
+              <Stack.Screen name="settings/subscription" options={{ headerShown: false }} />
               <Stack.Screen name="edit-profile" options={{ presentation: 'modal', headerShown: false }} />
               <Stack.Screen name="tasks/edit/[id]" options={{ presentation: 'modal', headerShown: false }} />
               <Stack.Screen name="focus-room" options={{ headerShown: false }} />
