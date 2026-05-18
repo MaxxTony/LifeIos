@@ -1,30 +1,48 @@
-# LifeOS Prime — 8-Phase Brutal Honest Audit
+# LifeOS — Complete Pre-Launch Audit Report
+**Date:** 2026-05-03
+**Auditor:** Multi-Agent Review (QA Engineer · React Native Architect · Firebase Expert · UX Researcher · Product Strategist · Brutal Honest Reviewer)
+**Total Files Scanned:** 185 source files
+**Branch:** paywall
 
-> Generated: 2026-04-28
-> Branch: `paywall`
-> Scope: Full codebase scan (41 files fully read + ~25 inferred). Excludes node_modules, .expo, .git, build, dist, ios/Pods, android/build.
+---
+
+## ⚠️ P0 ALERT — SECRETS SCAN (Read First)
+
+| Item | File | Risk |
+|------|------|------|
+| `EXPO_PUBLIC_RC_IOS_KEY=appl_RExqILcUqWnoCHVkVUVWrQGlDVw` | `.env.local:21` | **Bundled into binary** — `EXPO_PUBLIC_` prefix bakes the key into the JS bundle at build time. Anyone who decompiles the APK/IPA can extract this. |
+| `EXPO_PUBLIC_RC_ANDROID_KEY=goog_QyRJQqQDsaQIbmbcscAUywrRsgE` | `.env.local:22` | Same issue as above. |
+| `GEMINI_API_KEY=AIzaSyBt_BJJ8xu-Z8jorPYI5UbajJKexw10QiQ` | `.env.local:8` | NOT `EXPO_PUBLIC_`, so NOT bundled. File is matched by `.env*.local` glob in `.gitignore` — verify this glob works on all dev machines. |
+| `Firebase apiKey: AIzaSyBkv2NE...` | `firebase/config.ts:19` | Firebase web API keys are designed to be public (security enforced by rules). Acceptable. |
+
+> **Action:** Move `EXPO_PUBLIC_RC_IOS_KEY` and `EXPO_PUBLIC_RC_ANDROID_KEY` to EAS Secrets and inject them via a custom config plugin without the `EXPO_PUBLIC_` prefix.
 
 ---
 
 ## PHASE 1 — APP IDENTITY
 
-**1. What this app actually does (from code, not assumptions):**
-LifeOS Prime is a gamified life-tracker that combines tasks, habits, focus timer (Pomodoro), mood logging, daily quests, and an AI coach into one screen. It uses XP/levels (20 tiers, "Spark" → "Apex"), streak mechanics with paid Streak Freezes, weekly leaderboards, friend requests, and 5 home-screen widgets (iOS+Android). RevenueCat-gated Pro tier (`hooks/useProFeature.ts:21`) limits free users to 5 AI messages/day and locks Pomodoro, AI quotes, and lucky-XP boosts.
+### What This App Actually Does
+LifeOS is an all-in-one personal operating system: habit tracking with streak gamification, task management, Pomodoro focus timer, daily mood logging, an AI life coach (Gemini-powered), social XP leaderboards, and iOS/Android home screen widgets — all tied together by a levels-and-XP system.
 
-**2. Target user (derived from struggles list at `app/(onboarding)/index.tsx:38-49`):** 18-30 y/o late-millennial / Gen Z self-improvement seeker on iOS or Android. Specifically: people who self-identify as procrastinators, burnt out, sleep-deprived, unfocused. Premium-tech-savvy (the UI assumes blur-views, animations work).
+### Exact Target User
+Ages 18–30, self-improvement-obsessed, likely already using Notion/Todoist. Probably a student or early-career professional who responds to game mechanics, has a moderate phone (mid-range Android or recent iPhone), and opens their phone 100+ times/day.
 
-**3. Core value prop (one sentence):** "Your AI-powered life OS that gamifies every habit, task, mood, and focus minute into XP and streaks so you actually keep showing up."
+### Core Value Proposition
+*"The one app that turns your entire life — habits, tasks, mood, focus — into an RPG you actually want to play."*
 
-**4. Real pain it solves:** Habit-tracking fatigue (no single app does habits + tasks + mood + focus + AI nudges with one streak). The pain IS real, but **only for the ~5% who already love productivity apps** — for the other 95%, this is yet another "life dashboard" that adds anxiety. The 13-toggle notification settings (`store/types.ts:125-139`) prove the team knows that aggressive nudging is part of the model.
+### Is The Problem Real And Painful?
+Yes. Existing apps solve one domain (Habitica = habits only, Forest = focus only, Daylio = mood only). The bundle appeal is real. The pain point of app-switching to manage life is genuine.
 
-**5. Top 3 competitors — honest read:**
-- **Finch** — wins on warmth + cute-pet meta-loop. LifeOS is colder, more "sci-fi terminal."
-- **Habitica** — much deeper RPG metaphor. LifeOS XP system is shallower (just numbers + level names).
-- **Notion / Sunsama / Akiflow** — wins on power-user tasks. LifeOS task editor is basic (`app/tasks/create.tsx`, basic create form).
+### Top 3 Competitors — Honest Comparison
 
-LifeOS's USP vs all three: **AI agent with tool-calls** (15 tools wired in `services/ai.ts:96-296`) — that's defensible *if it works*, which today it doesn't reliably.
+| Competitor | They Do Better | LifeOS Does Better |
+|-----------|---------------|--------------------|
+| **Habitica** | Established RPG metaphor, social quests, years of polish | AI coach, mood + focus + tasks integrated, widgets |
+| **Notion** | Flexibility, professional use cases, collaboration | Gamification, zero-config, mobile-first, AI integration |
+| **BeReal / Balance** | Mindfulness polish, single-purpose clarity | Full stack coverage, personalized AI |
 
-**6. UI clarity in <10s?** No. The dashboard (`app/(tabs)/index.tsx:239-407`) crams Greeting + Level Bar + Freeze Badge + AI Insight + Quest Dashboard + Focus Widget + Daily Tasks + Habit Grid + Mood Trend + AI Button into one scroll. A first-time user sees too much before they understand any one piece. The new-user banner (`index.tsx:314-355`) helps, but it competes with 6 other widgets on screen.
+### Is Purpose Clear In 10 Seconds?
+**Partially.** The login screen shows an animated logo and "LifeOS" but no tagline, no value prop, no screenshots. A cold user downloading the app has no idea what it does until they hit the dashboard. Real drop-off risk at the top of the funnel.
 
 ---
 
@@ -32,33 +50,49 @@ LifeOS's USP vs all three: **AI agent with tool-calls** (15 tools wired in `serv
 
 ### First-Time User Journey
 
-| Step | Expected | Hidden assumption | Failure point | Risk |
-|---|---|---|---|---|
-| Splash (`app/index.tsx:85-91`) | Show "Waking up LifeOS…" while AsyncStorage hydrates | AsyncStorage is reachable | Sharded storage (`shardedStorage.ts:30-63`) has no migration when only 1 of 3 shards exists | ⚠️ Stuck on splash if monolith→shard migration partial |
-| Onboarding slide 1 | Brand intro | User has fonts loaded | `_layout.tsx:120-126` blocks render until fonts load — Outfit_700Bold can fail offline | 💀 Fresh install on no-net = stuck on splash 10s, then watchdog unblocks but with broken fonts |
-| Onboarding slide 1 → 2 | Tap "Get Started" | None | `index.tsx:365-367` calls `completeOnboarding()` after slide 1 → if user kills app, they're stuck on Login forever, never see slides 2-4 | 💀 |
-| Slide 3 struggles | At least one selected (gated `index.tsx:474`) | User actually picks one | If they tap "Skip" anywhere, struggles array is empty → `dbService.saveUserProfile` saves `struggles:[]` → AI personalization is dead from day 1 | ⚠️ |
-| Login screen | Email/Google | Network is up | `login.tsx:215` rolls back account on Firestore profile failure via `deleteUser` — but if the Firebase Auth deletion itself fails (e.g. token expired in 3-attempt loop), user has a zombie auth account with no profile, can never re-sign-up with that email | 💀 |
-| First task creation | Tap "+ Add Task" | Sync online | If offline, task only lives in Zustand. `fireSync` queues it. Works. | ✅ |
-| Exit | Auto-save | Focus timer running | If active focus when backgrounding for >30s, see BUG-002 | 💀 |
+| Step | Expected | Hidden Assumption | Failure Point | Drop Risk |
+|------|---------|-----------------|--------------|-----------|
+| App open | Splash → `index.tsx` checks hydration | AsyncStorage hydrates in < 300ms | Slow device → stuck spinner for 5s, watchdog shows | ⚠️ |
+| Hydration done, not onboarded | Redirects to `/(onboarding)` | `hasCompletedOnboarding` is false | Stale Zustand from reinstall could show true → skips onboarding | ⚠️ |
+| Onboarding struggles selection | Saves to Firestore via `fireSync` | Network available | Silent fail if offline | ✅ |
+| Account creation | Email/password or Google | Google Play Services on Android | Google Sign-In SDK throws uncaught on some Android flavors | ⚠️ |
+| First dashboard open | Tabs render, skeleton shows | Cloud data arrives in < 2s | Slow connection: skeleton never replaced for 5s+ before watchdog | 💀 |
+| First habit creation | Opens `/(habits)/config` modal | User understands the concept | No tutorial overlay on empty habits section | ⚠️ |
 
 ### Returning User Journey
-- **Token valid:** `app/index.tsx:98-101` does Instant-On to dashboard. Works. ✅
-- **Token expired:** `_layout.tsx:312-319` validates, force-logs-out via `authService.logout`. ✅ **but** `authService.validateSession:154-156` returns `true` on network error to "avoid false logouts" — meaning a revoked-on-server account stays logged in until the network call succeeds AND returns the right error code. ⚠️
-- **Offline:** Firestore long-polling enabled (`firebase/config.ts:47`) — works but slower than WebChannel. Cache is memory-only (`memoryLocalCache()` line 46), so closing the app = empty Firestore cache on relaunch. ⚠️
+
+**Token valid:** `index.tsx` → `isAuthenticated = true` (from persisted store) → instant `/(tabs)` redirect. Cloud data loads in background. ✅
+
+**Token expired:** `validateSession` → `getIdToken(false)` → fails → `getIdToken(true)` (force refresh) → if network error: trusts the cached session — correct behavior, avoids false logouts. ✅
+
+**App open (offline):** Store hydrates from AsyncStorage. `isAuthenticated = true` persisted. User sees dashboard with local data. OfflineBanner shows. ✅
+
+**App background 30 min → foreground:** `AppState.addEventListener` fires `performDailyReset`, `checkMissedTasks`, `validateSession`. ✅
 
 ### Logged-Out Mid-Session
-`_layout.tsx:86-96` watches `isAuthenticated` and routes to login. ✅ But `useStore.actions.logout()` deletes ALL local PII (`authSlice.ts:189-196`) — re-login will show empty dashboard for 1-2s before snapshots restore. 🎨 UX flicker.
 
-### Multi-Device Login
-`authSlice.ts:257-275` rotates `sessionToken` and force-logs-out the older device. Fires `revokeOtherSessions` cloud function. Solid design — **but** the Firestore subscription on the old device fires the logout *only when it gets the new sessionToken*, which requires a non-cached read. Old device might continue using the app for up to 30s before it sees the change. ⚠️
+Firestore snapshot for root user document hits `data === null` → calls `authService.logout()` and `setAuth(null, null)`. ✅
+Session token mismatch (another device logged in) → Toast shown, store logout called, `revokeOtherSessions` Cloud Function called. ✅
+
+### Multi-Device Login — Race Condition
+
+⚠️ If two devices login within milliseconds:
+1. Device A writes sessionToken `aaa` to Firestore
+2. Device B writes sessionToken `bbb` to Firestore
+3. Device A snapshot fires with `bbb` → mismatch → Device A logs out
+4. Device B reads its own write as valid → stays logged in
+
+Correct last-writer-wins behavior. However if both writes are inflight simultaneously, both devices could momentarily see a mismatch and both log out. Edge case (~0.1% of logins) but causes a confusing loop.
 
 ### Edge Case Journeys
-- 💀 **Mid-upload kill:** `services/chatService.ts:172-199` `uploadImage` is awaited synchronously in `ai-chat.tsx:311`. Force-quit during upload = stuck `uploading` state would normally rebound on next mount, but actually not persisted — fine. **But the user's message was already saved at line 320 before upload completes**, so the recipient sees a chat message with NO image. ⚠️
-- 💀 **Phone call during focus session:** Focus tick freezes when JS thread suspends. Resume = up to 30s lost (see `focusSlice.ts:78` `Math.min(rawDelta, 30)`). For 5-minute calls, you lose 4.5 minutes of focus time. **CONFIRMED P0**
-- 💀 **30 min background → foreground:** `useFocusTimer.ts:96-102` "applies background time as a single accumulated update" but the implementation calls `updateFocusTime()` which still hits the 30s clamp. Comment lies. **CONFIRMED P0**
-- ⚠️ **Empty Firestore:** `dbService.subscribeToUserData:269-274` distinguishes new user (`_isNewUser:true`) from deletion (null). ✅
-- 💀 **Corrupt mood doc:** `moodHistory` rules (`firestore.rules:50-58`) validate shape only on write. A document corrupted via console/admin SDK with `mood: "bad string"` would crash `MoodTrend.tsx:46-51` because `getMoodConfig` is called without a guard.
+
+| Scenario | Status |
+|---------|--------|
+| App killed mid-task creation | ✅ Optimistically added + queued in `pendingActions`, replayed on next open |
+| Corrupt Firestore data (e.g. `completedDays: null`) | ⚠️ `new Set(null)` throws — see BUG-005 |
+| Empty database — all screens | ✅ `tasksLoaded && habitsLoaded && taskCount === 0` guards empty states |
+| Midnight crossing, app in foreground | ✅ AppState listener fires daily reset |
+| Phone call during focus session | ✅ `keepAwake` released, session state persisted |
 
 ---
 
@@ -66,273 +100,390 @@ LifeOS's USP vs all three: **AI agent with tool-calls** (15 tools wired in `serv
 
 ### 🔴 CRITICAL
 
-#### ✅ [FIXED] BUG-001 — Android widgets COMPLETELY BROKEN
-- **File:** `widget/WidgetTaskHandler.tsx:4` and `widget/WidgetTaskHandler.tsx:30`
-- **Root cause:** Imports `renderWidgetByName` from `./WidgetRenderer`. `widget/WidgetRenderer.tsx:12` only exports `WidgetRenderer` (a JSX component, not a function). `renderWidgetByName` is `undefined` at runtime.
-- **Repro:** Add a LifeOS widget on any Android home screen → `widgetTaskHandler` fires `WIDGET_ADDED` → calls `props.renderWidget(undefined(...))` → throws `TypeError: undefined is not a function`. Widget shows blank or "Couldn't load widget".
-- **Exact fix:** In `widget/WidgetTaskHandler.tsx:30`, replace
-  ```ts
-  props.renderWidget(renderWidgetByName(widgetName, state, widgetInfo));
-  ```
-  with
-  ```ts
-  props.renderWidget(<WidgetRenderer widgetName={widgetName} state={state ?? {}} widgetInfo={widgetInfo} />);
-  ```
-  And update import on line 4 to `import { WidgetRenderer } from './WidgetRenderer';`
-- **User impact:** 100% of Android widget users. iOS widgets are fine (they read from App Group, not this handler).
-- **Cross-ref:** Phase 2 simulator/device — Android emulator may not exercise widgets, real device does.
+---
 
-#### ✅ [FIXED] BUG-002 — Focus timer LOSES TIME when app backgrounds >30 seconds
-- **File:** `store/slices/focusSlice.ts:78`
-- **Root cause:** `const delta = Math.min(Math.max(0, rawDelta), 30);` caps single-tick delta at 30 seconds. The "background reconciliation" comment in `useFocusTimer.ts:97-102` claims to apply background time as a single delta, but it just calls `updateFocusTime()` which hits the same 30s clamp.
-- **Repro:** Start focus session → lock phone or switch to Safari for 5 min → return → only 30s added to total. iOS/Android JS-thread freezes when app is backgrounded; this bug exists on both. **Works in the simulator** if you keep it foregrounded — fails on real device whenever screen locks.
-- **Exact fix:**
-  1. In `useFocusTimer.ts:85-103`, compute and apply the elapsed delta directly:
-     ```ts
-     if (appState.current.match(/inactive|background/) && nextAppState === 'active' && isActive) {
-       const s = useStore.getState();
-       if (!s.focusSession.isActive || !s.focusSession.lastStartTime) return;
-       const elapsedSec = Math.min((Date.now() - s.focusSession.lastStartTime) / 1000, MAX_SESSION_MS / 1000);
-       useStore.setState((state) => ({
-         focusSession: {
-           ...state.focusSession,
-           totalSecondsToday: state.focusSession.totalSecondsToday + elapsedSec,
-           pomodoroTimeLeft: state.focusSession.isPomodoro
-             ? Math.max(0, state.focusSession.pomodoroTimeLeft - elapsedSec)
-             : state.focusSession.pomodoroTimeLeft,
-           lastStartTime: Date.now(),
-         },
-       }));
-     }
-     ```
-  2. Keep the 30s cap in `focusSlice.ts:78` for the regular tick path (it's correct there as a glitch guard).
-- **User impact:** 100% of users who lock phone during focus. Largest single feature regression in the app.
+**BUG-001 — isPro Self-Grant via Firestore Rules**
+**File:** `firestore.rules:38`
+**Reproduction:**
+1. Create any LifeOS account (free tier)
+2. Open Firebase Console or Firestore REST API with your Firebase ID token
+3. `PATCH /users/{uid}` with body `{"isPro": true, "subscriptionExpiryDate": "2099-01-01"}`
+4. App reads this on next snapshot → `authSlice.ts:321` sets `updates.isPro = data.isPro`
+5. All Pro features unlocked permanently
 
-#### ✅ [FIXED] BUG-003 — AI Coach background task ALWAYS fails (silently)
-- **File:** `services/aiCoachService.ts:65-73`
-- **Root cause:** `getAIResponse(...)` returns `{ text: string, card?: any }` (`services/ai.ts:530`), but `aiCoachService.ts:69-72` calls `.replace()` on the object directly:
-  ```ts
-  const cleaned = response.replace(/^\s*```(?:json)?\s*/i, '')...
-  ```
-  Throws `TypeError: response.replace is not a function`. Caught by outer try/catch on line 89, returns `BackgroundFetchResult.Failed`. User never sees a coach notification.
-- **Exact fix:** Line 69:
-  ```ts
-  const cleaned = (response.text || '')
-    .replace(/^\s*```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
-  ```
-- **User impact:** 100% of users — the entire AI Coach background nudge feature has never worked.
+**Root cause:** `isPro` and `subscriptionExpiryDate` are in the Firestore user document write allowlist at `firestore.rules:38`. Any authenticated user can self-write these fields using their own ID token.
 
-#### ✅ [FIXED] BUG-004 — `friendRequests` allows sender to self-accept
-- **File:** `firestore.rules:106-107`
-- **Root cause:** `allow read, update, delete: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);` — Either party can `update` the doc. Attacker creates a request to their own target, then writes `{status: "accepted"}` and is now "friends" — gives them visibility into the target's `weeklyXP`/`globalStreak`/`avatarUrl` via the leaderboard subscription (`socialService.ts:225-266`).
-- **Exact fix:**
-  ```
-  allow update: if isSignedIn()
-    && resource.data.toUserId == request.auth.uid
-    && request.resource.data.status in ['accepted', 'declined']
-    && request.resource.data.fromUserId == resource.data.fromUserId
-    && request.resource.data.toUserId == resource.data.toUserId;
-  allow delete: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
-  ```
-- **User impact:** Any malicious user can grow a fake friend graph, scrape data.
+**Exact fix:**
+```javascript
+// firestore.rules — add to the update rule:
+&& !('isPro' in request.resource.data.diff(resource.data).affectedKeys())
+&& !('subscriptionExpiryDate' in request.resource.data.diff(resource.data).affectedKeys())
+// Remove both from the hasOnly([...]) allowlist
+```
+Only Cloud Functions via admin SDK should write `isPro`.
 
-#### ✅ [FIXED] BUG-005 — RevenueCat "fail open" comment contradicts implementation
-- **File:** `services/purchaseService.ts:67-70`
-- **Root cause:** Comment: `// Fail open — don't lock users out if RC is unreachable`. Code: `return { isPro: false, expiryDate: null };` — this **fails closed**: a paying customer with active subscription whose `Purchases.getCustomerInfo()` call temporarily fails (e.g., RevenueCat transient outage) is downgraded to `isPro:false`, locking them out of Pomodoro / AI / lucky XP and showing them the paywall again.
-- **Exact fix:** Cache last-known `isPro` in Zustand and fall back to it:
-  ```ts
-  async checkProStatus(): Promise<{ isPro: boolean; expiryDate: string | null }> {
-    try {
-      const info = await Purchases.getCustomerInfo();
-      const ent = info.entitlements.active[ENTITLEMENT_ID];
-      return { isPro: !!ent, expiryDate: ent?.expirationDate || null };
-    } catch (error) {
-      console.error('[PurchaseService] Failed to check pro status:', error);
-      const cachedIsPro = useStore.getState().isPro;
-      const cachedExpiry = useStore.getState().subscriptionExpiryDate;
-      return { isPro: cachedIsPro, expiryDate: cachedExpiry };
-    }
+**Impact:** 100% of Pro revenue at risk. Any tech-savvy user can bypass the paywall permanently.
+
+---
+
+**BUG-002 — AI Message Count Client-Side Bypass**
+**File:** `firestore.rules:38` + `store/slices/subscriptionSlice.ts:79`
+**Root cause:** `dailyAIMessageCount` and `lastAIMessageCountReset` are in the Firestore allowlist. Users can write `{dailyAIMessageCount: 0}` to reset their daily free limit. The Cloud Function rate limiter (`functions/src/index.ts:47`) runs at 20 req/minute, not per day — it does NOT protect the daily free cap.
+
+**Also:** `subscriptionSlice.ts:12` comment says "5 messages/day" but line 79 checks `>= 20`. Comment-code mismatch will cause any developer setting a server-side limit to break the app.
+
+**Exact fix:**
+```javascript
+// firestore.rules: remove 'dailyAIMessageCount' and 'lastAIMessageCountReset' from allowlist
+
+// functions/src/index.ts — add inside callAI after auth check:
+const todayStr = new Date().toISOString().split('T')[0];
+const userRef = db.doc(`users/${request.auth.uid}`);
+const userDoc = await userRef.get();
+const userData = userDoc.data() || {};
+const serverIsPro = userData.isPro === true;
+if (!serverIsPro) {
+  const lastReset = userData.lastAIMessageCountReset;
+  const todayCount = lastReset === todayStr ? (userData.dailyAIMessageCount || 0) : 0;
+  if (todayCount >= 20) {
+    throw new HttpsError('resource-exhausted', 'Daily AI limit reached. Upgrade to Pro.');
   }
-  ```
-- **User impact:** Paying customer rage. Refund requests. App-store 1-star reviews.
+  await userRef.update({ dailyAIMessageCount: todayCount + 1, lastAIMessageCountReset: todayStr });
+}
+```
 
-#### ✅ [FIXED] BUG-006 — `setAuth` event lost during validation
-- **File:** `app/_layout.tsx:300-307`
-- **Root cause:** Only sign-out events are queued via `pendingSignOut`. If a sign-IN event fires while `isValidatingSession.current === true` (e.g., user signs out then signs in within the same validation window), the second event is silently dropped — user appears logged out but Firebase state shows logged in.
-- **Exact fix:** Queue both states. Replace lines 300-306 with:
-  ```ts
-  if (isValidatingSession.current) {
-    pendingAuthEvent.current = user; // ref<User|null|undefined>(undefined)
-    console.log('[LifeOS] onAuthStateChanged ignored - already validating session.');
-    return;
-  }
-  ```
-  And in finally block, if `pendingAuthEvent.current !== undefined`, re-fire the handler with that user and reset the ref.
-- **User impact:** Rare but catastrophic — user reports "I signed in but still see login screen."
+**Impact:** Any free user who knows the Firestore REST API gets unlimited AI calls — you pay per Gemini API call.
 
-#### ✅ [FIXED] BUG-007 — AI message counter increments BEFORE the AI call succeeds
-- **File:** `app/ai-chat.tsx:264-270`
-- **Root cause:** `incrementAIMessageCount()` is called before `getAIResponse` is invoked. If the upload or AI call fails (line 311 or 345), the user is "charged" a message anyway. With only 5 messages/day for free users, repeated network failures lock them out of AI even though they got zero responses.
-- **Exact fix:** Move the increment to *after* a successful response in the try-block (line 380-ish). If the call throws or returns `'UNAUTHENTICATED'`, decrement back.
-- **User impact:** 1-star review territory for free users. Pro users unaffected.
+---
 
-#### ✅ [FIXED] BUG-008 — iOS widget data model missing `isPro` / `theme`
-- **File:** `targets/widget/index.swift:65-75`
-- **Root cause:** Swift `WidgetData` struct does not declare `isPro`, `theme`, or `moodTheme`. `services/widgetSyncService.tsx:8-35` writes them. Swift's JSONDecoder silently drops unknown keys, so theme override (`useStore.ts:333-335`) is lost — the iOS widget always uses system color scheme regardless of user theme preference.
-- **Exact fix:** Add fields to Swift struct:
-  ```swift
-  struct WidgetData: Decodable {
-    let isLoggedIn: Bool
-    let isPro: Bool
-    let theme: String?
-    let moodTheme: String?
-    // ... rest
-  }
-  ```
-  Then in `WidgetBackground:128-144`, respect `entry.data.theme` instead of `@Environment(\.colorScheme)`.
-- **User impact:** Every iOS user with a non-default theme. Looks broken.
+**BUG-003 — XP Injection via xpBuffer No Amount Cap**
+**File:** `firestore.rules:125-131`
+**Root cause:** The `xpBuffer` create rule validates `amount is number` with no maximum. Any user can create `{userId: uid, amount: 999999, timestamp: now}`. Cloud Function processes it and inflates XP.
 
-#### ✅ [FIXED] BUG-009 — iOS widget: hardcoded weekday labels on mood chart
-- **File:** `targets/widget/index.swift:381`
-- **Root cause:** `["M", "T", "W", "T", "F"][i]` — assumes data is Mon-Fri. But `useStore.ts:286-291` returns the **last 5 calendar days**, which can be any weekday combination. So on Monday, the chart shows Thu/Fri/Sat/Sun/Mon labeled as "M T W T F" — dead wrong.
-- **Exact fix:** pass actual weekday labels from JS via the `WidgetMood` struct (add `last5DayLabels: [String]`).
-- **User impact:** Every iOS large Focus Timer widget user — chart looks correct visually but labels lie.
+**Exact fix:**
+```javascript
+match /xpBuffer/{txId} {
+  allow create: if isSignedIn()
+    && request.resource.data.userId == request.auth.uid
+    && request.resource.data.amount is number
+    && request.resource.data.amount > 0
+    && request.resource.data.amount <= 100
+    && request.resource.data.keys().hasOnly(['userId', 'amount', 'timestamp']);
+}
+```
 
-#### ✅ [FIXED] BUG-010 — Onboarding completes after slide 1 even if user closes app on slide 2
-- **File:** `app/(onboarding)/index.tsx:365-367`
-- **Root cause:** `if (currentSlide === 0) { completeOnboarding(); }` — sets `hasCompletedOnboarding: true` and writes it to Firestore. If user kills the app on slide 2, next launch routes to `/login` (`app/index.tsx:115-118`), never showing slides 2-4 again. They miss the AI value-prop, struggle picker, and final hero.
-- **Exact fix:** Remove the early `completeOnboarding()` on slide 0. Only mark complete on slide 4 success. The "loop trap" the comment fears is fixed by the `hasCompletedOnboarding` self-healing in `authSlice.ts:302-307`.
-- **User impact:** ~10% of users who quit during onboarding. Lower conversion.
+**Impact:** XP leaderboard destroyed by any user. Social competitive integrity gone.
+
+---
+
+**BUG-NEW-001 — stats/global Fully Writable by Client**
+**File:** `firestore.rules:74-77`
+
+```javascript
+match /stats/{docId} {
+  allow read, write: if isOwner(userId);  // NO field restriction
+}
+```
+
+Any authenticated user can directly write `{totalXP: 999999, level: 99, weeklyXP: 999999, globalStreak: 365}` to their own `stats/global` document. This is a **second, completely independent XP cheat vector** beyond `xpBuffer`.
+
+**Exact fix:**
+```javascript
+match /stats/{docId} {
+  allow read: if isOwner(userId);
+  allow write: if false;  // Cloud Functions only via admin SDK
+}
+```
+
+**Impact:** Complete leaderboard corruption. Any user can max out their stats instantly.
+
+---
+
+**BUG-004 — Force Logout Bypasses Full Logout Cleanup**
+**File:** `store/slices/authSlice.ts:267-268`
+When Firestore user document is deleted server-side, the snapshot callback calls `authService.logout()` and `get().actions.setAuth(null, null)` directly — bypassing `get().actions.logout()` which handles focus save, notification cancellation, RevenueCat logout, and storage clear.
+
+**Exact fix:**
+```typescript
+// Replace:
+authService.logout();
+get().actions.setAuth(null, null);
+// With:
+get().actions.logout({ shouldSaveFocus: true }).then(() => authService.logout());
+```
+
+**Impact:** Focus session data loss on forced logout. PII may not be cleared on shared devices.
+
+---
+
+**BUG-NEW-002 — Focus Room Broadcasts All Users' Presence to All Auth Users**
+**File:** `database.rules.json:4`
+
+```json
+"focusRoom": { ".read": "auth != null" }
+```
+
+Any signed-in LifeOS user can read the entire `focusRoom` node in real-time — containing every other user's `userName`, `lastActive`, and `status` — including users who are not their friend.
+
+**Minimum fix before launch:** Add a banner in the Focus Room screen: *"You are visible to other LifeOS users while in a focus session."*
+**Full fix:** Gate presence to friends-only OR add a "private mode" toggle.
+
+---
+
+**BUG-NEW-003 — Android allowBackup=true Exposes All User Data via ADB**
+**File:** `app.json:45`
+
+`allowBackup: true` allows ADB backup of the app's private data directory, which includes AsyncStorage containing tasks, habits, mood history, and session tokens. On a compromised Android device any app with `BACKUP` permission can extract all user data.
+
+**Exact fix:**
+```json
+"allowBackup": false
+```
+
+---
 
 ### 🟡 MEDIUM
 
-#### ✅ [FIXED] BUG-011 — `subscribe` fires `JSON.stringify` of full widget payload on every focus tick
-- **File:** `store/useStore.ts:248-345`
-- Every state change runs the subscribe callback. The 500ms debounce (line 269) only delays the work — it still runs after every state mutation including focus timer ticks (1Hz). For a user with 50+ tasks/habits, `JSON.stringify(widgetData)` = ~5-10ms per tick = 1-2% CPU overhead idle.
-- **Fix:** Use shallow selector subscribers instead of full-store subscribe; or move the diffing logic to a `requestAnimationFrame` queue.
+---
 
-#### ✅ [FIXED] BUG-012 — Login screen stuck spinner on profile creation failure
-- **File:** `app/(auth)/login.tsx:223`
-- `if (!profileCreated) return;` — falls through, leaving `loading='google'` set; Toast shown with message but the button stays spinning forever. User has to force-quit.
-- **Fix:** Add `setLoading(null)` before the early return.
+**BUG-005 — Malformed completedDays Silently Corrupts Habit State**
+**File:** `store/slices/habitSlice.ts:76`
+If Firestore returns a habit with `completedDays` as a non-array (migration error), `new Set(malformedValue)` creates incorrect data silently.
 
-#### ✅ [FIXED] BUG-013 — `socialService.subscribeToRequests` truncates >10 incoming requests
-- **File:** `services/socialService.ts:198`
-- `where(documentId(), 'in', fromIds.slice(0, 10))` — if user has 11+ friend requests, requests 11+ have profile=null and show "Loading…" forever (line 205). Firestore `in` operator caps at 30 since 2024 — should chunk.
-- **Fix:** Loop in chunks of 30 (Firestore raised the limit).
+**Exact fix:**
+```typescript
+const completedSet = new Set(Array.isArray(h.completedDays) ? h.completedDays : []);
+```
 
-#### ✅ [FIXED] BUG-014 — Leaderboard caps at 30 friends silently
-- **File:** `services/socialService.ts:243`
-- `chunk = ids.slice(0, 30)` — friends 31+ never appear on the leaderboard. No UI warning. No telemetry.
-- **Fix:** chunk and merge multiple `onSnapshot`s, or paginate.
+---
 
-#### ✅ [FIXED] BUG-015 — Surpass-rank notification spams on every leaderboard change
-- **File:** `services/socialService.ts:249-262`
-- Every time any friend's `weeklyXP` changes, a Firestore snapshot fires and the rank is recomputed. If your rank decreases, a push notification fires. No rate limit. With 30 active friends, you could get a notification every 30s.
-- **Fix:** Debounce notifications to one per friend per hour, persist `lastSurpassNotifiedAt` in AsyncStorage.
+**BUG-006 — checkMissedTasks Interval Runs After Logout**
+**File:** `app/_layout.tsx:199-226`
+The 60-second `checkMissedTasks` interval has no guard for `isAuthenticated`. Continues firing up to 60s after logout on a cleared store.
 
-#### ✅ [FIXED] BUG-016 — Memory write has no size validation in Firestore rules
-- **File:** `firestore.rules:88-90`
-- `match /memories/{memoryId} { allow read, write: if isOwner(userId); }`. AI-injected memory at `aiActionHandler.ts:301` saves `params.content` (capped at 500 chars client-side) but client-side validation is bypassable.
-- **Fix:** Mirror the moodHistory rule pattern: validate `content is string && content.size() < 1000`.
+**Exact fix:**
+```typescript
+const missedInterval = setInterval(() => {
+  if (useStore.getState().isAuthenticated) checkMissedTasks();
+}, 60_000);
+```
 
-#### ✅ [FIXED] BUG-017 — `feedback` collection has no rate limit
-- **File:** `firestore.rules:110-115`
-- Any signed-in user can create unlimited feedback docs. Spam vulnerability.
-- **Fix:** Add Cloud Function trigger that throttles to 5/day per user, or use cron-based rate-limit doc.
+---
 
-#### ✅ [FIXED] BUG-018 — Daily login bonus skipped silently if cloud profile lacks `lastLoginBonusDate` field
-- **File:** `store/slices/authSlice.ts:596-611`
-- `cloudHasBonusDate = stateAfterStats.lastLoginBonusDate !== undefined`. Comment notes "do NOT trigger the bonus yet" if cloud is missing the field — but missing field is the **default state for all users created before this feature existed**. They never get the daily bonus.
-- **Fix:** Migration logic should set `lastLoginBonusDate: null` for legacy users.
+**BUG-NEW-004 — No Server-Side isPro Check in callAI Cloud Function**
+**File:** `functions/src/index.ts:78-130`
+`callAI` enforces 20 req/min rate limit but does NOT verify Pro status server-side. Free-tier daily cap is enforced entirely in client-side Zustand. Combined with BUG-002, free users can make unlimited AI calls — you pay per Gemini call. See BUG-002 fix which also resolves this.
 
-#### ✅ [FIXED] BUG-019 — `migrate` (Zustand) crashes on null `persistedState`
-- **File:** `store/useStore.ts:150-174`
-- `if (!Array.isArray(persistedState.pendingActions))` will throw if `persistedState` is null. After fresh install + corrupted shard, `getItem` returns null and Zustand calls migrate with null.
-- **Fix:** First line: `if (!persistedState) return persistedState;`
+---
 
-#### ✅ [FIXED] BUG-020 — Focus session state mismatch with cloud after re-login
-- **File:** `store/slices/authSlice.ts:438-447`
-- Cloud focus history overrides local only via `Math.max`. If you focused for 1 hour TODAY on device A, then opened device B, the `Math.max` works. But if device A's last checkpoint was 10 min ago and device B starts focusing, both write to the same `focusHistory[today]` doc — the cloud value will be whichever device wrote most recently. Lost focus minutes.
-- **Fix:** Server-side `Math.max` via Cloud Function trigger on `focusHistory` writes.
+**BUG-NEW-005 — OTA Schema Version Check Is Dead Code**
+**File:** `app/_layout.tsx:151-164`
 
-#### ✅ [FIXED] BUG-021 — Logout focus emergency-save doesn't await
-- **File:** `store/slices/authSlice.ts:160-162`
-- `fireSync(...)` is fire-and-forget. If logout completes before `saveFocusEntry` does (Firebase signs out → permission-denied), the in-flight write fails silently.
-- **Fix:** `await dbService.saveFocusEntry(...)` directly here (logout is async anyway).
+```typescript
+if (Updates.manifest && (Updates.manifest as any).extra?.expoClient?.extra?.schemaVersion)
+```
 
-#### ✅ [FIXED] BUG-022 — `cancelHabitReminders` only clears day 0-6 — doesn't cover legacy weekday-format identifiers
-- **File:** `services/notificationService.ts:160-162`
-- Uses 0-indexed days. If older builds used 1-7, those scheduled notifications leak forever.
+EAS Update manifests do NOT populate `extra.expoClient.extra.schemaVersion`. This schema compatibility safety net has never executed in any production build. Engineers assume it protects against breaking OTA schema changes — it does not.
 
-#### ✅ [FIXED] BUG-023 — `scheduleComebackNotifications` re-fires on every XP gain
-- **File:** `store/slices/gamificationSlice.ts:264-266`
-- Every `addXP` triggers a re-schedule of ALL comeback notifications. With 5 comeback notifications and 50+ XP-granting actions/day, that's 250+ notification API calls/day per user. Notifications API is rate-limited on iOS — eventually denies further schedules.
-- **Fix:** Only re-schedule on the FIRST XP of the day.
+**Exact fix:** Remove the dead `if` block entirely until a real implementation using `Updates.channel` or custom metadata is in place.
 
-#### ✅ [FIXED] BUG-024 — `_layout.tsx:331-332` calls `setAuth` again after `subscribeToCloud`
-- **File:** `app/_layout.tsx:331-332`
-- After session token generation, `setAuth(uid, name, token)` is called a second time. This bumps `_subscriptionGen` (`authSlice.ts:120`) which causes the just-started `subscribeToCloud` listeners to mark themselves stale and tear down. New listeners aren't started until next user action. Likely cause of "no data showing after login" reports.
-- **Fix:** Update only the `sessionToken` field directly via `useStore.setState({ sessionToken: token })`, don't call `setAuth`.
+---
 
-#### ✅ [FIXED] BUG-025 — XP integer overflow not guarded
-- **File:** `store/helpers.ts:91-112`
-- Level 20 = 140,000 XP. No upper guard. With AI auto-task-creation + lucky boosts, a power user could exceed `Number.MAX_SAFE_INTEGER` over years. Unrealistic at scale of 1M users but worth noting.
+**BUG-NEW-006 — iOS Monthly Notification Skips Short Months**
+**File:** `services/notificationService.ts:136`
 
-#### ✅ [FIXED] BUG-026 — Race condition: rapid task toggle could double-award XP
-- **File:** `store/slices/taskSlice.ts:120-128`
-- `shouldAwardXP = nowCompleted && !task.xpAwarded`. The XP guard works for re-toggle, but if two `toggleTask` calls fire in the same microtask (e.g., user double-taps in <16ms), both reads see `xpAwarded:false` and both fire `addXP(15)`. Standard React batching saves this *most of the time* but Zustand `set` is synchronous outside React.
+iOS CALENDAR trigger with `day: 31` and `repeats: true` silently skips February, April, June, September, and November. User's monthly habit reminder disappears for those months with no error.
 
-#### ✅ [FIXED] BUG-027 — Sentry DSN exposed via `extra.sentryDsn`
-- **File:** `app.config.js:9`
-- `sentryDsn: process.env.SENTRY_DSN` injected into `extra`. `Constants.expoConfig.extra.sentryDsn` is readable at runtime by any code shipped in the bundle. Sentry DSNs are not super-secret (project-write only), but they ARE meant to live server-side. An attacker could fake events into the Sentry project, polluting analytics.
-- **Fix:** Use Sentry's native CLI integration via the Expo plugin (`@sentry/react-native/expo`) which reads from EAS secrets and bakes the DSN into native code, not into `Constants.extra`.
+**Exact fix:**
+```typescript
+// Use one-shot DATE trigger for iOS (same as Android), let background task reschedule
+if (Platform.OS === 'ios') {
+  monthlyTrigger = { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextDate };
+}
+```
 
-#### ✅ [FIXED] BUG-028 — Streak Freeze badge reads `useStore.getState()` directly in JSX
-- **File:** `app/(tabs)/index.tsx:273-278`
-- Reads `useStore.getState().streakFreezes` directly inside JSX (not a selector). Won't re-render when freezes change. 🎨 BUG.
-- **Fix:** Use `const streakFreezes = useStore(s => s.streakFreezes);`
+---
 
-#### ✅ [FIXED] BUG-029 — Onboarding-data `setOnboardingData` writes to non-existent `userId` and skips silently
-- **File:** `store/slices/authSlice.ts:692-698`
-- fireSync saves `struggles` only if `state.userId` exists. If the user picks struggles BEFORE login (the actual flow), the call is no-op. Then `login.tsx:202` reads `onboardingData` and writes to Firestore. Works on first device — but fresh re-install on second device won't have the struggles synced.
+**BUG-007 — RevenueCat Keys Embedded in Binary**
+**File:** `services/purchaseService.ts:34-37`
+`EXPO_PUBLIC_RC_IOS_KEY` and `EXPO_PUBLIC_RC_ANDROID_KEY` are baked into the JS bundle at build time. Anyone who decompiles the APK/IPA can extract them.
 
-### 🟢 [FIXED] LOW PRIORITY BUGS
+**Exact fix:** Create a custom Expo config plugin that injects the keys from EAS Secrets at build time without the `EXPO_PUBLIC_` prefix. Read them from native constants rather than `process.env`.
 
-- ✅ **Breadcrumbs:** `_layout.tsx:37-45` now preserves `console.warn` and `console.error` in production.
-- ✅ **Bundle Size:** `index.js:8` guarded with `Platform.OS === 'android'` so iOS doesn't load widget handlers.
-- ✅ **AI Instructions:** `services/ai.ts:439` fixed typo "puchiye" and standardized instructions to English.
-- ✅ **DB Reliability:** `dbService.ts:91-95` added explicit `localeCompare` sort before habit pruning.
-- ✅ **Latency:** Consolidated all dynamic `import('react-native-toast-message')` calls to top-level imports.
-- ✅ **Dependencies:** Removed `expo-task-manager: 13.0.0` resolution from `package.json`.
-- ✅ **Connection:** Disabled `experimentalForceLongPolling` in `firebase/config.ts` for better device performance.
-- ✅ **Safety:** Added mandatory "YES" confirmation and scary warning to `scripts/reset-project.js`.
+---
 
-### 🎨 [FIXED] UI BUGS
+**BUG-008 — AI Production Mode Falls Back to Undefined Key Silently**
+**File:** `services/ai.ts:7-12`
+In any build where `EXPO_PUBLIC_USE_AI_PROXY` is absent or `false`, the AI tries to use `process.env.GEMINI_API_KEY` — which is `undefined` in any Expo production bundle. AI silently fails with no user-facing error.
 
-- ✅ **Tab bar overlap:** Increased `paddingBottom` to `140` in `index.tsx` and `all-habits.tsx`.
-- ✅ **Touch target:** Increased Monk Mode button padding to `12px/10px` (~44x44 target) in `FocusWidget.tsx`.
-- ✅ **Color contrast:** Updated widget secondary text to `#AAAACF` for better dark-mode visibility.
-- ✅ **Text overflow:** Added `maxWidth: width * 0.45` to `xpHeaderContainer` in `index.tsx` to prevent layout crashes.
-- ✅ **Loading states:** Added hydration guard to `weekly-review.tsx` and ensured loading indicators are present.
-- ✅ **Empty states:** Added initial "Lonely Council" state to leaderboard and "Welcome" message to AI Chat.
-- ✅ **Keyboard avoidance:** Fixed Android `keyboardVerticalOffset` to `24` (from 80) in `ai-chat.tsx` for edge-to-edge.
-- ✅ **Confetti origin:** Centered confetti origin dynamically using `SCREEN_WIDTH` in `_layout.tsx`.
+**Exact fix:**
+```typescript
+if (!USE_AI_PROXY && !__DEV__) {
+  throw new Error('[AI] Production build without AI proxy. Set EXPO_PUBLIC_USE_AI_PROXY=true.');
+}
+```
 
-### 📱 [FIXED] WIDGET BUGS
+---
 
-1. **UI correctness:**
-   - ✅ **BUG-008 (Swift struct missing fields):** Fixed. `WidgetBackground` now respects `data.theme`.
-   - ✅ **BUG-009 (hardcoded M-T-W-T-F):** Fixed. Labels now calculate relative to `data.lastUpdated`.
-   - ✅ **BUG-001 (Android renderer broken):** Fixed. Removed `useColorScheme` hook and added safety guards in `WidgetRenderer.tsx`.
-   - ✅ **Duplication:** `LEVEL_THRESHOLDS` moved to shared `constants/gamification.ts`.
+**BUG-009 — Subscription Screen Features Table Inaccurate**
+**File:** `app/settings/subscription.tsx:78-79`
+Features table shows "AI Chat History" and "Weekly Review" as Pro-only, but neither screen has an actual Pro gate in code. Users may pay expecting exclusive access — potential consumer protection issue.
 
-2. **Functionality:**
-   - ✅ Tap deep-links work via `widgetURL` (`index.swift:782, 820, 834, 861, 875, 889`).
-   - ✅ **Data freshness:** iOS timeline policy improved to 5 minutes (from 15 min).
-   - ✅ **Stability:** `WidgetMood` struct now handles `null` for `last5Days` without crashing.
+**Exact fix:** Either add real Pro gates with `openPaywall()` calls, or remove these from the Pro column in the features table.
+
+---
+
+**BUG-010 — callAI Logs Auth Headers on Every Call in Production**
+**File:** `functions/src/index.ts:89-90`
+
+```typescript
+console.log('[callAI] request.auth:', JSON.stringify(request.auth ?? null));
+console.log('[callAI] headers:', ...);
+```
+
+Fires on every AI call in production. At scale: expensive log storage, auth metadata visible to all project Editors in Cloud Logging.
+
+**Exact fix:**
+```typescript
+if (process.env.FUNCTIONS_EMULATOR) {
+  console.log('[callAI] request.auth:', JSON.stringify(request.auth ?? null));
+}
+```
+
+---
+
+**BUG-011 — User PII Sent to Google Gemini Without Explicit Disclosure**
+**File:** `services/ai.ts:94-99`
+Every AI call sends `bio`, `occupation`, `location`, and `birthday` to Google's Gemini API. Without explicit disclosure in the app: potential GDPR, CCPA, and Apple App Store privacy requirement violations.
+
+**Exact fix:** Add a first-use disclosure in the AI chat screen: *"LifeOS shares your profile summary with Google Gemini to personalize your AI coach. See Privacy Policy."*
+
+---
+
+**BUG-012 — Google Sign-In Crashes on Missing Env Vars**
+**File:** `app/(auth)/login.tsx:102-106`
+`GoogleSignin.configure` uses non-null assertion `!` on env vars at module scope. Missing vars in CI builds cause a cryptic native crash.
+
+**Exact fix:**
+```typescript
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '',
+  offlineAccess: true,
+});
+```
+
+---
+
+**BUG-NEW-007 — Daily Reset Saves Focus to Wrong Day When Active at Midnight**
+**File:** `store/slices/gamificationSlice.ts:41-47`
+`performDailyReset` saves `totalSecondsToday` to yesterday's key. If the background task fires at 12:00 AM while the user is actively focusing, seconds accumulated since midnight get credited to yesterday's bucket. Minor data inaccuracy (< 60 seconds of error). Known hard problem with client-side midnight resets — documented for awareness, no simple fix.
+
+---
+
+### 🟢 LOW
+
+---
+
+**BUG-013 — Dead Variable Declaration**
+**File:** `store/slices/gamificationSlice.ts:87`
+`const wasActionDoneYesterday = state.lastActiveDate === yesterdayStr;` declared but never referenced. Remove it.
+
+---
+
+**BUG-014 — Comment Says 5/day, Code Enforces 20/day**
+**File:** `store/slices/subscriptionSlice.ts:12`
+Comment: "5 messages/day for free users" — actual gate: `>= 20`. Any developer reading the comment and setting a server-side limit of 5 will break the app. Fix to `20 messages/day`.
+
+---
+
+**BUG-015 — console.warn Prints User IDs in Production**
+**File:** `app/_layout.tsx:90, 94, 211, 214, 345`
+`console.log` is no-oped in production but `console.warn` is preserved. Several warn calls print `userId` and auth state details. Wrap with `if (__DEV__)` or replace with Sentry breadcrumbs.
+
+---
+
+**BUG-016 — 145 console Statements Across Services/Store**
+Across `services/`, `store/`, and `app/` directories. `console.warn` and `console.error` remain active in production. Audit and replace with `analyticsService.logEvent` or Sentry breadcrumbs for anything that logs user data.
+
+---
+
+### 🎨 UI BUGS
+
+---
+
+**UI-001 — No Tagline on Login Screen**
+**File:** `app/(auth)/login.tsx`
+Zero context for a new user on cold open. Add a 1-line tagline below the logo: *"Track habits. Manage tasks. Level up your life."*
+
+---
+
+**UI-002 — Black Flash on Slow Cold Start**
+**File:** `app/_layout.tsx:497-499`
+`return null` while fonts load + hydration pending renders a completely black screen on iOS.
+
+**Exact fix:**
+```tsx
+return <View style={{ flex: 1, backgroundColor: '#0b0b0f' }} />;
+```
+
+---
+
+**UI-003 — Touch Targets Below 44×44px on 320px Devices**
+**File:** `components/HabitGrid.tsx`
+On iPhone SE gen1 (320px width), 4-per-row habit grid tiles can drop below the 44×44px iOS HIG minimum. Verify and enforce minimum touch target size.
+
+---
+
+**UI-004 — Missing accessibilityHint on Icon-Only Buttons**
+**File:** Multiple components — AI FAB, streak freeze button, profile menu items
+VoiceOver users get `accessibilityLabel="button"` with no context. Add `accessibilityHint` describing what each button does.
+
+---
+
+**UI-005 — No Progress Feedback Before Watchdog (5 seconds of silent spinner)**
+**File:** `app/index.tsx:31`
+Show *"Connecting…"* sub-label after 1.5s on the loading spinner to reduce perceived wait time on slow connections.
+
+---
+
+**UI-006 — Weekly Review and AI Chat History Shown as Pro-Only But Not Gated**
+**File:** `app/settings/subscription.tsx:78-79`
+Paywall feature table is misleading. Either gate them or remove them from the Pro column. See BUG-009.
+
+---
+
+### 📱 WIDGET BUGS
+
+---
+
+**WID-001 — iOS App Group May Not Be Configured**
+**File:** `services/widgetSyncService.tsx:41`, `app.json:14-17`
+App Group `group.com.lifeos.prime` is declared in `app.json` entitlements. If not registered in Apple Developer Portal AND added to the widget extension target entitlements in Xcode, `SharedGroupPreferences.setItem` silently fails and every iOS widget shows placeholder data forever.
+
+**Verify:** Xcode → both targets → Signing & Capabilities → App Groups → `group.com.lifeos.prime` checked.
+
+---
+
+**WID-002 — Stale isDoneToday at Midnight**
+**File:** `widget/widgets/HabitsWidget.tsx:27`
+If `widgetSyncService` is called at midnight during daily reset, `isDoneToday` could reflect yesterday's completion state. Widget shows wrong checkmarks until next sync (~60s).
+
+**Fix:** Always derive `isDoneToday` in the widget renderer from `completedDays.includes(today)` rather than from the pre-computed flag.
+
+---
+
+**WID-003 — Focus Timer Widget Shows Frozen Time During Active Session**
+**File:** `widget/widgets/FocusTimerWidget.tsx`
+Widget refreshes max every 60s. In-app timer shows live seconds; widget shows value from last sync. Expected widget behavior but creates a confusing mismatch.
+
+**Mitigation:** Show "Updated Xs ago" label, or calculate elapsed time live on the Swift side using `lastStartTime`.
+
+---
+
+**WID-004 — Widget Deep Link Routes Not Verified**
+**File:** `widget/widgets/HabitsWidget.tsx:39`, `widget/widgets/TasksWidget.tsx:44`
+`lifeos:///all-habits` and `lifeos:///all-tasks` require the scheme to be registered AND the router to handle these exact paths. Scheme is in `app.json:8`. Must verify on physical device — tapping a widget could open app home instead of the correct screen.
 
 ---
 
@@ -340,64 +491,90 @@ LifeOS's USP vs all three: **AI agent with tool-calls** (15 tools wired in `serv
 
 ### Firebase Auth Audit
 
-- ✅ `onAuthStateChanged` set up at `_layout.tsx:297` with cleanup at line 356.
-- ✅ Token refresh: `validateSession` calls `getIdToken(false)` then forces `(true)` on failure.
-- ✅ **Error code coverage:** Added `auth/account-exists-with-different-credential` mapping in `authService.ts`.
-- 🟡 **Email verification:** Signup sends email, but enforcement is currently skipped as per user request.
-- ✅ Password reset flow complete (`forgot-password.tsx`).
+| Check | Status | Notes |
+|-------|--------|-------|
+| `onAuthStateChanged` set up and torn down | ✅ | `_layout.tsx:373`, cleaned up via `unsubscribe()` |
+| Token refresh | ✅ | Cached first, force-refresh fallback |
+| All error codes handled | ✅ | `mapAuthErrorToMessage` covers 8 major codes |
+| Email verification | ✅ | Banner shown, re-send on login |
+| Password reset | ✅ | Full flow at `/(auth)/forgot-password` |
+| Account deletion cleanup | ✅ | Avatar → Firestore → Auth → local logout |
+| `auth/too-many-requests` | ✅ | Handled |
+| `auth/user-disabled` | ✅ | Handled |
+| Double `onAuthStateChanged` fire guard | ✅ | `isValidatingSession` ref + `pendingAuthEvent` queue |
+| Suspended account with cached credentials | ⚠️ | Returns `true` on network error — stays "valid" until online |
 
-### Firestore Architecture Audit
+### Firestore Architecture
 
 ```
-users/{uid}
-├── (root doc fields: profile, settings, gamification stickyflags, sessionToken)
-├── tasks/{taskId}
-├── habits/{habitId}
-├── moodHistory/{YYYY-MM-DD}
-├── focusHistory/{YYYY-MM-DD}
-├── conversations/{convId}
-│   └── messages/{msgId}
-├── stats/{global|...}
-├── lifeScoreHistory/{YYYY-MM-DD}
-├── dailyQuests/quest-YYYY-MM-DD-N
-└── memories/{memId}
-
-publicProfiles/{uid}    -- read by all signed-in users (leaderboard)
-friendRequests/{reqId}
-feedback/{anyId}
-_internal/rateLimits/users/{uid}   -- written by Cloud Function
+/users/{userId}                    ← root profile + settings
+  /tasks/{taskId}                  ← flat task list (500 doc limit, last 365 days)
+  /habits/{habitId}                ← active habits (500 doc limit)
+  /moodHistory/{YYYY-MM-DD}        ← daily mood entry (last 365 days)
+  /focusHistory/{YYYY-MM-DD}       ← daily focus seconds (last 365 days)
+  /conversations/{convId}
+    /messages/{msgId}              ← AI chat messages
+  /stats/global                    ← XP, level, streak, weeklyXP  ⚠️ CLIENT WRITABLE — BUG-NEW-001
+  /lifeScoreHistory/{YYYY-MM-DD}
+  /dailyQuests/{quest-YYYY-MM-DD}
+  /memories/{memId}                ← AI long-term memories
+  /weeklyRecaps/{recapId}
+/publicProfiles/{userId}           ← public XP/level/streak/avatar
+/friendRequests/{reqId}
+/xpBuffer/{txId}                   ← XP write-ahead log  ⚠️ NO AMOUNT CAP — BUG-003
+/feedback/{id}
+/_internal/rateLimits/...          ← Cloud Function only (admin SDK bypasses rules) ✅
 ```
 
-- ✅ **Scalability at 1M users:** Refactored `subscribeToLeaderboard` in `socialService.ts` to handle >30 friends via chunking.
-- ✅ **Hot doc:** Throttled `updateGlobalStats` in `dbService.ts` (10s debounce) to reduce Firestore write frequency and costs.
-- 🟡 Missing composite index: `tasks` filtered by `where(date, '>=', windowStartStr), orderBy(date, 'desc'), limit(500)` is satisfied by an existing single-field index, OK. But adding `where(completed, '==', false)` would need a new composite. Future feature blocker.
-- ✅ **Over-fetching:** Added `where(archived, '==', false)` to habit subscription in `authSlice.ts`.
-- ✅ **Rules:** Fixed BUG-004 (friendRequests), BUG-016 (memories), and BUG-017 (feedback).
-- ✅ `serverTimestamp()` used consistently for `createdAt`/`lastUpdatedAt`. Good.
+**Scalability at 1M users:**
+- `publicProfiles` with `userNameLower` range query scales fine at Firestore level ✅
+- Leaderboard `orderBy('weeklyXP', 'desc')` needs composite index in `firestore.indexes.json` — verify it exists ✅
+- `tasks` limited to 500 docs — hard cap, not paginated. Power users with years of history could see data truncated ⚠️
+- `habits` limited to 500 — practically unreachable with 5-habit free tier, but Pro users with 100+ habits will eventually hit pagination issues ⚠️
+
+**Security gaps:**
+- `isPro`, `subscriptionExpiryDate`, `dailyAIMessageCount`, `streakFreezes` all client-writable — BUG-001, BUG-002
+- `stats/global` fully client-writable — BUG-NEW-001
+- `xpBuffer` no amount cap — BUG-003
+
+**Timestamps:** `serverTimestamp()` used consistently for `createdAt`/`lastUpdatedAt`. Client `Date.now()` used in Zustand pre-write (correct). ✅
 
 ### Firebase Storage Audit
 
-- ✅ Size limits: profiles ≤5MB, chat ≤10MB (`storage.rules:11, 19`).
-- ✅ **File type validation:** Added `contentType.matches('image/.*')` to chat rules to prevent malicious uploads.
-- ✅ URLs are auth-gated (rules require signed-in for both read).
-- ⚠️ Orphaned file accumulation: `services/storageService.ts:114-133` queues failed deletions in AsyncStorage. Reasonable. But if user logs out before the next upload, the queued URL is gone — orphan persists in Storage forever, billing the project.
+| Check | Status |
+|-------|--------|
+| File size limits | ✅ 5MB profiles, 10MB chat |
+| Content type validation | ✅ `image/.*` in rules |
+| Auth-gated URLs | ✅ Chat images owner-only, profiles any authenticated user |
+| Orphaned files cleanup | ✅ `clearOrphanedAvatar` on account delete |
+| Magic bytes validation | ⚠️ Only MIME type checked, not file magic bytes — renamed non-image passes |
 
 ### Zustand Audit
 
-- Persisted (filtered out of `partialize`): `_syncUnsubscribes`, `_hasHydrated`, `_authStateResolved`, `_lastRetryAt`, `_subscriptionGen`, `syncError`, `recentXP`, `streakMilestones`, `lastMoodLog`, `actions`, `sessionToken`, `email`, `phoneNumber`, `birthday`. ✅ Session token NOT in plain AsyncStorage.
-- ✅ **PII Privacy:** Excluded `userName` from persistence to prevent leaks of potentially sensitive email-based usernames.
-- ❌ Sharded storage migration is one-way (`shardedStorage.ts:67-99`). If shard format changes again, no rollback.
-- ✅ Logout fully clears storage via `useStore.persist.clearStorage()` (`authSlice.ts:189-196`).
-- ⚠️ Hydration flash possible: `_hasHydrated` watchdog at 10s (`_layout.tsx:128-138`) fallback. But the dual-watchdog (`index.tsx:29` at 5s) sets `forceContinue` → still shows main app. Not great but not broken.
+| Key Group | Persisted | Risk |
+|-----------|-----------|------|
+| `isAuthenticated`, `userId`, `email` | ✅ Intentional — enables instant-on | Low |
+| `tasks`, `habits`, `moodHistory` | ✅ Intentional — offline-first | Low |
+| `focusHistory`, `lifeScoreHistory` | ✅ Intentional | Low |
+| `isPro` | ✅ Intentional — offline Pro access | Medium — vulnerable to BUG-001 |
+| `sessionToken` | ⚠️ Persists across restarts | Should be ephemeral — persisting stale token can interfere with multi-device detection on re-login |
+| `pendingActions` | ✅ Critical — offline write durability | Low |
+| PII: `phoneNumber`, `birthday`, `bio` | ✅ In plaintext in AsyncStorage | No on-device encryption — acceptable for v1, note in privacy policy |
+
+**Full logout:** `logout()` calls `useStore.persist.clearStorage()` — completely wipes all AsyncStorage shards. ✅
 
 ### Expo-Specific Audit
 
-- ✅ `expo-notifications` permissions handled gracefully — `requestPermissions` early-returns false on web.
-- ✅ Deep linking scheme `lifeos` configured (`app.json:8`). All routes mapped.
-- ✅ **OTA Guards:** Added `Updates.manifest` schema version check in `_layout.tsx` to prevent breaking updates on old binaries.
-- ✅ **Background focus:** Added `processing` background mode in `app.json` for iOS focus sessions.
-- ✅ **Android Backup:** Enabled `allowBackup: true` in `app.json` to preserve onboarding state.
-- ⚠️ `eas.json:17-19` production has no env vars defined — secrets not bound to EAS Secret manager.
+| Check | Status |
+|-------|--------|
+| `expo-notifications` permissions | ✅ Contextual — requested when setting habit reminder, never on app open |
+| Deep linking scheme | ✅ `lifeos` registered in `app.json:8` |
+| OTA schema version check | ❌ Dead code — `Updates.manifest.extra.expoClient.extra.schemaVersion` never populated |
+| Background → foreground refresh | ✅ AppState listener fires daily reset and missed task check |
+| `allowBackup` | ❌ `true` — see BUG-NEW-003 |
+| EAS secrets | ✅ No secrets in `eas.json` |
+| Background fetch iOS limit | ⚠️ iOS caps background fetch at ~30s — if sync takes longer it is silently killed |
+| BGTaskSchedulerPermittedIdentifiers | ✅ `ai-coach`, `sync-fetch`, `daily-reset` declared in `app.json:28-31` |
 
 ---
 
@@ -405,40 +582,79 @@ _internal/rateLimits/users/{uid}   -- written by Cloud Function
 
 ### P0 — Pre-Launch Blockers
 
-| # | What | Effort | Impact | Why |
-|---|---|---|---|---|
-| 1 | ✅ Fix BUG-001/002/003/004/005/008 | M | High | Ship-blockers for app stores |
-| 2 | ✅ EAS Secrets for Sentry DSN, RevenueCat keys | S | High | Move keys out of `.env.local`/Constants |
-| 3 | ✅ Server-side rate limit on `feedback`, `friendRequests`, `memories` writes | M | High | Cloud Function trigger |
-| 4 | ✅ Email verification gating | S | High | Block sending tasks/habits to Firestore until `emailVerified === true` |
+| # | Enhancement | Effort | Impact | Measure |
+|---|------------|--------|--------|---------|
+| 1 | Fix Firestore rules (`isPro`, `stats`, `dailyAIMessageCount`) | S (2h) | Revenue | Zero fraudulent Pro activations |
+| 2 | Add server-side `isPro` check + AI daily limit in `callAI` | S (2h) | Revenue | Server rejects free users at limit |
+| 3 | Move RevenueCat keys out of `EXPO_PUBLIC_` | S (4h) | Security | Keys not extractable from binary |
+| 4 | Set `allowBackup: false` | S (5 min) | Privacy | ADB cannot extract user data |
 
 ### P1 — First Month
 
-| # | What | Effort | Impact | Why |
-|---|---|---|---|---|
-| 5 | ✅ Cloud Function aggregator for `stats/global` | M | High at scale | Reduce 50M writes/day to <5M |
-| 6 | ✅ Real focus background tracking | L | High | Use expo-notifications + Firestore sync for background state |
-| 7 | ✅ Per-conversation message pagination cleanup | S | Medium | Virtualized FlatList with inverted infinite scroll |
-| 8 | Analytics that actually report | M | High | Sentry breadcrumbs are not analytics — only fire if user crashes. Add Mixpanel or PostHog for funnel tracking |
-| 9 | Streak repair purchase | S | High | "Lost your 30-day streak? Buy a 7-day Streak Repair for $0.99" — high retention save |
-| 10 | ✅ Weekly recap notification with actual data | S | Medium | Firestore scheduled function + UI Modal |
+| # | Enhancement | Effort | Impact | Measure |
+|---|------------|--------|--------|---------|
+| 5 | Add tagline to login screen | S | Medium | Login-to-signup conversion |
+| 6 | Gate Weekly Review and AI Chat History properly | S | Medium | No false advertising |
+| 7 | Add AI data disclosure on first chat open | S | Medium | GDPR/CCPA compliance |
+| 8 | Fix iOS monthly notification | S | Medium | Notification delivery in short months |
+| 9 | Paginated task/habit lists | M | Medium | No 500-doc data truncation |
+| 10 | Widget deep link verification on physical device | S | High | Widget → correct screen routing |
 
 ### P2 — Roadmap
 
-- ✅ AI memory autosummarization every 50 messages → cuts token costs ~70%
-- Apple Watch complication — leverage the existing widget data pipeline
-- ✅ Habit templates marketplace — users can instantly adopt high-impact habits
-- Family sharing for streaks — leaderboard with kids
-- ⏭️ Voice journaling (Whisper) — Skipped by request
+| # | Enhancement | Effort | Impact | Measure |
+|---|------------|--------|--------|---------|
+| 11 | One-tap social sharing on streak milestones | M | High | Viral coefficient, new user installs |
+| 12 | Habit challenge / social accountability between friends | L | High | D30 retention |
+| 13 | On-device encryption for PII fields | L | Medium | Compliance/trust |
+| 14 | XP anti-cheat via Cloud Functions only | M | High | Leaderboard integrity |
+| 15 | Surface AI coach during onboarding | M | High | AI discovery, long-term retention |
 
 ---
 
-- ✅ Strict "Day complete" logic = ≥1 task OR ≥1 habit OR ≥10 min focus OR mood logged.
-- ✅ "Streak at Risk" Dashboard banner (Task 9)
-- ✅ Free "Streak Bonus" (every 3 days = +25 XP)
-- ✅ "Share your streak" → ShareCard image export (Task 10)
-- ✅ Smart Notification timing based on user peak activity (Task 11)
-- ✅ Daily 60-second highlight reel / summary modal (Task 12)
+## PHASE 6 — DAILY RETENTION STRATEGY
+
+### Why Would a User Open This Tomorrow?
+Honest answer: the streak. That is the only reliable hook today. Daily login bonus (+5 XP) is too small at low levels to feel meaningful. The morning brief notification is the best re-engagement tool but competes with every other app notification.
+
+### Current Addiction Loop
+Open app → check streak → complete habit → get XP → see level progress → close.
+
+This loop is solid but **shallow** — it only works if the user cares about their streak. There is no new content, no surprise, no social push.
+
+### Missing Retention Mechanics
+- No "challenge a friend" — social graph exists but is not leveraged for daily pull
+- No habit photo/check-in share moment (social proof loop)
+- The AI coach is the best feature but hidden — most users never discover it
+- No weekly review prompt that primes the upcoming week (current one is retrospective only)
+
+### Streak Mechanic Design
+
+**What counts as completing a day:** At least 1 scheduled habit completed AND mood logged on the same day.
+
+**Streak milestones:** 3d → 7d → 14d → 30d → 60d → 100d → 365d — each unlocks a new accent color or cosmetic level skin (zero additional engineering effort — ties into existing cosmetic system).
+
+**Broken streak forgiveness:** Current freeze mechanic (1000 XP = 1 freeze) is good. Add one automatic 24h grace period for users who miss day 1 of a 7+ day streak — recoverable within 24 hours if they complete double habits the next day.
+
+### Push Notification Strategy
+
+| Trigger | Message | Timing |
+|---------|---------|--------|
+| 1 day gone | "Your streak is waiting 🔥 Come back and lock in today's habits." | 6pm user local |
+| 3 days gone | "{name}, your {N}-day streak is on thin ice. You still have a freeze saved." | 9am user local |
+| 7 days gone | "Life got busy — we get it. Your data is safe. Pick up where you left off?" | 11am user local |
+| 30 days gone | "It's been a month. Your habits are here when you're ready. No judgment." | 9am user local |
+| Morning brief | "Good morning! 3 habits + 2 tasks today. AI has a tip for you." | 8am (personalized via `analyzeUserTiming`) |
+| Streak at risk | "It's 9pm. You haven't logged today yet — {N}-day streak on the line 🔥" | 9pm if incomplete |
+
+### Reward System
+- **Daily login bonus (+5 XP):** Good. Increase to +10 on weekends.
+- **Streak milestones:** Unlock accent colors — right reward currency, no pay-to-win risk.
+- **Level-up confetti:** ✅ Already implemented.
+- **Missing:** When a user hits a streak milestone, surface a pre-generated share card with the milestone and their rank among friends. One tap shares to WhatsApp/Instagram Stories — organic growth at zero cost.
+
+### Social / Viral Loop
+The `social-leaderboard` and friends system exist but are orphaned features. The viral trigger: on streak milestone, surface a pre-generated card showing the milestone, rank among friends, and one-tap share. This is the organic growth hook that costs zero budget.
 
 ---
 
@@ -446,67 +662,191 @@ _internal/rateLimits/users/{uid}   -- written by Cloud Function
 
 ### As a Real User
 
-- **First 10s:** Onboarding hero is gorgeous. I now understand the value prop better with the new daily highlight loop.
-- **Confused by:** ~~3 different AI buttons~~ → **FIXED.** Consolidated into single `SmartAIFAB` component with contextual time-of-day labels.
-- **Improved:** Widgets on Android (BUG-001) and Focus Timer (BUG-002) are now stable and reliable.
-- **Daily-open trigger:** The streak. With the new strict action-based logic, it feels earned and valuable.
-- **Recommend to a friend?** Today: **YES**, with the caveat that they should try the Pro features.
+**First 10 seconds:** The login screen is polished — the animated pulsing icon is beautiful. But there is no tagline, no screenshots, no one-line value prop. A cold user downloading the app has no idea what it does.
+
+**What confused me immediately:** The Life Score. A number on my profile with a label but no explanation of how it is calculated or why I should care. The first time XP appears, there is no formula shown.
+
+**What made me want to close:** As a free user, I hit the habit limit at 5 with no graceful UI — the `+` button either stops working or shows an abrupt upgrade prompt.
+
+**Most frustrating thing:** The AI chat is genuinely impressive — reads context, can add tasks and habits directly. But it is tucked behind a FAB on the home screen with zero discovery path. Most users will never find it.
+
+**Would I recommend to a friend?** Yes, but with caveats: *"It's really good once you've used it for a week. The first day is confusing."* — that is a retention problem.
+
+**What would make me open daily:** If my friend group was also using it. The social layer is the highest-leverage unfinished feature.
 
 ### As a Senior Engineer
 
-- **Production ready?** **YES.** Major blockers (BUG-001, BUG-002, BUG-003, BUG-004, BUG-005) are all resolved.
-- **Remaining Technical Debt:**
-  - ✅ `services/ai.ts` token costs → **OPTIMIZED.** History truncated to 20 msgs, memories limited to 5, context to top-5 tasks/habits. ~40% cost reduction.
-  - Social sharing uses `react-native-view-shot` which is memory-heavy on low-end devices. (Low priority)
-  - ✅ 3 AI entry points → **CONSOLIDATED.** Replaced `DashboardAIButton` + `AIInsightCard` with single `SmartAIFAB`.
-- **Success:** The 50-message summarization (Phase 5) successfully mitigates the Firestore write-storm risk.
+**Production ready?** **NO** — for two specific reasons:
+1. The `isPro` Firestore rule bypass is a show-stopper. Any user can grant themselves Pro by writing one Firestore document. This defeats the entire business model.
+2. `stats/global` is fully client-writable. Any user can max out their XP and destroy the leaderboard.
 
-- **PR reject reasons (original → status):**
-  - ✅ `services/aiCoachService.ts:69` — `.replace()` on object → **FIXED.** Now calls `.replace()` on `(response.text || '')` which is always a string.
-  - ✅ `widget/WidgetTaskHandler.tsx:30` — calls undefined function → **FIXED.** Now uses `<WidgetRenderer>` JSX component directly.
-  - ⚠️ `firestore.rules:106` — sender can self-accept → **KNOWN RISK.** Kept intentionally so sender can also cancel/withdraw requests. Acceptable trade-off.
-  - ✅ `_layout.tsx:331-332` — calling `setAuth` twice → **FIXED.** Session token now set via `useStore.setState()` directly (line 352), avoiding double `setAuth`. Added `isValidatingSession` ref guard + event queue for rapid auth changes.
-- **P0 incident at 1M:** `users/{uid}/stats/global` write storm → **MITIGATED.** `scheduledStatsAggregator` (Cloud Function) batches XP writes via `xpBuffer` collection every 5 minutes, reducing direct writes by ~90%.
-- **Most dangerous code:** `useStore.ts:255-367` widget sync subscriber → **MITIGATED.** 500ms debounce timer (line 291) + `equalityFn` shallow comparison (line 367) + serialization diff check (line 361) prevent redundant syncs. Not perfect at extreme scale but adequate for launch.
-- **What I'd be embarrassed to ship (original → status):**
-  - ✅ Hardcoded "M T W T F" in iOS widget → **FIXED.** `getDayLabel()` (line 243) uses `DateFormatter` to dynamically compute day initials.
-  - ✅ "fail open" RevenueCat comment contradicts code → **FIXED.** Now returns `state.isPro` (cached value) on error, truly failing open.
-  - ✅ Hindi typo `puchiye` in system instruction → **FIXED.** Instructions standardized to English.
+**What I would reject this PR for:**
+- `firestore.rules` allows client-side `isPro` write
+- `stats/global` writable by client
+- `xpBuffer` with no amount cap
+- `EXPO_PUBLIC_` prefix on RevenueCat keys
+
+**What causes a P0 incident at 1M users:** A Reddit post showing the Firestore REST API command to self-grant Pro. Within 24 hours, every tech-literate user has free Pro. Revenue drops to zero.
+
+**Most dangerous code:** `firestore.rules:38` — the `'isPro'` entry in the user document write allowlist.
+
+**What I would be embarrassed to ship:** Firestore rules that let any authenticated user write `{isPro: true}` to their own document.
 
 ---
 
 ## PHASE 8 — SCORECARD & FINAL VERDICT
 
-| Factor | Score | Justification |
-|---|---|---|
-| Code Quality | 8/10 | Solid TypeScript, sliced Zustand, race conditions guarded with refs + debounce. |
-| UI/UX Design | 8/10 | Beautiful animations & blurs; daily highlight reel adds emotional engagement. |
-| Performance | 7/10 | 500ms widget debounce, 50-msg summarization, aggregator batching. Watch token costs. |
-| Firebase Architecture | 8/10 | Well-modeled; `xpBuffer` + `scheduledStatsAggregator` solves hot-doc problem. |
-| Security | 7/10 | Rate-limiting on feedback/memories/friendRequests. Sentry DSN in `extra` (low risk). |
-| Error Handling | 8/10 | ErrorBoundary + Sentry + offline banner + silent-catch reduction. Solid. |
-| Widget Implementation | 8/10 | Android uses `<WidgetRenderer>` correctly; iOS uses `DateFormatter` for dynamic labels. |
-| Retention Potential | 8/10 | Strict action-based streaks, daily highlight, smart notifications, share card viral loop. |
-| Scalability (1M users) | 5/10 | `xpBuffer` aggregator helps; `in`-query 30 cap on friend graph still a bottleneck. |
+| Factor | Score /10 | One-Line Justification |
+|--------|-----------|----------------------|
+| Code Quality | 7/10 | Well-structured slice architecture, smart sharded storage — undermined by 145 console statements and dead code |
+| UI/UX Design | 8/10 | Polished animations, consistent design language, skeleton states — deducted for missing login tagline and unexplained Life Score |
+| Performance | 7/10 | Sharded storage is smart, granular Zustand selectors correct — no FlatList pagination, widget sync rewrites AsyncStorage on every tick |
+| Firebase Architecture | 5/10 | Good collection design, smart subscription management — catastrophically undermined by client-writable `isPro` and `stats/global` |
+| Security | 3/10 | Four independent revenue/integrity bypasses: `isPro` self-grant, AI counter reset, `xpBuffer` unlimited amount, `stats/global` fully writable |
+| Error Handling | 7/10 | Auth errors well-mapped, offline states handled, watchdog timeouts exist — gaps in malformed data and rate limiter fail-open |
+| Widget Implementation | 7/10 | Android widget integration solid, iOS Swift widget clean — App Group config risk and stale completion status are real gaps |
+| Retention Potential | 6/10 | Streak + quests + XP is a working loop, AI coach is excellent — social layer unfinished, virality is zero |
+| Scalability (1M users) | 6/10 | User-scoped Firestore scales well — `stats/global` client writes would be abused at scale, leaderboard lacks verified anti-cheat |
+| Production Readiness | 4/10 | Beautiful app with critical revenue bypasses in security rules — cannot ship monetization with BUG-001 and BUG-NEW-001 live |
+| **OVERALL** | **6/10** | Strong execution on UX and architecture, fundamentally undermined by security rules that defeat the business model |
 
-**PASS** — Ready for App Store launch. All 10 Critical and 19 Medium bugs resolved. Focus timer is now accurate, Android widgets are functional, security rules are hardened, and retention mechanics are in place. Overall application stability is at ~97% production-readiness.
+### Bug Summary
 
-### Final Verdict
+| Severity | Count |
+|---------|-------|
+| 🔴 Critical | 7 |
+| 🟡 Medium | 12 |
+| 🟢 Low | 4 |
+| 🎨 UI | 6 |
+| 📱 Widget | 4 |
+| **Total** | **33** |
 
-**READY FOR LAUNCH** — All phases (1-7) remediation complete. The core "productivity OS" promise is reliable. Focus timer survives backgrounding, Android widgets render correctly, AI Coach background nudges are functional, daily retention loop is emotionally engaging, and the AI entry point is now a single, clean SmartAIFAB.
+**Total files scanned: 185**
 
-**Top 3 remaining risks (post-fix):**
+---
 
-1. ✅ ~~3 AI entry points confuse new users~~ → **RESOLVED.** `SmartAIFAB` replaces `DashboardAIButton` + `AIInsightCard`. Contextual labels adapt by time-of-day.
-2. ✅ ~~Friend graph `in`-query cap (30)~~ → **ALREADY HANDLED.** `socialService.ts:143` chunks into batches of 30 using a `for` loop. Users with 60+ friends get 2 queries, 90+ get 3, etc.
-3. ✅ ~~Token cost at scale~~ → **OPTIMIZED.** Client history capped at 20 messages (`ai.ts`), server enforces 20-msg limit (`index.ts:103`), memories reduced to 5, context limited to top-5 tasks/habits. Combined ~40% token cost reduction.
+## THE DEFINITIVE PRE-LAUNCH CHECKLIST
+### Every item must be checked before pressing "Submit to App Store"
 
-**Top 3 things that make this app win:**
+---
 
-1. **Working Pomodoro + AI focus quotes that survive backgrounding** — best-in-class focus app. (BUG-002 FIXED ✅)
-2. **AI tool-call breadth (15 tools)** — actually doing things on user's behalf is rare. Lean into agentic-AI positioning.
-3. **Shareable streak card + daily highlight reel** — emotional engagement + viral growth loop working together.
+### 🔴 SECURITY — MUST FIX (Revenue & Data at stake)
 
-**The ONE thing to do next:**
+```
+✅  1. firestore.rules: Remove 'isPro' from user doc write allowlist
+✅  2. firestore.rules: Remove 'subscriptionExpiryDate' from allowlist
+✅  3. firestore.rules: Remove 'dailyAIMessageCount' from allowlist
+✅  4. firestore.rules: Remove 'lastAIMessageCountReset' from allowlist
+✅  5. firestore.rules: 'streakFreezes' KEPT in allowlist (earned via XP, not revenue-critical)
+✅  6. firestore.rules: Make stats/global WRITE = false for clients
+       match /stats/{docId} { allow read: if isOwner(userId); allow write: if false; }
+✅  7. firestore.rules: Add max amount cap to xpBuffer
+       request.resource.data.amount > 0 && request.resource.data.amount <= 100
+✅  8. app.json: Set android.allowBackup = false
+✅  9. functions/src/index.ts: Add server-side isPro check + daily AI limit in callAI
+□ 10. purchaseService.ts: Remove EXPO_PUBLIC_ prefix from RC keys
+       Move to EAS Secrets + custom config plugin injection (DEFERRED — requires native build)
+```
 
-> Ship to TestFlight and gather real user feedback. The codebase is production-ready — now it's about market validation.
+---
+
+### 🟡 CORRECTNESS — MUST FIX (App broken for real users)
+
+```
+✅ 11. authSlice.ts:267-268: Replace authService.logout() + setAuth(null,null) with
+       get().actions.logout({ shouldSaveFocus: true }).then(() => authService.logout())
+✅ 12. notificationService.ts: Fix iOS monthly notification (repeats:true on day:31)
+       Use one-shot DATE trigger for all platforms, reschedule via background task
+✅ 13. functions/src/index.ts:89-90: Remove console.log of request.auth
+       Replace with if (process.env.FUNCTIONS_EMULATOR) guard
+✅ 14. app/_layout.tsx:151-164: Remove dead OTA schema version check
+       Updates.manifest.extra.expoClient.extra.schemaVersion never resolves in EAS
+✅ 15. services/ai.ts:10-12: Add hard throw for production builds without AI proxy
+       if (!USE_AI_PROXY && !__DEV__) throw new Error(...)
+✅ 16. habitSlice.ts:76: Guard completedDays against non-array values
+       new Set(Array.isArray(h.completedDays) ? h.completedDays : [])
+✅ 17. app/_layout.tsx:201: Add isAuthenticated guard to checkMissedTasks interval
+       if (useStore.getState().isAuthenticated) checkMissedTasks()
+```
+
+---
+
+### 🟡 LEGAL / PRIVACY — MUST FIX (App Store rejection risk)
+
+```
+✅ 18. Add first-use AI data disclosure in AI chat screen
+       "LifeOS shares your profile summary with Google Gemini to personalize your AI coach."
+✅ 19. Add Focus Room privacy notice in Focus Room screen
+       "You are visible to all LifeOS users while in a focus session."
+✅ 20. Fix subscription screen FEATURES table to match actual gate code
+       Removed Weekly Review and AI Chat History from Pro column (no actual gates)
+✅ 21. subscriptionSlice.ts:12: Fix comment from "5/day" to "20/day"
+```
+
+---
+
+### 🟢 QUALITY — FIX BEFORE LAUNCH
+
+```
+✅ 22. app/(auth)/login.tsx: Tagline already exists — "Level up your daily reality ✨"
+✅ 23. app/_layout.tsx:497-499: Return <View backgroundColor="#0b0b0f" /> instead of null
+       Prevents black flash on iOS during font load
+✅ 24. gamificationSlice.ts:87: Remove dead wasActionDoneYesterday variable
+✅ 25. app/(auth)/login.tsx:103: Remove non-null assertion on env vars in GoogleSignin.configure
+✅ 26. app/index.tsx: Add "Connecting…" sub-label after 1.5s on loading spinner
+✅ 27. console.warn calls reviewed — none leak userId in production
+       console.log calls already stripped in production by _layout.tsx L40-47
+```
+
+---
+
+### 📋 PRE-SUBMISSION VERIFICATION (Run on physical device)
+
+```
+□ 28. Confirm App Group 'group.com.lifeos.prime' registered in Apple Developer Portal
+       AND added to BOTH app target AND widget extension target entitlements in Xcode
+□ 29. Fresh install → onboarding → signup → dashboard
+       No black flash, no skeleton stuck, no spinner > 5s on WiFi
+□ 30. Login → logout → login as different user
+       Verify ZERO data from first account is visible
+□ 31. Enable airplane mode → create task + habit → re-enable
+       Verify both synced to Firestore within 10s of reconnect
+□ 32. Free account → send 20 AI messages → verify 21st is BLOCKED (server-side after fix #9)
+□ 33. iOS widget: add to home screen → verify real data shows (not placeholder)
+       Tap widget → verify correct screen opens in app
+□ 34. Android widget: same verification as #33 on Android physical device
+□ 35. Purchase Pro subscription via RevenueCat sandbox → verify isPro = true in app
+       Revoke subscription → verify isPro = false after next app open
+□ 36. Background app for 30 min → foreground
+       Verify data is fresh, streak is correct, daily reset fired if date changed
+□ 37. Kill app during active focus session → reopen
+       Verify focus time was NOT lost
+□ 38. Set a monthly habit with reminder on day 31
+       Verify notification fires correctly in a short month (after fix #12)
+□ 39. Verify RevenueCat keys are NOT visible in extracted app bundle strings (after fix #10)
+□ 40. Verify widget deep links: lifeos:///all-habits and lifeos:///all-tasks
+       Both route to correct screens on physical device
+```
+
+---
+
+## FINAL VERDICT
+
+**FAIL before fixes. ~8.5/10 after all fixes applied.**
+
+The app is genuinely good. The architecture is thoughtful — sharded Zustand storage, subscription generation counter, real-time multi-device session management, offline queue replay. The UX is polished. The AI coach is differentiated. The gamification loop is well-designed. This can absolutely succeed in the market.
+
+But the Firestore security rules contain fatal flaws that allow any authenticated user to grant themselves Pro access (`isPro` in allowlist) and max out their XP (`stats/global` fully writable). These two issues in the security rules defeat the entire business model before a single dollar is earned.
+
+**Top 3 things that will kill this app:**
+1. The `isPro` + `stats/global` Firestore bypass — the first tech-savvy user who discovers this posts it publicly and everyone gets free Pro + infinite XP. Revenue goes to zero overnight. Leaderboard is destroyed.
+2. Poor AI discoverability — the best feature (AI coach with tool use) is hidden behind a FAB with zero onboarding. Most users will churn before ever finding it.
+3. No social viral loop — without a mechanism to bring friends in, the leaderboard is empty, the social layer is a ghost town, and daily re-engagement relies entirely on streaks which break.
+
+**Top 3 things that could make this app win:**
+1. Fix the security rules and ship monetization — the Pro feature set is genuinely compelling. The paywall just needs to actually enforce.
+2. Add one-tap social sharing on streak milestones — `ShareCard` component exists, achievement system exists. Wiring these creates organic growth at zero cost.
+3. Surface the AI coach during onboarding — one guided conversation immediately after account creation demonstrates the value prop in 30 seconds and drives long-term retention.
+
+**The ONE thing to do this week:**
+Fix `firestore.rules` to remove `isPro`, `subscriptionExpiryDate`, `dailyAIMessageCount` from the user document allowlist, and make `stats/global` write-protected for clients — everything else is a product problem, but this is an existential revenue threat that must be resolved before any monetization is live.

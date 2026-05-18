@@ -31,11 +31,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read:   if isOwner(userId);
       allow create, update: if isOwner(userId) && ownsPayload(userId)
-        // O12 FIX: Removed 'totalXP' and 'level' from this allowlist.
-        // XP must only be written to users/{userId}/stats/global (the sub-collection),
-        // which is protected by a separate rule. Keeping them here allowed a user
-        // to self-edit their XP via the Firestore REST API with their own auth token.
-        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestones', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles', '_migrationComplete', 'lastLoginBonusDate', 'streakFreezes', 'isPro', 'subscriptionExpiryDate', 'dailyAIMessageCount', 'lastAIMessageCountReset', 'preferredNudgeTime', 'hasSeenDailyHighlight', 'lastComebackScheduledDate', 'aiInsight']);
+        // AUDIT FIX (BUG-001, BUG-002): Removed 'isPro', 'subscriptionExpiryDate',
+        // 'dailyAIMessageCount', and 'lastAIMessageCountReset' from this allowlist.
+        // These fields are now ONLY writable by Cloud Functions via the admin SDK.
+        // Leaving them here allowed any authenticated user to self-grant Pro access
+        // or reset their daily AI limit via the Firestore REST API.
+        && request.resource.data.keys().hasOnly(['userName', 'email', 'createdAt', 'onboardingData', 'focusGoalHours', 'mood', 'moodTheme', 'lastResetDate', 'bio', 'location', 'occupation', 'avatarUrl', 'phoneNumber', 'birthday', 'pronouns', 'skills', 'socialLinks', 'themePreference', 'accentColor', 'notificationSettings', 'lastActiveTimestamp', 'completedQuests', 'hasCompletedOnboarding', 'hasSeenWalkthrough', 'sessionToken', 'lastMoodLog', 'recentXP', 'streakMilestones', 'proactivePrompt', '_lastRetryAt', 'syncStatus', 'pendingActions', '_subscriptionGen', 'userId', 'homeTimezone', 'struggles', '_migrationComplete', 'lastLoginBonusDate', 'streakFreezes', 'preferredNudgeTime', 'hasSeenDailyHighlight', 'lastComebackScheduledDate', 'aiInsight']);
       allow delete: if isOwner(userId);
 
       match /tasks/{taskId} {
@@ -71,8 +72,13 @@ service cloud.firestore {
         }
       }
  
+      // AUDIT FIX (BUG-NEW-001): stats/global is now READ-ONLY for clients.
+      // All XP/level/streak writes go through xpBuffer → Cloud Function pipeline
+      // or via admin SDK in Cloud Functions. Allowing client writes let any user
+      // set {totalXP: 999999, level: 99} and destroy the leaderboard.
       match /stats/{docId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
 
       match /lifeScoreHistory/{date} {
@@ -122,10 +128,15 @@ service cloud.firestore {
         && request.resource.data.status in ['accepted', 'declined', 'pending'];
     }
 
+    // AUDIT FIX (BUG-003): Added amount bounds (> 0, <= 100) to prevent
+    // XP injection. Without this cap, any user could create {amount: 999999}
+    // and inflate their XP/leaderboard position.
     match /xpBuffer/{txId} {
       allow create: if isSignedIn() 
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100
         && request.resource.data.keys().hasOnly(['userId', 'amount', 'timestamp']);
     }
 

@@ -20,6 +20,12 @@ export default function Index() {
   const [showWatchdog, setShowWatchdog] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [forceContinue, setForceContinue] = useState(false);
+  // AUDIT FIX (UI-003): Show "Connecting…" sublabel after 1.5s to reassure users
+  const [showConnecting, setShowConnecting] = useState(false);
+  useEffect(() => {
+    const connectTimer = setTimeout(() => setShowConnecting(true), 1500);
+    return () => clearTimeout(connectTimer);
+  }, []);
 
   // C-14: Watchdog for hydration (local), Firebase auth resolution, and cloud sync
   useEffect(() => {
@@ -88,6 +94,7 @@ export default function Index() {
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={{ color: colors.textSecondary, marginTop: 16, fontSize: 13 }}>Waking up LifeOS...</Text>
+        {showConnecting && <Text style={{ color: colors.textSecondary, marginTop: 4, fontSize: 11, opacity: 0.6 }}>Connecting…</Text>}
       </View>
     );
   }
@@ -108,6 +115,7 @@ export default function Index() {
       <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={{ color: colors.textSecondary, marginTop: 16, fontSize: 13 }}>Checking Session...</Text>
+        {showConnecting && <Text style={{ color: colors.textSecondary, marginTop: 4, fontSize: 11, opacity: 0.6 }}>Connecting…</Text>}
       </View>
     );
   }

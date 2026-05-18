@@ -140,28 +140,9 @@ export default function RootLayout() {
     }
   }, [_hasHydrated]);
 
-  // EXPO-OTA FIX: Prevent schema-breaking updates from running on old binaries.
-  // Releasing a new build that adds a required field to a Zustand-persisted slice via OTA 
-  // without this check could break the app for existing users.
-  useEffect(() => {
-    if (__DEV__) return;
-    const checkCompatibility = async () => {
-      try {
-        // If an update is available but not yet applied, we check its manifest metadata
-        if (Updates.manifest && (Updates.manifest as any).extra?.expoClient?.extra?.schemaVersion) {
-          const currentSchema = 1; // Current binary schema version
-          const updateSchema = (Updates.manifest as any).extra.expoClient.extra.schemaVersion;
-          if (updateSchema > currentSchema) {
-             console.error('[LifeOS OTA] Incompatible schema detected. Update suppressed.');
-             // In a real app, we might force a reload or show a hard update prompt.
-          }
-        }
-      } catch (e) {
-        console.warn('[LifeOS OTA] Failed to check compatibility:', e);
-      }
-    };
-    checkCompatibility();
-  }, []);
+  // AUDIT FIX (BUG-NEW-005): Removed dead OTA schema version check.
+  // Updates.manifest.extra.expoClient.extra.schemaVersion never resolves in
+  // EAS Update manifests, so this safety net never executed in any production build.
 
   useEffect(() => {
     if ((loaded || error) && _hasHydrated) {
@@ -197,8 +178,11 @@ export default function RootLayout() {
 
   // Global missed-task checker: runs at root level so it fires on all screens
   useEffect(() => {
-    checkMissedTasks();
-    const missedInterval = setInterval(checkMissedTasks, 60_000);
+    // AUDIT FIX (BUG-006): Guard with isAuthenticated so the interval
+    // doesn't fire on a cleared store up to 60s after logout.
+    const missedInterval = setInterval(() => {
+      if (useStore.getState().isAuthenticated) checkMissedTasks();
+    }, 60_000);
 
     // Also re-check when app returns to foreground
     const sub = AppState.addEventListener('change', async (next) => {
@@ -491,11 +475,10 @@ export default function RootLayout() {
     };
   }, []);
 
-  // C-BOOT-1 FIX: Do not render the app UI until both fonts are loaded AND the local store
-  // has been hydrated from AsyncStorage. This ensures the first render uses the user's
-  // preferred theme and settings, eliminating the "theme flash" and "data flickering".
+  // AUDIT FIX (UI-002): Return a themed View instead of null to prevent
+  // a completely black flash on iOS during font load + hydration.
   if ((!loaded && !error) || !_hasHydrated) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: '#0b0b0f' }} />;
   }
 
   return (

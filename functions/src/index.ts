@@ -83,12 +83,38 @@ export const callAI = onCall(
     memory: '256MiB',
   },
   async (request) => {
-    console.log('[callAI] request.auth:', JSON.stringify(request.auth ?? null));
-    console.log('[callAI] headers:', JSON.stringify(request.rawRequest?.headers?.authorization ? 'Bearer token present' : 'NO AUTH HEADER'));
+    // AUDIT FIX (BUG-010): Only log auth details in emulator, not production
+    if (process.env.FUNCTIONS_EMULATOR) {
+      console.log('[callAI] request.auth:', JSON.stringify(request.auth ?? null));
+      console.log('[callAI] headers:', JSON.stringify(request.rawRequest?.headers?.authorization ? 'Bearer token present' : 'NO AUTH HEADER'));
+    }
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Sign in required.');
     }
     await assertWithinRateLimit(request.auth.uid);
+
+    // AUDIT FIX (BUG-002, BUG-NEW-004): Server-side daily AI limit for free users.
+    // The client-side Zustand check was bypassable via Firestore REST API.
+    // This is the authoritative enforcement — free users get 20 AI messages/day.
+    const db = admin.firestore();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const userRef = db.doc(`users/${request.auth.uid}`);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data() || {};
+    const serverIsPro = userData.isPro === true;
+
+    if (!serverIsPro) {
+      const lastReset = userData.lastAIMessageCountReset;
+      const todayCount = lastReset === todayStr ? (userData.dailyAIMessageCount || 0) : 0;
+      if (todayCount >= 20) {
+        throw new HttpsError('resource-exhausted', 'Daily AI limit reached. Upgrade to Pro for unlimited messages.');
+      }
+      // Increment count server-side via admin SDK (bypasses client-side rules)
+      await userRef.update({
+        dailyAIMessageCount: todayCount + 1,
+        lastAIMessageCountReset: todayStr,
+      });
+    }
 
     const { messages, systemInstruction } = request.data as {
       messages: AIMessage[];

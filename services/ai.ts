@@ -7,8 +7,11 @@ import { aiActionHandler } from './aiActionHandler';
 const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // NOT EXPO_PUBLIC_ — dev only, never ships in bundle
 
+// AUDIT FIX (BUG-008): Hard fail in production without AI proxy.
+// process.env.GEMINI_API_KEY is undefined in any Expo production bundle,
+// so direct mode silently fails with no user-facing error.
 if (!USE_AI_PROXY && !__DEV__) {
-  console.warn('[LifeOS] AI is running in direct mode on a production build. This is usually due to missing USE_AI_PROXY env var.');
+  throw new Error('[AI] Production build without AI proxy. Set EXPO_PUBLIC_USE_AI_PROXY=true.');
 }
 
 let _genAIModule: typeof import('@google/generative-ai') | null = null;

@@ -132,8 +132,11 @@ export const notificationService = {
         const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
         if (targetDay > lastDayOfMonth) nextDate.setDate(lastDayOfMonth);
 
+        // AUDIT FIX (BUG-NEW-006): Use one-shot DATE trigger for BOTH platforms.
+        // iOS CALENDAR trigger with day:31 and repeats:true silently skips short months.
+        // The foreground notification handler in _layout.tsx reschedules for next month.
         const monthlyTrigger: any = Platform.OS === 'ios'
-          ? { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, day: nextDate.getDate(), hour: hours, minute: minutes, repeats: true }
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextDate }
           : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextDate, channelId: DEFAULT_CHANNEL_ID };
 
         await Notifications.scheduleNotificationAsync({

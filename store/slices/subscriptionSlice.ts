@@ -9,7 +9,7 @@ import { getTodayLocal } from '@/utils/dateUtils';
  * 
  * Manages Pro subscription state in Zustand:
  * - isPro flag (persisted locally for offline access)
- * - Daily AI message counter (5/day for free users, unlimited for Pro)
+ * - Daily AI message counter (20/day for free users, unlimited for Pro)
  * - Entitlement checking via RevenueCat
  */
 export const createSubscriptionSlice: StateCreator<
@@ -27,11 +27,10 @@ export const createSubscriptionSlice: StateCreator<
       const { isPro, expiryDate } = await purchaseService.checkProStatus();
       set({ isPro, subscriptionExpiryDate: expiryDate });
       
-      // Sync to Firebase
-      const { userId } = get();
-      if (userId) {
-        dbService.saveUserProfile(userId, { isPro, subscriptionExpiryDate: expiryDate });
-      }
+      // AUDIT FIX: isPro and subscriptionExpiryDate are no longer client-writable
+      // in Firestore rules (BUG-001). These fields are set by the RevenueCat
+      // webhook → Cloud Function pipeline. Local Zustand state is still set
+      // above for instant offline access.
     } catch (error) {
       console.error('[SubscriptionSlice] Failed to check entitlements:', error);
     }
@@ -47,17 +46,15 @@ export const createSubscriptionSlice: StateCreator<
       subscriptionExpiryDate: expiry ?? null,
     });
 
-    // Sync to Firebase
-    const { userId } = get();
-    if (userId) {
-      dbService.saveUserProfile(userId, { isPro, subscriptionExpiryDate: expiry ?? null });
-    }
+    // AUDIT FIX: isPro and subscriptionExpiryDate are no longer client-writable
+    // in Firestore rules (BUG-001). Local state is set above for instant access.
+    // Server-side state is managed by RevenueCat webhook → Cloud Function.
   },
 
   /**
    * Increment the daily AI message counter.
    * Returns true if the message is allowed, false if limit reached.
-   * Free users: 5 messages/day. Pro users: unlimited.
+   * Free users: 20 messages/day. Pro users: unlimited.
    */
   incrementAIMessageCount: (): boolean => {
     const state = get();

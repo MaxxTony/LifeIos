@@ -73,7 +73,8 @@ export const createHabitSlice: StateCreator<UserState, [["zustand/persist", unkn
         if (today > getTodayLocal()) return h;
         if (h.pausedUntil && today <= h.pausedUntil) return h;
 
-        const completedSet = new Set(h.completedDays ?? []);
+        // AUDIT FIX (BUG-005): Guard against non-array completedDays from Firestore migration errors
+        const completedSet = new Set(Array.isArray(h.completedDays) ? h.completedDays : []);
         const isCompleted = completedSet.has(today);
 
         // ── Due-Day Validation ──

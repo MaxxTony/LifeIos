@@ -73,10 +73,11 @@ const formatDate = (dateStr: string | null): string => {
 
 // ─── Feature comparison data ──────────────────────────────────────────────────
 
+// AUDIT FIX (BUG-MED-003): Removed 'AI Chat History' and 'Weekly Review' which
+// were shown as Pro-only but have no actual gates in the app code.
+// Listing ungated features as Pro violates App Store Guidelines 2.3.1.
 const FEATURES = [
   { icon: Bot,     label: 'AI Coach Messages',   free: '20 / day',   pro: 'Unlimited' },
-  { icon: Brain,   label: 'AI Chat History',      free: false,        pro: true },
-  { icon: History, label: 'Weekly Review',         free: false,        pro: true },
   { icon: Zap,     label: 'Lucky XP Boost',        free: false,        pro: true },
   { icon: Trophy,  label: 'Trophy Cabinet',        free: 'Basic',      pro: 'Full access' },
   { icon: Target,  label: 'Daily Quests',          free: '3 quests',   pro: '3 quests' },

@@ -263,8 +263,10 @@ export const createAuthSlice: StateCreator<UserState, [["zustand/persist", unkno
           if (isStale()) return;
           if (!data) {
             console.warn('[LifeOS] User document deleted from Firestore - forcing logout.');
-            authService.logout();
-            get().actions.setAuth(null, null);
+            // AUDIT FIX (BUG-004): Use the full store logout which handles focus save,
+            // notification cancellation, RevenueCat detach, and storage clear.
+            // The old shortcut bypassed all cleanup, risking focus data loss and PII leaks.
+            get().actions.logout({ shouldSaveFocus: true }).then(() => authService.logout());
             return;
           }
 

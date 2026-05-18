@@ -157,6 +157,13 @@ export default function FocusRoomScreen() {
               : `${activeUsers.length} ${activeUsers.length === 1 ? 'person' : 'people'} focusing`}
           </Text>
         </View>
+        {/* AUDIT FIX (BUG-MED-002): Focus Room privacy notice */}
+        <View style={[styles.privacyNotice, { backgroundColor: colors.isDark ? 'rgba(255,165,0,0.08)' : 'rgba(255,165,0,0.06)', borderColor: 'rgba(255,165,0,0.2)' }]}>
+          <Ionicons name="eye-outline" size={14} color="#FFA500" />
+          <Text style={[styles.privacyNoticeText, { color: colors.textSecondary }]}>
+            You are visible to all LifeOS users while in a focus session.
+          </Text>
+        </View>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Stay disciplined. Don't break the chain.
         </Text>
@@ -227,6 +234,9 @@ const styles = StyleSheet.create({
   liveIndicator: { width: 8, height: 8, borderRadius: 4 },
   statsText: { fontFamily: 'Outfit-Bold', fontSize: 16 },
   subtitle: { ...Typography.body, textAlign: 'center' },
+  // AUDIT FIX (BUG-MED-002): Focus Room privacy notice styles
+  privacyNotice: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
+  privacyNoticeText: { fontFamily: 'Inter-Regular', fontSize: 11 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   roomContent: { padding: Spacing.md, paddingBottom: 100 },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' },

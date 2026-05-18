@@ -82,10 +82,9 @@ export const createGamificationSlice: StateCreator<UserState, [["zustand/persist
           let newGlobalStreak = state.globalStreak || 0;
           let newStreakFreezes = state.streakFreezes || 0;
           
+          
           // PHASE 6: Strict Streak Logic
           // A day is only "active" if a meaningful action was performed.
-          const wasActionDoneYesterday = state.lastActiveDate === yesterdayStr;
-          
           if (state.lastActiveDate && state.lastActiveDate < yesterdayStr) {
             // User skipped yesterday entirely OR didn't do enough actions yesterday
             if (newStreakFreezes > 0) {

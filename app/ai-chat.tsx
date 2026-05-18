@@ -34,6 +34,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '../components/ui/icon-symbol';
 
@@ -83,6 +84,18 @@ export default function AIChatScreen() {
   const isMounted = useRef(true);
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+
+  // AUDIT FIX (BUG-MED-001): AI data disclosure — required by GDPR Art.13
+  const [hasSeenAIDisclosure, setHasSeenAIDisclosure] = useState(true); // default true to avoid flash
+  useEffect(() => {
+    AsyncStorage.getItem('lifeos_ai_disclosure_seen').then(val => {
+      if (val !== 'true') setHasSeenAIDisclosure(false);
+    });
+  }, []);
+  const dismissAIDisclosure = () => {
+    setHasSeenAIDisclosure(true);
+    AsyncStorage.setItem('lifeos_ai_disclosure_seen', 'true');
+  };
 
   useEffect(() => {
     isMounted.current = true;
@@ -439,6 +452,21 @@ export default function AIChatScreen() {
               </View>
             )}
 
+            {/* AUDIT FIX (BUG-MED-001): AI data disclosure banner */}
+            {!hasSeenAIDisclosure && (
+              <View style={[styles.disclosureBanner, { backgroundColor: colors.isDark ? 'rgba(124, 92, 255, 0.08)' : 'rgba(124, 92, 255, 0.05)', borderColor: colors.primary + '30' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.disclosureTitle, { color: colors.text }]}>🔒 AI Data Notice</Text>
+                  <Text style={[styles.disclosureText, { color: colors.textSecondary }]}>
+                    LifeOS shares your profile summary (name, habits, mood) with Google Gemini to personalize your AI coach. No raw data is stored by Google. See our Privacy Policy for details.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={dismissAIDisclosure} style={[styles.disclosureDismiss, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[styles.disclosureDismissText, { color: colors.primary }]}>Got it</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -612,6 +640,12 @@ const styles = StyleSheet.create({
   scrollContent: { padding: Spacing.md },
   topLimitBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, borderBottomWidth: 1, marginBottom: 10, gap: 6 },
   topLimitText: { fontFamily: 'Outfit-Medium', fontSize: 11 },
+  // AUDIT FIX (BUG-MED-001): AI disclosure banner styles
+  disclosureBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, marginHorizontal: 12, marginTop: 8, marginBottom: 4, borderRadius: 12, borderWidth: 1, gap: 10 },
+  disclosureTitle: { fontFamily: 'Inter-SemiBold', fontSize: 13, marginBottom: 2 },
+  disclosureText: { fontFamily: 'Inter-Regular', fontSize: 11, lineHeight: 16 },
+  disclosureDismiss: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  disclosureDismissText: { fontFamily: 'Inter-SemiBold', fontSize: 12 },
   emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100, paddingHorizontal: 40 },
   welcomeTitle: { fontFamily: 'Outfit-Bold', fontSize: 24, marginBottom: 8 },
   welcomeSub: { fontFamily: 'Outfit-Regular', fontSize: 15, textAlign: 'center', opacity: 0.8 },
